@@ -357,7 +357,7 @@ if (bridgeActive) {
   const wss = new WebSocketServer({ server: bridgeServer })
 
   wss.on('connection', (ws: WebSocket) => {
-    console.error('Add-in WebSocket connected')
+    console.error(`[${new Date().toISOString()}] Add-in WebSocket connected`)
 
     ws.on('message', (data: Buffer) => {
       let msg: { type?: string; id?: string; data?: unknown; error?: { message?: string }; documentUrl?: string }
@@ -381,14 +381,14 @@ if (bridgeActive) {
           presentationId,
           filePath: documentUrl,
         })
-        console.error(`Add-in ready: ${presentationId}`)
+        console.error(`[${new Date().toISOString()}] Add-in ready: ${presentationId}`)
       }
     })
 
     ws.on('close', () => {
       const disconnectedId = pool.removeBySocket(ws)
       if (disconnectedId) {
-        console.error(`Add-in disconnected: ${disconnectedId}`)
+        console.error(`[${new Date().toISOString()}] Add-in disconnected: ${disconnectedId}`)
       }
       pool.rejectPendingForSocket(ws)
     })

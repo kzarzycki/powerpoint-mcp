@@ -52,6 +52,23 @@ function connect() {
       // Not available in standalone/browser mode
     }
     ws.send(JSON.stringify({ type: 'ready', documentUrl: documentUrl }))
+
+    // Enable auto-start on document open (shared runtime)
+    try {
+      if (Office.context.requirements.isSetSupported('SharedRuntime', '1.1')) {
+        Office.addin.setStartupBehavior(Office.StartupBehavior.load)
+      }
+    } catch (_e) {
+      // SharedRuntime not available — manual button still works
+    }
+
+    // Tag document for auto-show taskpane
+    try {
+      Office.context.document.settings.set('Office.AutoShowTaskpaneWithDocument', true)
+      Office.context.document.settings.saveAsync()
+    } catch (_e) {
+      // Settings API not available in standalone mode
+    }
   }
 
   ws.onclose = () => {

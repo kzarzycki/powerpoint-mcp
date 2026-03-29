@@ -219,6 +219,34 @@ If plain HTTP/WS doesn't work in your environment, switch to HTTPS:
 | Windows | Untested — different sideloading path |
 | Linux | Not supported (no PowerPoint for Linux) |
 
+## Auto-Activation
+
+The add-in uses three complementary mechanisms to minimize manual activation:
+
+| Scenario | Mechanism |
+|----------|-----------|
+| First install | Taskpane auto-opens on installation (`Office.AutoShowTaskpaneWithDocument` in manifest) |
+| Reopening a previously-used file | Shared runtime runs code on document open + taskpane auto-shows |
+| New file from template | OOXML template embedding (see below) |
+| New file from scratch | Manual click required once (Office.js limitation) |
+
+Documents edited through the bridge are automatically tagged for future auto-open. The shared runtime establishes the WebSocket connection in the background even when the taskpane is hidden.
+
+**Cross-platform:** All mechanisms work on macOS, Windows, and Office on the web. Requires SharedRuntime 1.1 (PowerPoint 16.46+ on Mac, 2102+ on Windows). Older versions fall back to manual button activation.
+
+### Preparing Templates for Auto-Open
+
+External tools can embed the add-in reference directly into `.pptx` templates so the add-in activates on first open without prior installation. This requires injecting two OOXML parts into the `.pptx` zip:
+
+1. **`ppt/webextensions/webextension1.xml`** — add-in reference with `Office.AutoShowTaskpaneWithDocument` property
+2. **`ppt/webextensions/taskpane.xml`** — taskpane configuration (dock state, visibility, width)
+
+Plus the corresponding entries in `[Content_Types].xml` and relationship files.
+
+Set `visibility="0"` if the add-in must already be sideloaded; set `visibility="1"` to prompt users to install it on first open.
+
+For a complete working example, see [Office-OOXML-EmbedAddin](https://github.com/OfficeDev/Office-OOXML-EmbedAddin). The add-in ID to reference is `AE89909C-2813-4B08-9E1B-49E7379BD0E6` with `storeType="Registry"` and `store="developer"` for sideloaded installations.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
