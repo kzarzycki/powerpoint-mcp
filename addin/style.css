@@ -90,22 +90,14 @@ h1 {
   font-size: 0.75rem;
 }
 
-.hint {
-  font-size: 0.75rem;
-  color: #888;
+.closeable-hint {
+  font-size: 0.8rem;
+  color: #555;
   text-align: center;
-  margin-top: 12px;
+  margin-top: 16px;
   line-height: 1.5;
-}
-
-.hint code {
-  display: inline-block;
-  margin-top: 4px;
-  padding: 2px 6px;
-  background: #e8e8e8;
-  border-radius: 3px;
-  font-family: "SF Mono", Menlo, monospace;
-  font-size: 0.75rem;
-  color: #333;
-  user-select: all;
+  padding: 10px 12px;
+  background: #e8f4e8;
+  border-radius: 6px;
+  border: 1px solid #c3dfc3;
 }
