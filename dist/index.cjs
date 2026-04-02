@@ -51642,7 +51642,7 @@ if (bridgeActive) {
   const bridgeServer = bridgeTls ? (0, import_node_https.createServer)({ cert: (0, import_node_fs3.readFileSync)(BRIDGE_CERT_PATH), key: (0, import_node_fs3.readFileSync)(BRIDGE_KEY_PATH) }, serveStatic) : (0, import_node_http.createServer)(serveStatic);
   const wss = new import_websocket_server.default({ server: bridgeServer });
   wss.on("connection", (ws) => {
-    console.error("Add-in WebSocket connected");
+    console.error(`[${(/* @__PURE__ */ new Date()).toISOString()}] Add-in WebSocket connected`);
     ws.on("message", (data) => {
       let msg;
       try {
@@ -51663,13 +51663,13 @@ if (bridgeActive) {
           presentationId,
           filePath: documentUrl
         });
-        console.error(`Add-in ready: ${presentationId}`);
+        console.error(`[${(/* @__PURE__ */ new Date()).toISOString()}] Add-in ready: ${presentationId}`);
       }
     });
     ws.on("close", () => {
       const disconnectedId = pool.removeBySocket(ws);
       if (disconnectedId) {
-        console.error(`Add-in disconnected: ${disconnectedId}`);
+        console.error(`[${(/* @__PURE__ */ new Date()).toISOString()}] Add-in disconnected: ${disconnectedId}`);
       }
       pool.rejectPendingForSocket(ws);
     });
