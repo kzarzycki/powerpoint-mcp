@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D24.0.0-brightgreen)](https://nodejs.org)
 
-An MCP server that lets AI assistants manipulate **live, open** PowerPoint presentations on macOS via Office.js APIs.
+An MCP server that lets AI assistants manipulate **live, open** PowerPoint presentations on macOS and PowerPoint Web via Office.js APIs.
 
 Unlike file-based tools (python-pptx), PowerPoint MCP works with presentations that are already open — changes appear instantly, and you keep full access to PowerPoint's UI, animations, and formatting.
 
@@ -117,7 +117,7 @@ git clone https://github.com/kzarzycki/powerpoint-mcp.git
 cd powerpoint-mcp
 npm install
 npm run sideload     # copies manifest to PowerPoint's add-in folder
-npm start            # starts bridge server + MCP HTTP transport
+npm start            # starts MCP server (STDIO mode by default)
 ```
 
 Then restart PowerPoint, open a presentation, and click the bridge add-in in the ribbon.
@@ -129,11 +129,12 @@ This project was inspired by the [Claude in PowerPoint](https://support.anthropi
 ## Architecture
 
 ```
-AI Assistant  <--MCP STDIO/HTTP-->  Bridge Server (Node.js)  <--WS-->  PowerPoint Add-in (Office.js)
-                                           |                                     |
-                                     STDIO (default)                      WKWebView sandbox
-                                     or HTTP (:3001/mcp)                  Office.js API 1.1-1.9
-                                     localhost:8080 (HTTP)                executes commands on
+AI Assistant  <--MCP STDIO/HTTP-->  Bridge Server (Node.js)  <--WS/WSS-->  PowerPoint Add-in (Office.js)
+                                           |                                       |
+                                     STDIO (default)                      Desktop: WKWebView sandbox
+                                     or HTTP (:3001/mcp)                  Web: browser iframe
+                                     localhost:8080 (HTTP)                Office.js API 1.1-1.10
+                                     or :8443 (HTTPS)                    executes commands on
                                      serves add-in files + WS             live presentation
 ```
 
@@ -150,9 +151,9 @@ Three components in one repo:
 
 ## Prerequisites
 
-- **macOS** (primary platform)
+- **macOS** (primary platform) or **PowerPoint Web** in Chrome/Brave (requires HTTPS mode)
 - **Node.js >= 24** (uses native TypeScript execution)
-- **Microsoft PowerPoint for Mac**
+- **Microsoft PowerPoint for Mac** or a **Microsoft 365** account for PowerPoint Web
 
 ```bash
 brew install node
@@ -204,35 +205,34 @@ PowerPoint MCP runs entirely on localhost:
 **Add-in shows "Disconnected"**
 Make sure the bridge server is running. In plugin mode the server auto-starts with Claude Code — call any tool to verify. For standalone installs, run `npm start` and verify with `curl http://localhost:8080/health`. The add-in auto-reconnects with exponential backoff.
 
-**Using HTTPS mode**
-If plain HTTP/WS doesn't work in your environment, switch to HTTPS:
-1. `brew install mkcert && mkcert -install` (one-time, requires macOS password)
-2. `npm run setup-certs` to generate certificates
-3. `npm run sideload:https` and restart PowerPoint
-4. `BRIDGE_TLS=1 npm start`
+**Using HTTPS mode (required for PowerPoint Web)**
+HTTPS is required for PowerPoint Web and optional for desktop. To enable:
+1. `brew install mkcert && mkcert -install` (one-time, trusts the CA in browsers)
+2. `npm run setup-certs` to generate localhost certificates
+3. For **desktop**: `npm run sideload:https` and restart PowerPoint
+4. For **PowerPoint Web**: open a presentation at office.com, go to Home → Add-ins → Upload My Add-in, and upload `addin/manifest-https.xml`
+5. Start the server: `BRIDGE_TLS=1 npm start`
 
 ## Platform Support
 
 | Platform | Status |
 |----------|--------|
 | macOS | Supported (primary) |
+| PowerPoint Web | Supported — requires HTTPS mode, sideload via browser (all 23 tools work) |
 | Windows | Untested — different sideloading path |
 | Linux | Not supported (no PowerPoint for Linux) |
 
 ## Auto-Activation
 
-The add-in uses three complementary mechanisms to minimize manual activation:
+The add-in uses `Office.AutoShowTaskpaneWithDocument` to minimize manual activation:
 
-| Scenario | Mechanism |
-|----------|-----------|
-| First install | Taskpane auto-opens on installation (`Office.AutoShowTaskpaneWithDocument` in manifest) |
-| Reopening a previously-used file | Shared runtime runs code on document open + taskpane auto-shows |
-| New file from template | OOXML template embedding (see below) |
-| New file from scratch | Manual click required once (Office.js limitation) |
+| Platform | Behavior |
+|----------|----------|
+| **macOS desktop** | Taskpane auto-opens when the add-in is sideloaded. Closing the pane keeps the WebSocket connection alive (shared runtime with `lifetime="long"`). |
+| **PowerPoint Web** | One ribbon click per document per browser session to activate. After activation, the pane auto-reopens on page reload. Closing the pane keeps the connection alive within the session. |
+| **New file from template** | OOXML template embedding can pre-activate the add-in (see below) |
 
-Documents edited through the bridge are automatically tagged for future auto-open. The shared runtime establishes the WebSocket connection in the background even when the taskpane is hidden.
-
-**Cross-platform:** All mechanisms work on macOS, Windows, and Office on the web. Requires SharedRuntime 1.1 (PowerPoint 16.46+ on Mac, 2102+ on Windows). Older versions fall back to manual button activation.
+Requires SharedRuntime 1.1 (PowerPoint 16.46+ on Mac, 2102+ on Windows). Centralized Deployment via Microsoft 365 admin center can eliminate the manual click for organizational use.
 
 ### Preparing Templates for Auto-Open
 
