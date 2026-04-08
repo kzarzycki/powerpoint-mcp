@@ -102,6 +102,26 @@ export function parseSlideRange(range: string | undefined): number[] | null {
 }
 
 // ---------------------------------------------------------------------------
+// Markdown → plain text conversion (used by edit_speaker_notes)
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert a markdown string to plain text suitable for Office.js textRange.text.
+ * Strips bold/italic/code markers and heading prefixes; normalises bullet symbols.
+ */
+export function markdownToPlainText(text: string): string {
+  return text
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\*([^*\n]+)\*/g, '$1')
+    .replace(/_([^_\n]+)_/g, '$1')
+    .replace(/^#{1,6} /gm, '')
+    .replace(/^[*+] /gm, '- ')
+    .trim()
+}
+
+// ---------------------------------------------------------------------------
 // Tool registration
 // ---------------------------------------------------------------------------
 
@@ -1855,6 +1875,146 @@ export function registerTools(
           }
           return result;
         `
+        const target = pool.resolveTarget(presentationId)
+        const result = await pool.sendCommand('executeCode', { code }, target.ws)
+        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+        const text = JSON.stringify(result, null, 2) + (warning ?? '')
+        return { content: [{ type: 'text' as const, text }] }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
+      }
+    },
+  )
+
+  // --- Tool: read_speaker_notes ---
+  server.tool(
+    'read_speaker_notes',
+    'Read speaker notes from one or more slides. Returns plain text notes for each requested slide (null when a slide has no notes). Uses the Office.js notesSlide API — works on live presentations without file access.',
+    {
+      slideRange: z
+        .string()
+        .optional()
+        .describe('Slide indices to read, e.g. "0", "0-5", "2,4,7". Omit to read all slides.'),
+      presentationId: z
+        .string()
+        .optional()
+        .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
+    },
+    async ({ slideRange, presentationId }) => {
+      try {
+        const indices = parseSlideRange(slideRange)
+        const indicesJs = indices !== null ? JSON.stringify(indices) : 'null'
+
+        const code = `
+var slides = context.presentation.slides;
+slides.load("items");
+await context.sync();
+var allIndices = ${indicesJs};
+var targets = allIndices !== null ? allIndices : Array.from({length: slides.items.length}, function(_, i) { return i; });
+var results = [];
+for (var i = 0; i < targets.length; i++) {
+  var si = targets[i];
+  if (si >= slides.items.length) {
+    throw new Error("Slide index " + si + " out of range (presentation has " + slides.items.length + " slides)");
+  }
+  var slide = slides.items[si];
+  var noteText = "";
+  try {
+    var ns = slide.notesSlide;
+    ns.shapes.load("items");
+    await context.sync();
+    for (var ni = 0; ni < ns.shapes.items.length; ni++) {
+      try {
+        ns.shapes.items[ni].textFrame.load("textRange");
+        await context.sync();
+        var t = ns.shapes.items[ni].textFrame.textRange.text;
+        if (t && t.trim()) {
+          noteText += (noteText ? "\\n" : "") + t.trim();
+        }
+      } catch(shapeErr) {}
+    }
+  } catch(slideErr) {}
+  results.push({ slideIndex: si, notes: noteText || null });
+}
+return { slides: results };
+`
+        const target = pool.resolveTarget(presentationId)
+        const result = await pool.sendCommand('executeCode', { code }, target.ws)
+        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+        const text = JSON.stringify(result, null, 2) + (warning ?? '')
+        return { content: [{ type: 'text' as const, text }] }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
+      }
+    },
+  )
+
+  // --- Tool: edit_speaker_notes ---
+  server.tool(
+    'edit_speaker_notes',
+    'Write speaker notes for one or more slides in a single call. Accepts a map of { slideIndex: text } where text may use basic markdown (paragraphs, **bold**, *italic*, # headings, - bullets). Markdown formatting markers are stripped to plain text — Office.js does not expose run-level formatting for notes. Uses the Office.js notesSlide API and takes effect immediately in the live presentation.',
+    {
+      notes: z
+        .record(z.string(), z.string())
+        .describe(
+          'Map of slide index (as string key) to notes text. Example: { "0": "Intro notes", "2": "Key points:\\n- First\\n- Second" }',
+        ),
+      presentationId: z
+        .string()
+        .optional()
+        .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
+    },
+    async ({ notes, presentationId }) => {
+      try {
+        const edits = Object.entries(notes).map(([key, text]) => {
+          const slideIndex = Number.parseInt(key, 10)
+          if (!Number.isInteger(slideIndex) || slideIndex < 0) {
+            throw new Error(`Invalid slide index key: "${key}"`)
+          }
+          return { slideIndex, text: markdownToPlainText(text) }
+        })
+
+        if (edits.length === 0) throw new Error('notes map is empty')
+
+        const editsJson = JSON.stringify(edits)
+
+        const code = `
+var slides = context.presentation.slides;
+slides.load("items");
+await context.sync();
+var edits = ${editsJson};
+var results = [];
+for (var ei = 0; ei < edits.length; ei++) {
+  var entry = edits[ei];
+  var si = entry.slideIndex;
+  if (si >= slides.items.length) {
+    throw new Error("Slide index " + si + " out of range (presentation has " + slides.items.length + " slides)");
+  }
+  var slide = slides.items[si];
+  var ns = slide.notesSlide;
+  ns.shapes.load("items");
+  await context.sync();
+  var bodyShape = null;
+  for (var ni = 0; ni < ns.shapes.items.length; ni++) {
+    try {
+      ns.shapes.items[ni].textFrame.load("textRange");
+      await context.sync();
+      bodyShape = ns.shapes.items[ni];
+      break;
+    } catch(innerErr) {}
+  }
+  if (bodyShape) {
+    bodyShape.textFrame.textRange.text = entry.text;
+    await context.sync();
+    results.push({ slideIndex: si, success: true });
+  } else {
+    results.push({ slideIndex: si, success: false, error: "Notes body shape not found" });
+  }
+}
+return { slidesUpdated: results.filter(function(r) { return r.success; }).length, results: results };
+`
         const target = pool.resolveTarget(presentationId)
         const result = await pool.sendCommand('executeCode', { code }, target.ws)
         const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())

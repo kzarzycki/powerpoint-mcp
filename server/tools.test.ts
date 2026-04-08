@@ -5,7 +5,7 @@ import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WebSocket } from 'ws'
 import { ConnectionPool } from './bridge.ts'
-import { localCopyCache, parseSlideRange, registerTools } from './tools.ts'
+import { localCopyCache, markdownToPlainText, parseSlideRange, registerTools } from './tools.ts'
 
 vi.mock('node:fs', () => ({ existsSync: vi.fn(() => true), readFileSync: vi.fn(), writeFileSync: vi.fn() }))
 
@@ -81,7 +81,7 @@ describe('MCP Tools', () => {
     pool = new ConnectionPool(100)
   })
 
-  it('lists all 23 tools', async () => {
+  it('lists all 25 tools', async () => {
     const { client } = await setupMcpClient(pool)
     const result = await client.listTools()
     const names = result.tools.map((t) => t.name).sort()
@@ -92,6 +92,7 @@ describe('MCP Tools', () => {
       'edit_slide_text',
       'edit_slide_xml',
       'edit_slide_zip',
+      'edit_speaker_notes',
       'execute_officejs',
       'format_shapes',
       'get_local_copy',
@@ -104,6 +105,7 @@ describe('MCP Tools', () => {
       'read_slide_text',
       'read_slide_xml',
       'read_slide_zip',
+      'read_speaker_notes',
       'scan_slide',
       'screenshot_slide',
       'search_fluent_icons',
@@ -2557,6 +2559,174 @@ describe('MCP Tools', () => {
       expect(parsed.matches[0].source).toBe('tableCell')
       expect(parsed.matches[0].row).toBe(2)
       expect(parsed.matches[0].col).toBe(1)
+    })
+  })
+
+  describe('markdownToPlainText', () => {
+    it('strips bold markers', () => {
+      expect(markdownToPlainText('**bold** text')).toBe('bold text')
+      expect(markdownToPlainText('__bold__ text')).toBe('bold text')
+    })
+
+    it('strips italic markers', () => {
+      expect(markdownToPlainText('*italic* text')).toBe('italic text')
+      expect(markdownToPlainText('_italic_ text')).toBe('italic text')
+    })
+
+    it('strips heading markers', () => {
+      expect(markdownToPlainText('# Heading')).toBe('Heading')
+      expect(markdownToPlainText('## Sub heading')).toBe('Sub heading')
+    })
+
+    it('normalises bullet symbols', () => {
+      expect(markdownToPlainText('* item')).toBe('- item')
+      expect(markdownToPlainText('+ item')).toBe('- item')
+      expect(markdownToPlainText('- item')).toBe('- item')
+    })
+
+    it('strips inline code', () => {
+      expect(markdownToPlainText('use `code` here')).toBe('use code here')
+    })
+
+    it('preserves newlines and plain text', () => {
+      const input = 'Line one\nLine two'
+      expect(markdownToPlainText(input)).toBe('Line one\nLine two')
+    })
+  })
+
+  describe('read_speaker_notes', () => {
+    it('returns error with no connections', async () => {
+      const { client } = await setupMcpClient(pool)
+      const result = await client.callTool({ name: 'read_speaker_notes', arguments: {} })
+      expect(result.isError).toBe(true)
+      const text = (result.content as Array<{ text: string }>)[0].text
+      expect(text).toContain('No presentations connected')
+    })
+
+    it('sends Office.js code referencing notesSlide for all slides when no range given', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+
+      const { client } = await setupMcpClient(pool)
+      const toolPromise = client.callTool({ name: 'read_speaker_notes', arguments: {} })
+
+      await new Promise((r) => setTimeout(r, 10))
+
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      expect(sentJson.action).toBe('executeCode')
+      expect(sentJson.params.code).toContain('notesSlide')
+      expect(sentJson.params.code).toContain('allIndices !== null')
+
+      pool.handleResponse(sentJson.id, 'response', {
+        slides: [
+          { slideIndex: 0, notes: 'First slide notes' },
+          { slideIndex: 1, notes: null },
+        ],
+      })
+
+      const result = await toolPromise
+      const text = (result.content as Array<{ text: string }>)[0].text
+      const parsed = JSON.parse(text)
+      expect(parsed.slides).toHaveLength(2)
+      expect(parsed.slides[0].notes).toBe('First slide notes')
+      expect(parsed.slides[1].notes).toBeNull()
+    })
+
+    it('sends Office.js code with specific indices for a slide range', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+
+      const { client } = await setupMcpClient(pool)
+      const toolPromise = client.callTool({ name: 'read_speaker_notes', arguments: { slideRange: '0,2' } })
+
+      await new Promise((r) => setTimeout(r, 10))
+
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      expect(sentJson.params.code).toContain('[0,2]')
+
+      pool.handleResponse(sentJson.id, 'response', { slides: [] })
+      await toolPromise
+    })
+  })
+
+  describe('edit_speaker_notes', () => {
+    it('returns error with no connections', async () => {
+      const { client } = await setupMcpClient(pool)
+      const result = await client.callTool({ name: 'edit_speaker_notes', arguments: { notes: { '0': 'text' } } })
+      expect(result.isError).toBe(true)
+    })
+
+    it('returns error for empty notes map', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+
+      const { client } = await setupMcpClient(pool)
+      const result = await client.callTool({ name: 'edit_speaker_notes', arguments: { notes: {} } })
+      expect(result.isError).toBe(true)
+      const text = (result.content as Array<{ text: string }>)[0].text
+      expect(text).toContain('notes map is empty')
+    })
+
+    it('strips markdown and embeds plain text in Office.js code', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+
+      const { client } = await setupMcpClient(pool)
+      const toolPromise = client.callTool({
+        name: 'edit_speaker_notes',
+        arguments: { notes: { '0': '**Bold** and *italic* text' } },
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      expect(sentJson.action).toBe('executeCode')
+      expect(sentJson.params.code).toContain('notesSlide')
+      expect(sentJson.params.code).toContain('Bold and italic text')
+      expect(sentJson.params.code).not.toContain('**Bold**')
+
+      pool.handleResponse(sentJson.id, 'response', {
+        slidesUpdated: 1,
+        results: [{ slideIndex: 0, success: true }],
+      })
+
+      const result = await toolPromise
+      const text = (result.content as Array<{ text: string }>)[0].text
+      const parsed = JSON.parse(text)
+      expect(parsed.slidesUpdated).toBe(1)
+    })
+
+    it('batches multiple slides into a single Office.js call', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+
+      const { client } = await setupMcpClient(pool)
+      const toolPromise = client.callTool({
+        name: 'edit_speaker_notes',
+        arguments: { notes: { '0': 'Notes for slide 0', '3': 'Notes for slide 3' } },
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+
+      // Only one WS message sent for both slides
+      expect((ws.send as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1)
+
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      expect(sentJson.params.code).toContain('"slideIndex":0')
+      expect(sentJson.params.code).toContain('"slideIndex":3')
+
+      pool.handleResponse(sentJson.id, 'response', {
+        slidesUpdated: 2,
+        results: [
+          { slideIndex: 0, success: true },
+          { slideIndex: 3, success: true },
+        ],
+      })
+
+      const result = await toolPromise
+      const text = (result.content as Array<{ text: string }>)[0].text
+      const parsed = JSON.parse(text)
+      expect(parsed.slidesUpdated).toBe(2)
     })
   })
 })

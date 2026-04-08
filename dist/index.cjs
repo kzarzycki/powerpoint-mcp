@@ -49842,6 +49842,9 @@ function parseSlideRange(range) {
   if (indices.size === 0) return null;
   return [...indices].sort((a, b) => a - b);
 }
+function markdownToPlainText(text) {
+  return text.replace(/`([^`]*)`/g, "$1").replace(/\*\*([^*]+)\*\*/g, "$1").replace(/__([^_]+)__/g, "$1").replace(/\*([^*\n]+)\*/g, "$1").replace(/_([^_\n]+)_/g, "$1").replace(/^#{1,6} /gm, "").replace(/^[*+] /gm, "- ").trim();
+}
 function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
   async function getLocalCopyPath(connPool, target) {
     const filePath = target.filePath;
@@ -51221,6 +51224,127 @@ ${textParts.join("\n")}` : "\n(no text content)";
           }
           return result;
         `;
+        const target = pool2.resolveTarget(presentationId);
+        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+        const text = JSON.stringify(result, null, 2) + (warning ?? "");
+        return { content: [{ type: "text", text }] };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+      }
+    }
+  );
+  server.tool(
+    "read_speaker_notes",
+    "Read speaker notes from one or more slides. Returns plain text notes for each requested slide (null when a slide has no notes). Uses the Office.js notesSlide API \u2014 works on live presentations without file access.",
+    {
+      slideRange: external_exports3.string().optional().describe('Slide indices to read, e.g. "0", "0-5", "2,4,7". Omit to read all slides.'),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    async ({ slideRange, presentationId }) => {
+      try {
+        const indices = parseSlideRange(slideRange);
+        const indicesJs = indices !== null ? JSON.stringify(indices) : "null";
+        const code = `
+var slides = context.presentation.slides;
+slides.load("items");
+await context.sync();
+var allIndices = ${indicesJs};
+var targets = allIndices !== null ? allIndices : Array.from({length: slides.items.length}, function(_, i) { return i; });
+var results = [];
+for (var i = 0; i < targets.length; i++) {
+  var si = targets[i];
+  if (si >= slides.items.length) {
+    throw new Error("Slide index " + si + " out of range (presentation has " + slides.items.length + " slides)");
+  }
+  var slide = slides.items[si];
+  var noteText = "";
+  try {
+    var ns = slide.notesSlide;
+    ns.shapes.load("items");
+    await context.sync();
+    for (var ni = 0; ni < ns.shapes.items.length; ni++) {
+      try {
+        ns.shapes.items[ni].textFrame.load("textRange");
+        await context.sync();
+        var t = ns.shapes.items[ni].textFrame.textRange.text;
+        if (t && t.trim()) {
+          noteText += (noteText ? "\\n" : "") + t.trim();
+        }
+      } catch(shapeErr) {}
+    }
+  } catch(slideErr) {}
+  results.push({ slideIndex: si, notes: noteText || null });
+}
+return { slides: results };
+`;
+        const target = pool2.resolveTarget(presentationId);
+        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+        const text = JSON.stringify(result, null, 2) + (warning ?? "");
+        return { content: [{ type: "text", text }] };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+      }
+    }
+  );
+  server.tool(
+    "edit_speaker_notes",
+    "Write speaker notes for one or more slides in a single call. Accepts a map of { slideIndex: text } where text may use basic markdown (paragraphs, **bold**, *italic*, # headings, - bullets). Markdown formatting markers are stripped to plain text \u2014 Office.js does not expose run-level formatting for notes. Uses the Office.js notesSlide API and takes effect immediately in the live presentation.",
+    {
+      notes: external_exports3.record(external_exports3.string(), external_exports3.string()).describe(
+        'Map of slide index (as string key) to notes text. Example: { "0": "Intro notes", "2": "Key points:\\n- First\\n- Second" }'
+      ),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    async ({ notes, presentationId }) => {
+      try {
+        const edits = Object.entries(notes).map(([key, text2]) => {
+          const slideIndex = Number.parseInt(key, 10);
+          if (!Number.isInteger(slideIndex) || slideIndex < 0) {
+            throw new Error(`Invalid slide index key: "${key}"`);
+          }
+          return { slideIndex, text: markdownToPlainText(text2) };
+        });
+        if (edits.length === 0) throw new Error("notes map is empty");
+        const editsJson = JSON.stringify(edits);
+        const code = `
+var slides = context.presentation.slides;
+slides.load("items");
+await context.sync();
+var edits = ${editsJson};
+var results = [];
+for (var ei = 0; ei < edits.length; ei++) {
+  var entry = edits[ei];
+  var si = entry.slideIndex;
+  if (si >= slides.items.length) {
+    throw new Error("Slide index " + si + " out of range (presentation has " + slides.items.length + " slides)");
+  }
+  var slide = slides.items[si];
+  var ns = slide.notesSlide;
+  ns.shapes.load("items");
+  await context.sync();
+  var bodyShape = null;
+  for (var ni = 0; ni < ns.shapes.items.length; ni++) {
+    try {
+      ns.shapes.items[ni].textFrame.load("textRange");
+      await context.sync();
+      bodyShape = ns.shapes.items[ni];
+      break;
+    } catch(innerErr) {}
+  }
+  if (bodyShape) {
+    bodyShape.textFrame.textRange.text = entry.text;
+    await context.sync();
+    results.push({ slideIndex: si, success: true });
+  } else {
+    results.push({ slideIndex: si, success: false, error: "Notes body shape not found" });
+  }
+}
+return { slidesUpdated: results.filter(function(r) { return r.success; }).length, results: results };
+`;
         const target = pool2.resolveTarget(presentationId);
         const result = await pool2.sendCommand("executeCode", { code }, target.ws);
         const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
