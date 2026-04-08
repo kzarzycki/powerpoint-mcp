@@ -484,12 +484,12 @@ Use the OOXML tools for fine-grained formatting control. Load the `/pptx` skill 
 
 ```
 // 1. Read current paragraphs (raw OOXML)
-read_slide_text(slideIndex: 0, shapeId: "2")
+read_shape_paragraphs(slideIndex: 0, shapeId: "2")
 // Returns: <a:p><a:r><a:rPr lang="en-US" b="1"/><a:t>Hello</a:t></a:r></a:p>
 
 // 2. Modify the XML (add color, change text, etc.)
 // 3. Write back
-edit_slide_text(slideIndex: 0, shapeId: "2", xml: '<a:p><a:r><a:rPr lang="en-US" b="1"><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:rPr><a:t>Red Bold</a:t></a:r></a:p>')
+edit_shape_paragraphs(slideIndex: 0, shapeId: "2", xml: '<a:p><a:r><a:rPr lang="en-US" b="1"><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:rPr><a:t>Red Bold</a:t></a:r></a:p>')
 ```
 
 For full slide or shape XML editing:

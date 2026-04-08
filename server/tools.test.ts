@@ -88,8 +88,8 @@ describe('MCP Tools', () => {
     expect(names).toEqual([
       'copy_slides',
       'duplicate_slide',
+      'edit_shape_paragraphs',
       'edit_slide_chart',
-      'edit_slide_text',
       'edit_slide_xml',
       'edit_slide_zip',
       'execute_officejs',
@@ -101,7 +101,8 @@ describe('MCP Tools', () => {
       'inspect_slide',
       'list_presentations',
       'preview_deck',
-      'read_slide_text',
+      'read_deck_text',
+      'read_shape_paragraphs',
       'read_slide_xml',
       'read_slide_zip',
       'scan_slide',
@@ -987,7 +988,7 @@ describe('MCP Tools', () => {
     })
   })
 
-  describe('read_slide_text', () => {
+  describe('read_shape_paragraphs', () => {
     it('returns paragraph XML for a shape', async () => {
       const ws = mockWs()
       pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
@@ -995,7 +996,7 @@ describe('MCP Tools', () => {
       const base64 = await makeSlideZipBase64()
 
       const toolPromise = client.callTool({
-        name: 'read_slide_text',
+        name: 'read_shape_paragraphs',
         arguments: { slideIndex: 0, shapeId: '2' },
       })
 
@@ -1020,7 +1021,7 @@ describe('MCP Tools', () => {
       const base64 = await makeSlideZipBase64()
 
       const toolPromise = client.callTool({
-        name: 'read_slide_text',
+        name: 'read_shape_paragraphs',
         arguments: { slideIndex: 0, shapeId: '999' },
       })
 
@@ -1037,14 +1038,14 @@ describe('MCP Tools', () => {
     it('returns error when no connections', async () => {
       const { client } = await setupMcpClient(pool)
       const result = await client.callTool({
-        name: 'read_slide_text',
+        name: 'read_shape_paragraphs',
         arguments: { slideIndex: 0, shapeId: '2' },
       })
       expect(result.isError).toBe(true)
     })
   })
 
-  describe('edit_slide_text', () => {
+  describe('edit_shape_paragraphs', () => {
     it('exports, modifies paragraphs, and reimports', async () => {
       const ws = mockWs()
       pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
@@ -1055,7 +1056,7 @@ describe('MCP Tools', () => {
         '<a:p xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:r><a:t>Replaced</a:t></a:r></a:p>'
 
       const toolPromise = client.callTool({
-        name: 'edit_slide_text',
+        name: 'edit_shape_paragraphs',
         arguments: { slideIndex: 0, shapeId: '2', xml: newParagraphXml },
       })
 
@@ -1093,7 +1094,7 @@ describe('MCP Tools', () => {
       const base64 = await makeSlideZipBase64()
 
       const toolPromise = client.callTool({
-        name: 'edit_slide_text',
+        name: 'edit_shape_paragraphs',
         arguments: { slideIndex: 0, shapeId: '999', xml: '<a:p/>' },
       })
 

@@ -79,11 +79,15 @@
       "description": "Run programmatic checks on a slide (overlap, bounds, empty text, tiny shapes)"
     },
     {
-      "name": "read_slide_text",
+      "name": "read_deck_text",
+      "description": "Lightweight text extractor: slide titles and body as plain strings (~20x smaller than inspect_slide)"
+    },
+    {
+      "name": "read_shape_paragraphs",
       "description": "Read raw OOXML paragraphs from a shape's text body"
     },
     {
-      "name": "edit_slide_text",
+      "name": "edit_shape_paragraphs",
       "description": "Replace paragraph content of a shape with raw OOXML"
     },
     {
