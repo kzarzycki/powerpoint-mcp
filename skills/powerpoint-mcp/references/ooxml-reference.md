@@ -10,7 +10,7 @@
 | Office.js (`execute_officejs`) | Shape creation, positioning, simple text writes — anything the Office.js API exposes directly |
 | OOXML tools (`edit_slide_xml` with `code`) | Geometry (corners, borders), gradients, mixed formatting, precise paragraph control |
 | OOXML tools (`edit_slide_xml` with `xml`) | Full slide XML replacement (rare — prefer code mode to avoid attribute loss) |
-| `edit_slide_text` | Single-shape paragraph editing with OOXML (preserves bodyPr/lstStyle) |
+| `edit_shape_paragraphs` | Single-shape paragraph editing with OOXML (preserves bodyPr/lstStyle) |
 | File-based (`get_local_copy` + `/pptx` skill) | Charts, master/theme editing, rels, Content_Types — anything beyond slide XML |
 
 ## Workflow
@@ -26,9 +26,9 @@ Code mode receives a pre-parsed DOM with helpers. See SKILL.md "OOXML Editing Wo
 ### Legacy: XML string mode (2+ calls)
 
 1. `inspect_slide(slideRange: "N")` → find shape IDs
-2. `read_slide_text(slideIndex, shapeId)` or `read_slide_xml(slideIndex, shapeId?)`
+2. `read_shape_paragraphs(slideIndex, shapeId)` or `read_slide_xml(slideIndex, shapeId?)`
 3. Modify the XML using `/pptx` skill knowledge
-4. `edit_slide_text(slideIndex, shapeId, xml)` or `edit_slide_xml(slideIndex, xml, shapeId?)`
+4. `edit_shape_paragraphs(slideIndex, shapeId, xml)` or `edit_slide_xml(slideIndex, xml, shapeId?)`
 5. `screenshot_slide(slideIndex)` → visual verification
 
 Always inspect before modifying. Always verify after.
@@ -40,21 +40,21 @@ Always inspect before modifying. Always verify after.
 - Always use `inspect_slide` first to discover IDs — don't guess
 - Shape IDs may change after reimport (Office.js assigns new IDs on `insertSlidesFromBase64`)
 
-## read_slide_text / edit_slide_text
+## read_shape_paragraphs / edit_shape_paragraphs
 
 Paragraph-level editing for a single shape:
 
-- `read_slide_text` returns the `<a:p>` paragraph elements from a shape
-- `edit_slide_text` replaces paragraph content — `<a:bodyPr>` and `<a:lstStyle>` are preserved automatically
+- `read_shape_paragraphs` returns the `<a:p>` paragraph elements from a shape
+- `edit_shape_paragraphs` replaces paragraph content — `<a:bodyPr>` and `<a:lstStyle>` are preserved automatically
 - You only work with the paragraph XML (the `<a:p>` elements)
 
 ```
 // Read current paragraphs
-read_slide_text(slideIndex: 0, shapeId: "2")
+read_shape_paragraphs(slideIndex: 0, shapeId: "2")
 // Returns: <a:p><a:r><a:rPr lang="en-US" b="1"/><a:t>Hello</a:t></a:r></a:p>
 
 // Write modified paragraphs back
-edit_slide_text(slideIndex: 0, shapeId: "2", xml: '<a:p>..modified..</a:p>')
+edit_shape_paragraphs(slideIndex: 0, shapeId: "2", xml: '<a:p>..modified..</a:p>')
 ```
 
 ## read_slide_xml / edit_slide_xml
@@ -80,14 +80,14 @@ Use full-slide mode for batch editing multiple shapes in a single reimport.
 
 Each edit tool call triggers a full export → modify → delete → reimport cycle:
 
-- Multiple `edit_slide_text` calls on the same slide = multiple reimports (visible flashing)
+- Multiple `edit_shape_paragraphs` calls on the same slide = multiple reimports (visible flashing)
 - **For 2+ shapes on the same slide**: use `read_slide_xml` (full slide, no shapeId) → modify all shapes in the XML → `edit_slide_xml` (full slide) — single reimport, no flashing
 
 ```
 // Bad: 3 reimports, visible flashing
-edit_slide_text(slideIndex: 0, shapeId: "2", xml: '...')
-edit_slide_text(slideIndex: 0, shapeId: "5", xml: '...')
-edit_slide_text(slideIndex: 0, shapeId: "7", xml: '...')
+edit_shape_paragraphs(slideIndex: 0, shapeId: "2", xml: '...')
+edit_shape_paragraphs(slideIndex: 0, shapeId: "5", xml: '...')
+edit_shape_paragraphs(slideIndex: 0, shapeId: "7", xml: '...')
 
 // Good: 1 reimport, no flashing
 xml = read_slide_xml(slideIndex: 0)          // full slide
@@ -384,7 +384,7 @@ When full pptx export is added, theme editing involves:
 
 ### The Core Rule
 
-**Never use Office.js to read text content.** `textRange.text` returns plain text — all formatting (bold, font size, color, bullets) is stripped. Use `read_slide_text` to read. Office.js is only for shape metadata (IDs, positions, dimensions) and simple plain-text writes.
+**Never use Office.js to read text content.** `textRange.text` returns plain text — all formatting (bold, font size, color, bullets) is stripped. Use `read_shape_paragraphs` to read. Office.js is only for shape metadata (IDs, positions, dimensions) and simple plain-text writes.
 
 ### OOXML Text Elements Reference
 
@@ -466,7 +466,7 @@ Some templates use explicit `marL`/`indent` attributes instead of `lvl` for bull
 
 ### DOs
 
-- Always call `read_slide_text` before `edit_slide_text` to see the existing XML
+- Always call `read_shape_paragraphs` before `edit_shape_paragraphs` to see the existing XML
 - Copy every `<a:p>` block verbatim from the read output, then make only the specific change needed
 - Copy formatting from similar paragraphs when adding new content — new bullets should use the same `<a:pPr>` and `<a:rPr>` as existing ones
 - Use `<a:buChar>` in `<a:pPr>` for native PowerPoint bullets
@@ -482,9 +482,9 @@ Some templates use explicit `marL`/`indent` attributes instead of `lvl` for bull
 - Don't put the `•` character in `<a:t>` — use `<a:buChar char="•"/>` in `<a:pPr>`
 - Don't mix header and bullet formatting — headers use `<a:buNone/>` with different attributes
 
-### edit_slide_text Preserves bodyPr and lstStyle
+### edit_shape_paragraphs Preserves bodyPr and lstStyle
 
-`edit_slide_text` automatically preserves the shape's `<a:bodyPr>` and `<a:lstStyle>` — you only provide the `<a:p>` paragraph elements. This means text anchoring, margins, and list style definitions carry over automatically. The `replaceTextBody` helper below mirrors this behavior for batch edits via `edit_slide_xml`.
+`edit_shape_paragraphs` automatically preserves the shape's `<a:bodyPr>` and `<a:lstStyle>` — you only provide the `<a:p>` paragraph elements. This means text anchoring, margins, and list style definitions carry over automatically. The `replaceTextBody` helper below mirrors this behavior for batch edits via `edit_slide_xml`.
 
 ### Batch Edit Helpers
 
@@ -507,7 +507,7 @@ function findShapeById(doc, id) {
 function replaceTextBody(doc, shape, paragraphXml) {
   var txBody = shape.getElementsByTagNameNS(NS_P, "txBody")[0];
   if (!txBody) return;
-  // Preserve bodyPr and lstStyle (same as edit_slide_text behavior)
+  // Preserve bodyPr and lstStyle (same as edit_shape_paragraphs behavior)
   var bodyPr = txBody.getElementsByTagNameNS(NS_A, "bodyPr")[0];
   var lstStyle = txBody.getElementsByTagNameNS(NS_A, "lstStyle")[0];
   while (txBody.firstChild) txBody.removeChild(txBody.firstChild);

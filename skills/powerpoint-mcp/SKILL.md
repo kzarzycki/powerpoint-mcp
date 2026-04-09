@@ -30,8 +30,9 @@ When asked to enable or configure PowerPoint MCP in a project — follow the [se
 | `copy_slides` | Copy slides between two open presentations (data stays server-side) | `sourceSlideIndex`, `sourcePresentationId`, `destinationPresentationId`, `formatting?`, `targetSlideId?` |
 | `insert_image` | Insert image from file path, URL, or base64 data (data stays server-side for file/url) | `source`, `sourceType` (`file`/`url`/`base64`), `slideIndex?`, `left?`, `top?`, `width?`, `height?`, `presentationId?` |
 | `get_local_copy` | Get a local .pptx file path (passthrough for local files, exports cloud files to temp) | `presentationId?` |
-| `read_slide_text` | Read raw OOXML `<a:p>` paragraphs from a shape (preserves formatting) | `slideIndex`, `shapeId`, `presentationId?` |
-| `edit_slide_text` | Replace paragraph content with raw OOXML (preserves bodyPr/lstStyle) | `slideIndex`, `shapeId`, `xml`, `presentationId?` |
+| `read_deck_text` | Lightweight text extractor: titles + body as plain strings (~20x smaller than inspect_slide) | `slideRange?`, `includeNotes?`, `presentationId?` |
+| `read_shape_paragraphs` | Read raw OOXML `<a:p>` paragraphs from a shape (preserves formatting) | `slideIndex`, `shapeId`, `presentationId?` |
+| `edit_shape_paragraphs` | Replace paragraph content with raw OOXML (preserves bodyPr/lstStyle) | `slideIndex`, `shapeId`, `xml`, `presentationId?` |
 | `read_slide_xml` | Read full slide OOXML or a specific shape's XML | `slideIndex`, `shapeId?`, `presentationId?` |
 | `edit_slide_xml` | Replace full slide XML or a specific shape's XML | `slideIndex`, `xml`, `shapeId?`, `presentationId?` |
 | `read_slide_zip` | Read multiple files from exported slide zip (slide XML, rels, charts) | `slideIndex`, `paths?`, `presentationId?` |
@@ -69,14 +70,14 @@ Key return formats to know:
 - **`scan_slide`** returns `{ slideWidth, slideHeight, slides: [{ slideIndex, slideId, shapes: [{ id, name, type, left, top, width, height }] }] }` — `id` is a stable numeric string (use this for read/edit tools); `name` is locale-dependent (never use as selector); `type` is one of "GeometricShape", "TextBox", "Table", "Chart", "Picture", "Group"
 - **`verify_slides`** returns `{ slideIndex, issues: [{ type, description, shapeIds }] }` — `type` is "overlap", "bounds", "empty_text", "tiny_shapes", or "unused_placeholder"; `shapeIds` are stable IDs
 - **`search_fluent_icons`** returns `[{ id, description, isMono, contentTier, searchScore, svgUrl }]` — `isMono: false` = filled/colorful, `isMono: true` = outline/mono; pick highest `searchScore` matching intent; use `svgUrl` with `insert_image` (sourceType: "url") to insert
-- **`read_slide_text`** returns raw OOXML `<a:p>` paragraph elements (does NOT include `<a:bodyPr>` or `<a:lstStyle>`)
+- **`read_shape_paragraphs`** returns raw OOXML `<a:p>` paragraph elements (does NOT include `<a:bodyPr>` or `<a:lstStyle>`)
 - **`read_slide_zip`** returns `{ zipContents: { path: content }, allPaths: [...] }`
 
 ### Tool Behavior Notes
 
 | Tool | Key non-obvious behavior |
 |------|--------------------------|
-| `edit_slide_text` | The `xml` field takes raw OOXML paragraph XML, not executable code. Preserves `<a:bodyPr>` and `<a:lstStyle>` automatically. Must auto-size shapes after edit. |
+| `edit_shape_paragraphs` | The `xml` field takes raw OOXML paragraph XML, not executable code. Preserves `<a:bodyPr>` and `<a:lstStyle>` automatically. Must auto-size shapes after edit. |
 | `edit_slide_xml` | Two modes: `xml` (finished XML string) or `code` (JS that manipulates pre-parsed DOM server-side). Code mode preserves untouched attributes. Exported slide is ALWAYS `ppt/slides/slide1.xml` in the zip regardless of `slideIndex`. |
 | `format_shapes` | Uses `getTextFrameOrNullObject()` internally. Cannot set corner radius, borders, or gradients — use `edit_slide_xml` code mode for those. Color format: hex without `#`. |
 | `verify_slides` | Must auto-size shapes first or stale dimensions cause missed overlaps. Table overflow needs API fix, not OOXML. |
@@ -227,7 +228,7 @@ Choose the right tool for each edit. Prefer higher tools in this table — fall 
 | Change type | Tool | Why |
 |---|---|---|
 | Fill color, font bold/italic/size/color/name | `format_shapes` | Declarative, 1 call per slide, no XML risk |
-| Mixed formatting within one shape (some words bold, some not) | `edit_slide_text` | Office.js has no paragraph-level font API |
+| Mixed formatting within one shape (some words bold, some not) | `edit_shape_paragraphs` | Office.js has no paragraph-level font API |
 | Geometry (corners, borders), gradients, attributes Office.js cannot set | `edit_slide_xml` with `code` | DOM manipulation preserves untouched attributes |
 | Complex layouts, new shapes, diagrams | `edit_slide_xml` with `code` | Full OOXML control |
 | Simple text writes, shape creation, positioning | `execute_officejs` | Direct Office.js API |
@@ -330,7 +331,7 @@ edit_slide_xml(slideIndex: 2, code: `
 
 ### Legacy: XML string mode
 
-For single-shape paragraph edits, `read_slide_text` / `edit_slide_text` preserves `<a:bodyPr>` and `<a:lstStyle>` automatically. For full slide XML replacement, use `edit_slide_xml` with `xml` — but prefer code mode to avoid accidentally dropping attributes.
+For single-shape paragraph edits, `read_shape_paragraphs` / `edit_shape_paragraphs` preserves `<a:bodyPr>` and `<a:lstStyle>` automatically. For full slide XML replacement, use `edit_slide_xml` with `xml` — but prefer code mode to avoid accidentally dropping attributes.
 
 ## Hard Limitations
 
@@ -395,7 +396,7 @@ Standard cards with a small colored RoundedRectangle "badge" overlaid (e.g., sho
 - No `<!-- -->` comments in code strings — sandbox rejects with `SES_HTML_COMMENT_REJECTED`
 
 **Office.js:**
-- **Never use Office.js to read text content** — `textRange.text` returns plain text with all formatting stripped. Use `read_slide_text` for formatted content. Office.js is for shape metadata (IDs, positions, dimensions) and simple writes.
+- **Never use Office.js to read text content** — `textRange.text` returns plain text with all formatting stripped. Use `read_shape_paragraphs` for formatted content. Office.js is for shape metadata (IDs, positions, dimensions) and simple writes.
 - Use `getTextFrameOrNullObject()` — never `.textFrame` directly (tables/images/charts throw)
 - Loaded values are snapshots — don't branch on stale reads after writes (`hasText` stays stale after setting `textRange.text`)
 - No `paragraphs` collection in PowerPoint Office.js

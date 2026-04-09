@@ -277,7 +277,7 @@ export async function autoRegisterContentTypes(zip: JSZip, newPaths: string[]): 
   zip.file('[Content_Types].xml', ctXml)
 }
 
-// Legacy wrappers — used by existing read/edit_slide_text and read/edit_slide_xml tools
+// Legacy wrappers — used by existing read/edit_shape_paragraphs and read/edit_slide_xml tools
 export async function extractSlideXmlFromZip(base64: string): Promise<{ zip: JSZip; xmlString: string }> {
   const { zip, files } = await extractZipFiles(base64, [SLIDE_XML_PATH])
   return { zip, xmlString: files[SLIDE_XML_PATH]! }
@@ -467,4 +467,180 @@ export async function extractLayoutsFromZip(zip: JSZip): Promise<LayoutInfo[]> {
   }
 
   return layouts
+}
+
+// ---------------------------------------------------------------------------
+// Bulk text extraction from PPTX zip
+// ---------------------------------------------------------------------------
+
+export interface SlideText {
+  slide: number
+  title: string
+  body: string[]
+  notes?: string
+}
+
+/**
+ * Extract plain text from all slides in a PPTX buffer.
+ * Returns structured text with title/body classification and optional speaker notes.
+ */
+export async function extractDeckText(
+  zipBuffer: Buffer,
+  slideIndices?: number[] | null,
+  includeNotes?: boolean,
+): Promise<SlideText[]> {
+  const zip = await JSZip.loadAsync(zipBuffer)
+
+  // Find all slide XML files and sort by slide number
+  const slideFiles = Object.keys(zip.files)
+    .filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p))
+    .sort((a, b) => {
+      const na = parseInt(a.match(/slide(\d+)/)![1]!, 10)
+      const nb = parseInt(b.match(/slide(\d+)/)![1]!, 10)
+      return na - nb
+    })
+
+  const results: SlideText[] = []
+  const parser = new DOMParser()
+  const allowed = slideIndices ? new Set(slideIndices) : null
+
+  for (let i = 0; i < slideFiles.length; i++) {
+    if (allowed && !allowed.has(i)) continue
+
+    const slideFile = slideFiles[i]!
+    const slideNum = parseInt(slideFile.match(/slide(\d+)/)![1]!, 10)
+    const xmlStr = await zip.file(slideFile)!.async('string')
+    const doc = parser.parseFromString(xmlStr, 'text/xml')
+
+    let title = ''
+    const body: string[] = []
+
+    // Extract text from all shapes
+    const shapes = doc.getElementsByTagNameNS(NS_P, 'sp')
+    for (let j = 0; j < shapes.length; j++) {
+      const shape = shapes[j]!
+
+      // Check if this is a title placeholder
+      let isTitle = false
+      const nvSpPr = shape.getElementsByTagNameNS(NS_P, 'nvSpPr')
+      if (nvSpPr.length > 0) {
+        const phElements = nvSpPr[0]!.getElementsByTagNameNS(NS_P, 'ph')
+        if (phElements.length > 0) {
+          const phType = phElements[0]!.getAttribute('type')
+          isTitle = phType === 'title' || phType === 'ctrTitle'
+        }
+      }
+
+      // Extract text runs grouped by paragraph
+      const txBody = shape.getElementsByTagNameNS(NS_P, 'txBody')
+      if (txBody.length === 0) continue
+      const paragraphs = txBody[0]!.getElementsByTagNameNS(NS_A, 'p')
+      const lines: string[] = []
+      for (let p = 0; p < paragraphs.length; p++) {
+        const runs = paragraphs[p]!.getElementsByTagNameNS(NS_A, 't')
+        const parts: string[] = []
+        for (let r = 0; r < runs.length; r++) {
+          const t = runs[r]!.textContent
+          if (t) parts.push(t)
+        }
+        if (parts.length > 0) lines.push(parts.join(''))
+      }
+
+      const text = lines.join('\n').trim()
+      if (!text) continue
+
+      if (isTitle && !title) {
+        title = text
+      } else {
+        body.push(text)
+      }
+    }
+
+    // Extract table text
+    const tables = doc.getElementsByTagNameNS(NS_A, 'tbl')
+    for (let t = 0; t < tables.length; t++) {
+      const rows = tables[t]!.getElementsByTagNameNS(NS_A, 'tr')
+      const tableLines: string[] = []
+      for (let r = 0; r < rows.length; r++) {
+        const cells = rows[r]!.getElementsByTagNameNS(NS_A, 'tc')
+        const cellTexts: string[] = []
+        for (let c = 0; c < cells.length; c++) {
+          const runs = cells[c]!.getElementsByTagNameNS(NS_A, 't')
+          const parts: string[] = []
+          for (let x = 0; x < runs.length; x++) {
+            const txt = runs[x]!.textContent
+            if (txt) parts.push(txt)
+          }
+          cellTexts.push(parts.join(''))
+        }
+        tableLines.push(cellTexts.join(' | '))
+      }
+      if (tableLines.length > 0) body.push(tableLines.join('\n'))
+    }
+
+    const entry: SlideText = { slide: i, title, body }
+
+    // Speaker notes
+    if (includeNotes) {
+      const relsPath = `ppt/slides/_rels/slide${slideNum}.xml.rels`
+      const relsFile = zip.file(relsPath)
+      if (relsFile) {
+        const relsXml = await relsFile.async('string')
+        const relsDoc = parser.parseFromString(relsXml, 'text/xml')
+        const rels = relsDoc.getElementsByTagName('Relationship')
+        for (let r = 0; r < rels.length; r++) {
+          const relType = rels[r]!.getAttribute('Type') || ''
+          if (relType.endsWith('/notesSlide')) {
+            const target = rels[r]!.getAttribute('Target') || ''
+            // Target is relative like "../notesSlides/notesSlide1.xml"
+            const notesPath = `ppt/notesSlides/${target.split('/').pop()}`
+            const notesFile = zip.file(notesPath)
+            if (notesFile) {
+              const notesXml = await notesFile.async('string')
+              const notesDoc = parser.parseFromString(notesXml, 'text/xml')
+              const noteShapes = notesDoc.getElementsByTagNameNS(NS_P, 'sp')
+              const noteTexts: string[] = []
+              for (let ns = 0; ns < noteShapes.length; ns++) {
+                // Skip the slide image placeholder in notes
+                const nvSpPr2 = noteShapes[ns]!.getElementsByTagNameNS(NS_P, 'nvSpPr')
+                if (nvSpPr2.length > 0) {
+                  const ph2 = nvSpPr2[0]!.getElementsByTagNameNS(NS_P, 'ph')
+                  if (ph2.length > 0) {
+                    const phType2 = ph2[0]!.getAttribute('type')
+                    if (
+                      phType2 === 'sldImg' ||
+                      phType2 === 'sldNum' ||
+                      phType2 === 'dt' ||
+                      phType2 === 'hdr' ||
+                      phType2 === 'ftr'
+                    )
+                      continue
+                  }
+                }
+                const txBody2 = noteShapes[ns]!.getElementsByTagNameNS(NS_P, 'txBody')
+                if (txBody2.length === 0) continue
+                const paragraphs2 = txBody2[0]!.getElementsByTagNameNS(NS_A, 'p')
+                for (let p2 = 0; p2 < paragraphs2.length; p2++) {
+                  const runs2 = paragraphs2[p2]!.getElementsByTagNameNS(NS_A, 't')
+                  const parts2: string[] = []
+                  for (let r2 = 0; r2 < runs2.length; r2++) {
+                    const txt = runs2[r2]!.textContent
+                    if (txt) parts2.push(txt)
+                  }
+                  if (parts2.length > 0) noteTexts.push(parts2.join(''))
+                }
+              }
+              const notes = noteTexts.join('\n').trim()
+              if (notes) entry.notes = notes
+            }
+            break
+          }
+        }
+      }
+    }
+
+    results.push(entry)
+  }
+
+  return results
 }

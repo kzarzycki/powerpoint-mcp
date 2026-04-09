@@ -14,6 +14,7 @@ import {
   autoRegisterContentTypes,
   escapeXml,
   exportSlide,
+  extractDeckText,
   extractLayoutsFromZip,
   extractParagraphs,
   extractSlideXmlFromZip,
@@ -975,9 +976,9 @@ export function registerTools(
     },
   )
 
-  // --- Tool: read_slide_text ---
+  // --- Tool: read_shape_paragraphs ---
   server.tool(
-    'read_slide_text',
+    'read_shape_paragraphs',
     "Read raw OOXML <a:p> paragraphs from a shape's text body. Returns the paragraph XML as a string — preserves all formatting (bold, colors, bullets, etc.) that textRange.text strips. Use with the /pptx skill's OOXML knowledge to understand and modify the XML.",
     {
       slideIndex: z.number().int().min(0).describe('Zero-based slide index from list_slides results'),
@@ -1006,10 +1007,39 @@ export function registerTools(
     },
   )
 
-  // --- Tool: edit_slide_text ---
+  // --- Tool: read_deck_text ---
   server.tool(
-    'edit_slide_text',
-    "Replace paragraph content of a shape with raw OOXML <a:p> XML. Preserves <a:bodyPr> and <a:lstStyle>. Use read_slide_text first to get the current XML, modify it (using /pptx skill knowledge), then write it back. The slide is exported, modified server-side, and reimported — data never enters Claude's context.",
+    'read_deck_text',
+    'Lightweight text extractor: returns slide titles and body text as plain strings (~20x smaller than inspect_slide). Use for content review, narrative analysis, or any read-only text task. Supports slideRange and optional speaker notes.',
+    {
+      slideRange: z.string().optional().describe('Slide range, e.g. "0-5", "2,4,7". Zero-based. Omit for all slides.'),
+      includeNotes: z.boolean().optional().describe('Include speaker notes. Default: false.'),
+      presentationId: z
+        .string()
+        .optional()
+        .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
+    },
+    async ({ slideRange, includeNotes, presentationId }) => {
+      try {
+        const target = pool.resolveTarget(presentationId)
+        const localPath = await getLocalCopyPath(pool, target)
+        const zipBuffer = readFileSync(localPath)
+        const indices = slideRange ? parseSlideRange(slideRange) : null
+        const result = await extractDeckText(zipBuffer, indices, includeNotes === true)
+        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+        const text = JSON.stringify(result) + (warning ?? '')
+        return { content: [{ type: 'text' as const, text }] }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
+      }
+    },
+  )
+
+  // --- Tool: edit_shape_paragraphs ---
+  server.tool(
+    'edit_shape_paragraphs',
+    "Replace paragraph content of a shape with raw OOXML <a:p> XML. Preserves <a:bodyPr> and <a:lstStyle>. Use read_shape_paragraphs first to get the current XML, modify it (using /pptx skill knowledge), then write it back. The slide is exported, modified server-side, and reimported — data never enters Claude's context.",
     {
       slideIndex: z.number().int().min(0).describe('Zero-based slide index'),
       shapeId: z.string().describe('Shape ID from inspect_slide results'),

@@ -49990,6 +49990,131 @@ async function extractLayoutsFromZip(zip) {
   }
   return layouts;
 }
+async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
+  const zip = await import_jszip.default.loadAsync(zipBuffer);
+  const slideFiles = Object.keys(zip.files).filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p)).sort((a, b) => {
+    const na = parseInt(a.match(/slide(\d+)/)[1], 10);
+    const nb = parseInt(b.match(/slide(\d+)/)[1], 10);
+    return na - nb;
+  });
+  const results = [];
+  const parser = new import_xmldom2.DOMParser();
+  const allowed = slideIndices ? new Set(slideIndices) : null;
+  for (let i = 0; i < slideFiles.length; i++) {
+    if (allowed && !allowed.has(i)) continue;
+    const slideFile = slideFiles[i];
+    const slideNum = parseInt(slideFile.match(/slide(\d+)/)[1], 10);
+    const xmlStr = await zip.file(slideFile).async("string");
+    const doc = parser.parseFromString(xmlStr, "text/xml");
+    let title = "";
+    const body = [];
+    const shapes = doc.getElementsByTagNameNS(NS_P2, "sp");
+    for (let j = 0; j < shapes.length; j++) {
+      const shape = shapes[j];
+      let isTitle = false;
+      const nvSpPr = shape.getElementsByTagNameNS(NS_P2, "nvSpPr");
+      if (nvSpPr.length > 0) {
+        const phElements = nvSpPr[0].getElementsByTagNameNS(NS_P2, "ph");
+        if (phElements.length > 0) {
+          const phType = phElements[0].getAttribute("type");
+          isTitle = phType === "title" || phType === "ctrTitle";
+        }
+      }
+      const txBody = shape.getElementsByTagNameNS(NS_P2, "txBody");
+      if (txBody.length === 0) continue;
+      const paragraphs = txBody[0].getElementsByTagNameNS(NS_A2, "p");
+      const lines = [];
+      for (let p = 0; p < paragraphs.length; p++) {
+        const runs = paragraphs[p].getElementsByTagNameNS(NS_A2, "t");
+        const parts = [];
+        for (let r = 0; r < runs.length; r++) {
+          const t = runs[r].textContent;
+          if (t) parts.push(t);
+        }
+        if (parts.length > 0) lines.push(parts.join(""));
+      }
+      const text = lines.join("\n").trim();
+      if (!text) continue;
+      if (isTitle && !title) {
+        title = text;
+      } else {
+        body.push(text);
+      }
+    }
+    const tables = doc.getElementsByTagNameNS(NS_A2, "tbl");
+    for (let t = 0; t < tables.length; t++) {
+      const rows = tables[t].getElementsByTagNameNS(NS_A2, "tr");
+      const tableLines = [];
+      for (let r = 0; r < rows.length; r++) {
+        const cells = rows[r].getElementsByTagNameNS(NS_A2, "tc");
+        const cellTexts = [];
+        for (let c = 0; c < cells.length; c++) {
+          const runs = cells[c].getElementsByTagNameNS(NS_A2, "t");
+          const parts = [];
+          for (let x = 0; x < runs.length; x++) {
+            const txt = runs[x].textContent;
+            if (txt) parts.push(txt);
+          }
+          cellTexts.push(parts.join(""));
+        }
+        tableLines.push(cellTexts.join(" | "));
+      }
+      if (tableLines.length > 0) body.push(tableLines.join("\n"));
+    }
+    const entry = { slide: i, title, body };
+    if (includeNotes) {
+      const relsPath = `ppt/slides/_rels/slide${slideNum}.xml.rels`;
+      const relsFile = zip.file(relsPath);
+      if (relsFile) {
+        const relsXml = await relsFile.async("string");
+        const relsDoc = parser.parseFromString(relsXml, "text/xml");
+        const rels = relsDoc.getElementsByTagName("Relationship");
+        for (let r = 0; r < rels.length; r++) {
+          const relType = rels[r].getAttribute("Type") || "";
+          if (relType.endsWith("/notesSlide")) {
+            const target = rels[r].getAttribute("Target") || "";
+            const notesPath = `ppt/notesSlides/${target.split("/").pop()}`;
+            const notesFile = zip.file(notesPath);
+            if (notesFile) {
+              const notesXml = await notesFile.async("string");
+              const notesDoc = parser.parseFromString(notesXml, "text/xml");
+              const noteShapes = notesDoc.getElementsByTagNameNS(NS_P2, "sp");
+              const noteTexts = [];
+              for (let ns = 0; ns < noteShapes.length; ns++) {
+                const nvSpPr2 = noteShapes[ns].getElementsByTagNameNS(NS_P2, "nvSpPr");
+                if (nvSpPr2.length > 0) {
+                  const ph2 = nvSpPr2[0].getElementsByTagNameNS(NS_P2, "ph");
+                  if (ph2.length > 0) {
+                    const phType2 = ph2[0].getAttribute("type");
+                    if (phType2 === "sldImg" || phType2 === "sldNum" || phType2 === "dt" || phType2 === "hdr" || phType2 === "ftr")
+                      continue;
+                  }
+                }
+                const txBody2 = noteShapes[ns].getElementsByTagNameNS(NS_P2, "txBody");
+                if (txBody2.length === 0) continue;
+                const paragraphs2 = txBody2[0].getElementsByTagNameNS(NS_A2, "p");
+                for (let p2 = 0; p2 < paragraphs2.length; p2++) {
+                  const runs2 = paragraphs2[p2].getElementsByTagNameNS(NS_A2, "t");
+                  const parts2 = [];
+                  for (let r2 = 0; r2 < runs2.length; r2++) {
+                    const txt = runs2[r2].textContent;
+                    if (txt) parts2.push(txt);
+                  }
+                  if (parts2.length > 0) noteTexts.push(parts2.join(""));
+                }
+              }
+              const notes = noteTexts.join("\n").trim();
+              if (notes) entry.notes = notes;
+            }
+            break;
+          }
+        }
+      }
+    }
+    results.push(entry);
+  }
+  return results;
+}
 
 // server/tools.ts
 var localCopyCache = /* @__PURE__ */ new Map();
@@ -50711,7 +50836,7 @@ ${textParts.join("\n")}` : "\n(no text content)";
     }
   );
   server.tool(
-    "read_slide_text",
+    "read_shape_paragraphs",
     "Read raw OOXML <a:p> paragraphs from a shape's text body. Returns the paragraph XML as a string \u2014 preserves all formatting (bold, colors, bullets, etc.) that textRange.text strips. Use with the /pptx skill's OOXML knowledge to understand and modify the XML.",
     {
       slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from list_slides results"),
@@ -50737,8 +50862,32 @@ ${textParts.join("\n")}` : "\n(no text content)";
     }
   );
   server.tool(
-    "edit_slide_text",
-    "Replace paragraph content of a shape with raw OOXML <a:p> XML. Preserves <a:bodyPr> and <a:lstStyle>. Use read_slide_text first to get the current XML, modify it (using /pptx skill knowledge), then write it back. The slide is exported, modified server-side, and reimported \u2014 data never enters Claude's context.",
+    "read_deck_text",
+    "Lightweight text extractor: returns slide titles and body text as plain strings (~20x smaller than inspect_slide). Use for content review, narrative analysis, or any read-only text task. Supports slideRange and optional speaker notes.",
+    {
+      slideRange: external_exports3.string().optional().describe('Slide range, e.g. "0-5", "2,4,7". Zero-based. Omit for all slides.'),
+      includeNotes: external_exports3.boolean().optional().describe("Include speaker notes. Default: false."),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    async ({ slideRange, includeNotes, presentationId }) => {
+      try {
+        const target = pool2.resolveTarget(presentationId);
+        const localPath = await getLocalCopyPath(pool2, target);
+        const zipBuffer = (0, import_node_fs2.readFileSync)(localPath);
+        const indices = slideRange ? parseSlideRange(slideRange) : null;
+        const result = await extractDeckText(zipBuffer, indices, includeNotes === true);
+        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+        const text = JSON.stringify(result) + (warning ?? "");
+        return { content: [{ type: "text", text }] };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+      }
+    }
+  );
+  server.tool(
+    "edit_shape_paragraphs",
+    "Replace paragraph content of a shape with raw OOXML <a:p> XML. Preserves <a:bodyPr> and <a:lstStyle>. Use read_shape_paragraphs first to get the current XML, modify it (using /pptx skill knowledge), then write it back. The slide is exported, modified server-side, and reimported \u2014 data never enters Claude's context.",
     {
       slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
       shapeId: external_exports3.string().describe("Shape ID from inspect_slide results"),
