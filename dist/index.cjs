@@ -49998,7 +49998,7 @@ async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
     return na - nb;
   });
   const results = [];
-  const parser = new import_xmldom.DOMParser();
+  const parser = new import_xmldom2.DOMParser();
   const allowed = slideIndices ? new Set(slideIndices) : null;
   for (let i = 0; i < slideFiles.length; i++) {
     if (allowed && !allowed.has(i)) continue;
@@ -50008,24 +50008,24 @@ async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
     const doc = parser.parseFromString(xmlStr, "text/xml");
     let title = "";
     const body = [];
-    const shapes = doc.getElementsByTagNameNS(NS_P, "sp");
+    const shapes = doc.getElementsByTagNameNS(NS_P2, "sp");
     for (let j = 0; j < shapes.length; j++) {
       const shape = shapes[j];
       let isTitle = false;
-      const nvSpPr = shape.getElementsByTagNameNS(NS_P, "nvSpPr");
+      const nvSpPr = shape.getElementsByTagNameNS(NS_P2, "nvSpPr");
       if (nvSpPr.length > 0) {
-        const phElements = nvSpPr[0].getElementsByTagNameNS(NS_P, "ph");
+        const phElements = nvSpPr[0].getElementsByTagNameNS(NS_P2, "ph");
         if (phElements.length > 0) {
           const phType = phElements[0].getAttribute("type");
           isTitle = phType === "title" || phType === "ctrTitle";
         }
       }
-      const txBody = shape.getElementsByTagNameNS(NS_P, "txBody");
+      const txBody = shape.getElementsByTagNameNS(NS_P2, "txBody");
       if (txBody.length === 0) continue;
-      const paragraphs = txBody[0].getElementsByTagNameNS(NS_A, "p");
+      const paragraphs = txBody[0].getElementsByTagNameNS(NS_A2, "p");
       const lines = [];
       for (let p = 0; p < paragraphs.length; p++) {
-        const runs = paragraphs[p].getElementsByTagNameNS(NS_A, "t");
+        const runs = paragraphs[p].getElementsByTagNameNS(NS_A2, "t");
         const parts = [];
         for (let r = 0; r < runs.length; r++) {
           const t = runs[r].textContent;
@@ -50041,15 +50041,15 @@ async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
         body.push(text);
       }
     }
-    const tables = doc.getElementsByTagNameNS(NS_A, "tbl");
+    const tables = doc.getElementsByTagNameNS(NS_A2, "tbl");
     for (let t = 0; t < tables.length; t++) {
-      const rows = tables[t].getElementsByTagNameNS(NS_A, "tr");
+      const rows = tables[t].getElementsByTagNameNS(NS_A2, "tr");
       const tableLines = [];
       for (let r = 0; r < rows.length; r++) {
-        const cells = rows[r].getElementsByTagNameNS(NS_A, "tc");
+        const cells = rows[r].getElementsByTagNameNS(NS_A2, "tc");
         const cellTexts = [];
         for (let c = 0; c < cells.length; c++) {
-          const runs = cells[c].getElementsByTagNameNS(NS_A, "t");
+          const runs = cells[c].getElementsByTagNameNS(NS_A2, "t");
           const parts = [];
           for (let x = 0; x < runs.length; x++) {
             const txt = runs[x].textContent;
@@ -50078,22 +50078,23 @@ async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
             if (notesFile) {
               const notesXml = await notesFile.async("string");
               const notesDoc = parser.parseFromString(notesXml, "text/xml");
-              const noteShapes = notesDoc.getElementsByTagNameNS(NS_P, "sp");
+              const noteShapes = notesDoc.getElementsByTagNameNS(NS_P2, "sp");
               const noteTexts = [];
               for (let ns = 0; ns < noteShapes.length; ns++) {
-                const nvSpPr2 = noteShapes[ns].getElementsByTagNameNS(NS_P, "nvSpPr");
+                const nvSpPr2 = noteShapes[ns].getElementsByTagNameNS(NS_P2, "nvSpPr");
                 if (nvSpPr2.length > 0) {
-                  const ph2 = nvSpPr2[0].getElementsByTagNameNS(NS_P, "ph");
+                  const ph2 = nvSpPr2[0].getElementsByTagNameNS(NS_P2, "ph");
                   if (ph2.length > 0) {
                     const phType2 = ph2[0].getAttribute("type");
-                    if (phType2 === "sldImg" || phType2 === "sldNum" || phType2 === "dt" || phType2 === "hdr" || phType2 === "ftr") continue;
+                    if (phType2 === "sldImg" || phType2 === "sldNum" || phType2 === "dt" || phType2 === "hdr" || phType2 === "ftr")
+                      continue;
                   }
                 }
-                const txBody2 = noteShapes[ns].getElementsByTagNameNS(NS_P, "txBody");
+                const txBody2 = noteShapes[ns].getElementsByTagNameNS(NS_P2, "txBody");
                 if (txBody2.length === 0) continue;
-                const paragraphs2 = txBody2[0].getElementsByTagNameNS(NS_A, "p");
+                const paragraphs2 = txBody2[0].getElementsByTagNameNS(NS_A2, "p");
                 for (let p2 = 0; p2 < paragraphs2.length; p2++) {
-                  const runs2 = paragraphs2[p2].getElementsByTagNameNS(NS_A, "t");
+                  const runs2 = paragraphs2[p2].getElementsByTagNameNS(NS_A2, "t");
                   const parts2 = [];
                   for (let r2 = 0; r2 < runs2.length; r2++) {
                     const txt = runs2[r2].textContent;
