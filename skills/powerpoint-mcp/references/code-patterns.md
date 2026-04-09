@@ -26,6 +26,11 @@ return slides.items.length;
 
 ## Adding Slides with Layouts
 
+**Preferred**: Use the `add_slide` tool — it handles layout lookup, positioning, and returns placeholder IDs in one call:
+- `add_slide({ layoutName: "Title and Content", position: 2 })` → adds slide at index 2 with that layout, returns `{ slideIndex, placeholders: [{ id, name, type }] }`
+
+**Manual approach** (only if `add_slide` is unavailable): use `execute_officejs` with the code below.
+
 Always pick the layout that best matches content. Do NOT use "Blank" for slides with text.
 
 Common layouts: "Title Slide", "Title and Content", "Two Content", "Section Header", "Title Only", "Blank"

@@ -50389,6 +50389,199 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
     }
   );
   server.tool(
+    "add_slide",
+    "Add a new slide from a layout at a specific position, with placeholder text pre-filled and shapes renamed to layout names. Use inspect_layouts to find available layout names and placeholder names. Returns the new slide index and its placeholder shapes with semantic names.",
+    {
+      layoutName: external_exports3.string().describe(
+        'Layout name from inspect_layouts (e.g. "Title and Content", "Section Header"). Case-insensitive match. Layouts starting with "_" are rejected (technical layouts).'
+      ),
+      position: external_exports3.number().int().min(0).optional().describe(
+        "Zero-based target slide index. The new slide is inserted at this position (existing slides shift right). Default: append at end."
+      ),
+      placeholders: external_exports3.record(external_exports3.string(), external_exports3.string()).optional().describe(
+        'Map of layout placeholder name \u2192 text content. E.g. {"section_title": "Backup Slides", "section_subtitle": "Evidence & appendix"}. Names must match layout placeholder names from inspect_layouts.'
+      ),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    async ({ layoutName, position, placeholders, presentationId }) => {
+      try {
+        if (layoutName.startsWith("_")) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error: Layout "${layoutName}" is a technical gallery separator, not a real layout. Use inspect_layouts to find available layouts.`
+              }
+            ],
+            isError: true
+          };
+        }
+        const target = pool2.resolveTarget(presentationId);
+        const localPath = await getLocalCopyPath(pool2, target);
+        const fileData = (0, import_node_fs2.readFileSync)(localPath);
+        const zip = await import_jszip2.default.loadAsync(fileData);
+        const layouts = await extractLayoutsFromZip(zip);
+        const targetLower = layoutName.toLowerCase();
+        const layoutInfo = layouts.find((l) => l.name.toLowerCase() === targetLower);
+        if (!layoutInfo) {
+          const available = layouts.filter((l) => !l.name.startsWith("_")).map((l) => l.name).join(", ");
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error: Layout "${layoutName}" not found. Available: ${available}`
+              }
+            ],
+            isError: true
+          };
+        }
+        const idxToName = /* @__PURE__ */ new Map();
+        for (const ph of layoutInfo.placeholders) {
+          if (ph.idx !== void 0 && ph.name) {
+            idxToName.set(String(ph.idx), ph.name);
+          }
+        }
+        const warnings = [];
+        if (placeholders) {
+          const layoutNames = new Set(layoutInfo.placeholders.map((ph) => ph.name).filter(Boolean));
+          for (const key of Object.keys(placeholders)) {
+            if (!layoutNames.has(key)) {
+              warnings.push(`Placeholder "${key}" not found in layout "${layoutInfo.name}"`);
+            }
+          }
+        }
+        const addCode = `
+          var masters = context.presentation.slideMasters;
+          masters.load("items");
+          await context.sync();
+          var master = masters.items[masters.items.length - 1];
+          master.layouts.load("items/id,items/name");
+          await context.sync();
+          var targetName = ${JSON.stringify(layoutName)}.toLowerCase();
+          var layout = null;
+          for (var i = 0; i < master.layouts.items.length; i++) {
+            if (master.layouts.items[i].name.toLowerCase() === targetName) {
+              layout = master.layouts.items[i];
+              break;
+            }
+          }
+          if (!layout) {
+            var names = master.layouts.items.map(function(l) { return l.name; });
+            throw new Error("Layout not found. Available: " + names.join(", "));
+          }
+          var slides = context.presentation.slides;
+          slides.add({ layoutId: layout.id });
+          await context.sync();
+          slides.load("items");
+          await context.sync();
+          var newSlide = slides.items[slides.items.length - 1];
+          var targetPos = ${position !== void 0 ? position : "undefined"};
+          if (targetPos !== undefined) {
+            newSlide.moveTo(targetPos);
+            await context.sync();
+          }
+          slides.load("items");
+          await context.sync();
+          var finalIndex = -1;
+          for (var k = 0; k < slides.items.length; k++) {
+            if (slides.items[k].id === newSlide.id) { finalIndex = k; break; }
+          }
+          return { slideIndex: finalIndex, slideId: newSlide.id, slideCount: slides.items.length, layoutName: layout.name };
+        `;
+        const addResult = await pool2.sendCommand("executeCode", { code: addCode }, target.ws);
+        const exported = await exportSlide(pool2, addResult.slideIndex, target.ws);
+        const { xmlString } = await extractSlideXmlFromZip(exported.base64);
+        const doc = parseSlideXml(xmlString);
+        const shapeIdToIdx = /* @__PURE__ */ new Map();
+        const spElements = doc.getElementsByTagNameNS(NS_P2, "sp");
+        for (let i = 0; i < spElements.length; i++) {
+          const sp = spElements[i];
+          const nvSpPr = sp.getElementsByTagNameNS(NS_P2, "nvSpPr")[0];
+          if (!nvSpPr) continue;
+          const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P2, "cNvPr")[0];
+          const nvPr = nvSpPr.getElementsByTagNameNS(NS_P2, "nvPr")[0];
+          if (!cNvPr || !nvPr) continue;
+          const phEl = nvPr.getElementsByTagNameNS(NS_P2, "ph")[0];
+          if (!phEl) continue;
+          const idx = phEl.getAttribute("idx");
+          const id = cNvPr.getAttribute("id");
+          if (idx && id) {
+            shapeIdToIdx.set(id, idx);
+          }
+        }
+        const renameMap = {};
+        const textMap = {};
+        for (const [shapeId, idx] of shapeIdToIdx) {
+          const semanticName = idxToName.get(idx);
+          if (semanticName) {
+            renameMap[shapeId] = semanticName;
+            if (placeholders?.[semanticName]) {
+              textMap[shapeId] = placeholders[semanticName];
+            }
+          }
+        }
+        const renameCode = `
+          var slides = context.presentation.slides;
+          slides.load("items");
+          await context.sync();
+          var slide = slides.items[${addResult.slideIndex}];
+          slide.shapes.load("items/id,items/name");
+          await context.sync();
+          var renameMap = ${JSON.stringify(renameMap)};
+          var textMap = ${JSON.stringify(textMap)};
+          var results = [];
+          for (var i = 0; i < slide.shapes.items.length; i++) {
+            var s = slide.shapes.items[i];
+            var newName = renameMap[s.id];
+            if (newName) {
+              s.name = newName;
+            }
+            var text = textMap[s.id];
+            if (text !== undefined) {
+              try {
+                s.textFrame.textRange.text = text;
+              } catch(e) {}
+            }
+          }
+          await context.sync();
+          // Collect final info for renamed shapes (layout placeholders)
+          slide.shapes.load("items/id,items/name");
+          await context.sync();
+          var placeholders = [];
+          for (var j = 0; j < slide.shapes.items.length; j++) {
+            var s = slide.shapes.items[j];
+            if (!renameMap[s.id]) continue;
+            var info = { id: s.id, name: s.name, text: "" };
+            try {
+              var tf = s.getTextFrameOrNullObject();
+              tf.load(["hasText", "textRange"]);
+              await context.sync();
+              if (!tf.isNullObject && tf.hasText) info.text = tf.textRange.text;
+            } catch(e) {}
+            placeholders.push(info);
+          }
+          return placeholders;
+        `;
+        const phResult = await pool2.sendCommand("executeCode", { code: renameCode }, target.ws);
+        const result = {
+          slideIndex: addResult.slideIndex,
+          slideCount: addResult.slideCount,
+          layoutName: addResult.layoutName,
+          placeholders: phResult
+        };
+        if (warnings.length > 0) {
+          result.warnings = warnings;
+        }
+        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+        const text = JSON.stringify(result, null, 2) + (warning ?? "");
+        return { content: [{ type: "text", text }] };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+      }
+    }
+  );
+  server.tool(
     "inspect_slide",
     "Detailed slide inspector (~80 tokens/shape): returns every shape with text content, positions, sizes, and fill colors, plus slide dimensions. Supports slideRange for multiple slides. For just positions without text/fills, use scan_slide instead.",
     {
@@ -51080,10 +51273,20 @@ ${textParts.join("\n")}` : "\n(no text content)";
   );
   server.tool(
     "verify_slides",
-    "Run programmatic checks on a slide: detect overlapping shapes, out-of-bounds shapes, empty text, tiny shapes, unused placeholders, and placeholder drift from layout defaults. Returns a list of issues found. Uses the same shape data as inspect_slide \u2014 no OOXML needed.",
+    "Run programmatic checks on a slide: detect overlapping shapes, out-of-bounds shapes, empty text, tiny shapes, unused placeholders, placeholder drift from layout defaults, and full-bleed background covers. Returns a list of issues found. Uses the same shape data as inspect_slide \u2014 no OOXML needed.",
     {
       slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
-      checks: external_exports3.array(external_exports3.enum(["overlap", "bounds", "empty_text", "tiny_shapes", "unused_placeholder", "layout_drift"])).optional().describe("Checks to run. Default: all six checks."),
+      checks: external_exports3.array(
+        external_exports3.enum([
+          "overlap",
+          "bounds",
+          "empty_text",
+          "tiny_shapes",
+          "unused_placeholder",
+          "layout_drift",
+          "background_cover"
+        ])
+      ).optional().describe("Checks to run. Default: all checks."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
     async ({ slideIndex, checks, presentationId }) => {
@@ -51095,7 +51298,8 @@ ${textParts.join("\n")}` : "\n(no text content)";
           "empty_text",
           "tiny_shapes",
           "unused_placeholder",
-          "layout_drift"
+          "layout_drift",
+          "background_cover"
         ];
         const checkLayoutDrift = enabledChecks.includes("layout_drift");
         const code = `
@@ -51274,6 +51478,24 @@ ${textParts.join("\n")}` : "\n(no text content)";
                 severity: "warning",
                 shapeIds: [s.id],
                 description: `"${s.name}" drifted from layout: ${drifts.join(", ")}`
+              });
+            }
+          }
+        }
+        if (enabledChecks.includes("background_cover")) {
+          const dimThreshold = 0.85;
+          const areaThreshold = 0.9;
+          const slideArea = slideWidth * slideHeight;
+          for (const s of shapes) {
+            if (s.isPlaceholder) continue;
+            const widthRatio = s.width / slideWidth;
+            const heightRatio = s.height / slideHeight;
+            if (widthRatio >= dimThreshold && heightRatio >= dimThreshold && s.width * s.height >= slideArea * areaThreshold) {
+              issues.push({
+                type: "background_cover",
+                severity: "error",
+                shapeIds: [s.id],
+                description: `"${s.name}" covers ${(widthRatio * 100).toFixed(0)}% x ${(heightRatio * 100).toFixed(0)}% of the slide \u2014 this destroys the layout background, logo, and design system. Delete this shape and use the layout's background instead.`
               });
             }
           }

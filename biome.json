@@ -1,7 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
   "files": {
-    "includes": ["server/**/*.ts", "addin/**/*.js"]
+    "includes": ["server/**/*.ts", "addin/**/*.js", "e2e/**/*.ts"]
   },
   "formatter": {
     "indentStyle": "space",
@@ -21,5 +21,18 @@
         "noNonNullAssertion": "off"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["e2e/**/*.ts"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noEmptyPattern": "off",
+            "noUnusedFunctionParameters": "off"
+          }
+        }
+      }
+    }
+  ]
 }
