@@ -50469,9 +50469,11 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
     "Lightweight shape scanner (~40 tokens/shape): lists shape IDs, types, and positions on slides, plus slide dimensions. Supports slideRange for multiple slides. For text content and fills, use inspect_slide instead.",
     {
       slideRange: external_exports3.string().describe('Slide indices to scan, e.g. "0", "0-5", "2,4,7". Single index or range.'),
+      namePattern: external_exports3.string().optional().describe('Glob-style filter on shape name, e.g. "Title*", "*_source", "Card*_bg". Case-insensitive.'),
+      shapeType: external_exports3.string().optional().describe('Filter by shape type: "Placeholder", "TextBox", "GeometricShape", "Graphic", "Picture", etc.'),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideRange, presentationId }) => {
+    async ({ slideRange, namePattern, shapeType, presentationId }) => {
       try {
         const indices = parseSlideRange(slideRange) ?? [];
         if (indices.length === 0) throw new Error("slideRange is required");
@@ -50516,6 +50518,17 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
         `;
         const target = pool2.resolveTarget(presentationId);
         const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+        if (namePattern || shapeType) {
+          const nameRegex = namePattern ? new RegExp(`^${namePattern.replace(/\*/g, ".*")}$`, "i") : null;
+          const typeLower = shapeType?.toLowerCase();
+          for (const slide of result.slides) {
+            slide.shapes = slide.shapes.filter((s) => {
+              if (nameRegex && !nameRegex.test(s.name)) return false;
+              if (typeLower && s.type.toLowerCase() !== typeLower) return false;
+              return true;
+            });
+          }
+        }
         const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
         const text = JSON.stringify(result, null, 2) + (warning ?? "");
         return { content: [{ type: "text", text }] };
@@ -51067,16 +51080,24 @@ ${textParts.join("\n")}` : "\n(no text content)";
   );
   server.tool(
     "verify_slides",
-    "Run programmatic checks on a slide: detect overlapping shapes, out-of-bounds shapes, empty text, tiny shapes, and unused placeholders. Returns a list of issues found. Uses the same shape data as inspect_slide \u2014 no OOXML needed.",
+    "Run programmatic checks on a slide: detect overlapping shapes, out-of-bounds shapes, empty text, tiny shapes, unused placeholders, and placeholder drift from layout defaults. Returns a list of issues found. Uses the same shape data as inspect_slide \u2014 no OOXML needed.",
     {
       slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
-      checks: external_exports3.array(external_exports3.enum(["overlap", "bounds", "empty_text", "tiny_shapes", "unused_placeholder"])).optional().describe("Checks to run. Default: all five checks."),
+      checks: external_exports3.array(external_exports3.enum(["overlap", "bounds", "empty_text", "tiny_shapes", "unused_placeholder", "layout_drift"])).optional().describe("Checks to run. Default: all six checks."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
     async ({ slideIndex, checks, presentationId }) => {
       try {
         const target = pool2.resolveTarget(presentationId);
-        const enabledChecks = checks ?? ["overlap", "bounds", "empty_text", "tiny_shapes", "unused_placeholder"];
+        const enabledChecks = checks ?? [
+          "overlap",
+          "bounds",
+          "empty_text",
+          "tiny_shapes",
+          "unused_placeholder",
+          "layout_drift"
+        ];
+        const checkLayoutDrift = enabledChecks.includes("layout_drift");
         const code = `
           var slides = context.presentation.slides;
           slides.load("items");
@@ -51088,6 +51109,7 @@ ${textParts.join("\n")}` : "\n(no text content)";
           slide.shapes.load("items");
           await context.sync();
           var shapes = [];
+          var placeholderTypes = [];
           for (var i = 0; i < slide.shapes.items.length; i++) {
             var s = slide.shapes.items[i];
             var info = {
@@ -51107,14 +51129,56 @@ ${textParts.join("\n")}` : "\n(no text content)";
                 info.hasText = tf.hasText;
               }
             } catch (e) {}
-            try {
-              var pf = s.getPlaceholderOrNullObject();
-              pf.load("type");
-              await context.sync();
-              if (!pf.isNullObject) info.isPlaceholder = true;
-            } catch (e) {}
+            if (s.type === "Placeholder") {
+              try {
+                var pf = s.placeholderFormat;
+                pf.load("type");
+                await context.sync();
+                info.isPlaceholder = true;
+                info.placeholderType = pf.type;
+                placeholderTypes.push({ shapeIndex: i, type: pf.type });
+              } catch (e) {}
+            }
             shapes.push(info);
           }
+
+          // Conditionally load layout placeholder positions for drift check
+          var layoutMap = {};
+          if (${checkLayoutDrift} && placeholderTypes.length > 0) {
+            try {
+              var layout = slide.layout;
+              layout.load("name");
+              var layoutShapes = layout.shapes;
+              layoutShapes.load("items");
+              await context.sync();
+              for (var li = 0; li < layoutShapes.items.length; li++) {
+                var ls = layoutShapes.items[li];
+                if (ls.type !== "Placeholder") continue;
+                try {
+                  var lph = ls.placeholderFormat;
+                  lph.load("type");
+                  ls.load("left,top,width,height,name");
+                  await context.sync();
+                  layoutMap[lph.type] = {
+                    name: ls.name,
+                    left: ls.left,
+                    top: ls.top,
+                    width: ls.width,
+                    height: ls.height
+                  };
+                } catch (e) {}
+              }
+            } catch (e) {}
+            // Attach layout match to shapes
+            for (var pi = 0; pi < placeholderTypes.length; pi++) {
+              var pt = placeholderTypes[pi];
+              var match = layoutMap[pt.type];
+              if (match) {
+                shapes[pt.shapeIndex].layoutMatch = match;
+              }
+            }
+          }
+
           // Also get slide dimensions
           var ps = context.presentation.pageSetup;
           ps.load("slideWidth,slideHeight");
@@ -51189,6 +51253,27 @@ ${textParts.join("\n")}` : "\n(no text content)";
                 severity: "warning",
                 shapeIds: [s.id],
                 description: `"${s.name}" is an unused placeholder \u2014 delete it or fill it with content`
+              });
+            }
+          }
+        }
+        if (checkLayoutDrift) {
+          const DRIFT_THRESHOLD = 2;
+          for (const s of shapes) {
+            if (!s.isPlaceholder || !s.layoutMatch) continue;
+            const lm = s.layoutMatch;
+            const drifts = [];
+            if (Math.abs(s.left - lm.left) > DRIFT_THRESHOLD) drifts.push(`left: ${s.left} vs layout ${lm.left}`);
+            if (Math.abs(s.top - lm.top) > DRIFT_THRESHOLD) drifts.push(`top: ${s.top} vs layout ${lm.top}`);
+            if (Math.abs(s.width - lm.width) > DRIFT_THRESHOLD) drifts.push(`width: ${s.width} vs layout ${lm.width}`);
+            if (Math.abs(s.height - lm.height) > DRIFT_THRESHOLD)
+              drifts.push(`height: ${s.height} vs layout ${lm.height}`);
+            if (drifts.length > 0) {
+              issues.push({
+                type: "layout_drift",
+                severity: "warning",
+                shapeIds: [s.id],
+                description: `"${s.name}" drifted from layout: ${drifts.join(", ")}`
               });
             }
           }

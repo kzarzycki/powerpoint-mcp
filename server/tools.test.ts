@@ -1662,6 +1662,141 @@ describe('MCP Tools', () => {
       expect(parsed.slides[0].shapes[0]).not.toHaveProperty('text')
       expect(parsed.slides[0].shapes[0]).not.toHaveProperty('fill')
     })
+
+    it('filters shapes by shapeType', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+      const { client } = await setupMcpClient(pool)
+
+      const toolPromise = client.callTool({
+        name: 'scan_slide',
+        arguments: { slideRange: '0', shapeType: 'Placeholder' },
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+
+      pool.handleResponse(sentJson.id, 'response', {
+        slideWidth: 960,
+        slideHeight: 540,
+        slides: [
+          {
+            slideIndex: 0,
+            slideId: 'slide-1',
+            shapes: [
+              { id: '10', name: 'Title 1', type: 'Placeholder', left: 50, top: 20, width: 400, height: 60 },
+              { id: '11', name: 'Box 1', type: 'TextBox', left: 50, top: 100, width: 400, height: 300 },
+              { id: '12', name: 'Subtitle', type: 'Placeholder', left: 50, top: 200, width: 400, height: 40 },
+            ],
+          },
+        ],
+      })
+
+      const result = await toolPromise
+      const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+      expect(parsed.slides[0].shapes).toHaveLength(2)
+      expect(parsed.slides[0].shapes.every((s: { type: string }) => s.type === 'Placeholder')).toBe(true)
+    })
+
+    it('filters shapes by namePattern glob', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+      const { client } = await setupMcpClient(pool)
+
+      const toolPromise = client.callTool({
+        name: 'scan_slide',
+        arguments: { slideRange: '0', namePattern: 'Title*' },
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+
+      pool.handleResponse(sentJson.id, 'response', {
+        slideWidth: 960,
+        slideHeight: 540,
+        slides: [
+          {
+            slideIndex: 0,
+            slideId: 'slide-1',
+            shapes: [
+              { id: '10', name: 'Title 1', type: 'Placeholder', left: 50, top: 20, width: 400, height: 60 },
+              { id: '11', name: 'Content 2', type: 'TextBox', left: 50, top: 100, width: 400, height: 300 },
+              { id: '12', name: 'Title Subtitle', type: 'Placeholder', left: 50, top: 200, width: 400, height: 40 },
+            ],
+          },
+        ],
+      })
+
+      const result = await toolPromise
+      const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+      expect(parsed.slides[0].shapes).toHaveLength(2)
+      expect(parsed.slides[0].shapes.map((s: { name: string }) => s.name)).toEqual(['Title 1', 'Title Subtitle'])
+    })
+
+    it('ANDs namePattern and shapeType filters together', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+      const { client } = await setupMcpClient(pool)
+
+      const toolPromise = client.callTool({
+        name: 'scan_slide',
+        arguments: { slideRange: '0', namePattern: 'Card*', shapeType: 'GeometricShape' },
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+
+      pool.handleResponse(sentJson.id, 'response', {
+        slideWidth: 960,
+        slideHeight: 540,
+        slides: [
+          {
+            slideIndex: 0,
+            slideId: 'slide-1',
+            shapes: [
+              { id: '10', name: 'Card_bg', type: 'GeometricShape', left: 50, top: 20, width: 200, height: 200 },
+              { id: '11', name: 'Card_text', type: 'TextBox', left: 60, top: 30, width: 180, height: 180 },
+              { id: '12', name: 'Footer', type: 'GeometricShape', left: 0, top: 500, width: 960, height: 40 },
+            ],
+          },
+        ],
+      })
+
+      const result = await toolPromise
+      const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+      expect(parsed.slides[0].shapes).toHaveLength(1)
+      expect(parsed.slides[0].shapes[0].name).toBe('Card_bg')
+    })
+
+    it('returns empty shapes array when no shapes match filter', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+      const { client } = await setupMcpClient(pool)
+
+      const toolPromise = client.callTool({
+        name: 'scan_slide',
+        arguments: { slideRange: '0', shapeType: 'Picture' },
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+
+      pool.handleResponse(sentJson.id, 'response', {
+        slideWidth: 960,
+        slideHeight: 540,
+        slides: [
+          {
+            slideIndex: 0,
+            slideId: 'slide-1',
+            shapes: [{ id: '10', name: 'Title 1', type: 'Placeholder', left: 50, top: 20, width: 400, height: 60 }],
+          },
+        ],
+      })
+
+      const result = await toolPromise
+      const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+      expect(parsed.slides[0].shapes).toHaveLength(0)
+    })
   })
 
   describe('verify_slides', () => {
@@ -1785,6 +1920,156 @@ describe('MCP Tools', () => {
       const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
       expect(parsed.issueCount).toBe(0)
       expect(parsed.shapeCount).toBe(1)
+    })
+
+    it('detects layout drift above threshold', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+      const { client } = await setupMcpClient(pool)
+
+      const toolPromise = client.callTool({
+        name: 'verify_slides',
+        arguments: { slideIndex: 0, checks: ['layout_drift'] },
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+
+      pool.handleResponse(sentJson.id, 'response', {
+        shapes: [
+          {
+            name: 'Title 1',
+            id: '2',
+            left: 72,
+            top: 42,
+            width: 780,
+            height: 60,
+            isPlaceholder: true,
+            placeholderType: 'Title',
+            layoutMatch: { name: 'Title 1', left: 72, top: 72.37, width: 780, height: 60 },
+          },
+        ],
+        slideWidth: 960,
+        slideHeight: 540,
+      })
+
+      const result = await toolPromise
+      const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+      expect(parsed.issueCount).toBe(1)
+      expect(parsed.issues[0].type).toBe('layout_drift')
+      expect(parsed.issues[0].shapeIds).toContain('2')
+      expect(parsed.issues[0].description).toContain('top:')
+      expect(parsed.issues[0].description).toContain('42')
+      expect(parsed.issues[0].description).toContain('72.37')
+    })
+
+    it('ignores drift below threshold (rounding)', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+      const { client } = await setupMcpClient(pool)
+
+      const toolPromise = client.callTool({
+        name: 'verify_slides',
+        arguments: { slideIndex: 0, checks: ['layout_drift'] },
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+
+      pool.handleResponse(sentJson.id, 'response', {
+        shapes: [
+          {
+            name: 'Title 1',
+            id: '2',
+            left: 72,
+            top: 72,
+            width: 780,
+            height: 60,
+            isPlaceholder: true,
+            placeholderType: 'Title',
+            layoutMatch: { name: 'Title 1', left: 72, top: 72.37, width: 780, height: 60 },
+          },
+        ],
+        slideWidth: 960,
+        slideHeight: 540,
+      })
+
+      const result = await toolPromise
+      const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+      expect(parsed.issueCount).toBe(0)
+    })
+
+    it('skips non-placeholder shapes for layout drift', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+      const { client } = await setupMcpClient(pool)
+
+      const toolPromise = client.callTool({
+        name: 'verify_slides',
+        arguments: { slideIndex: 0, checks: ['layout_drift'] },
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+
+      pool.handleResponse(sentJson.id, 'response', {
+        shapes: [
+          {
+            name: 'Custom Box',
+            id: '5',
+            left: 10,
+            top: 10,
+            width: 100,
+            height: 100,
+          },
+        ],
+        slideWidth: 960,
+        slideHeight: 540,
+      })
+
+      const result = await toolPromise
+      const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+      expect(parsed.issueCount).toBe(0)
+    })
+
+    it('reports multiple drifted properties', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+      const { client } = await setupMcpClient(pool)
+
+      const toolPromise = client.callTool({
+        name: 'verify_slides',
+        arguments: { slideIndex: 0, checks: ['layout_drift'] },
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+
+      pool.handleResponse(sentJson.id, 'response', {
+        shapes: [
+          {
+            name: 'Title 1',
+            id: '2',
+            left: 50,
+            top: 42,
+            width: 800,
+            height: 80,
+            isPlaceholder: true,
+            placeholderType: 'Title',
+            layoutMatch: { name: 'Title 1', left: 72, top: 72.37, width: 780, height: 60 },
+          },
+        ],
+        slideWidth: 960,
+        slideHeight: 540,
+      })
+
+      const result = await toolPromise
+      const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+      expect(parsed.issueCount).toBe(1)
+      expect(parsed.issues[0].description).toContain('left:')
+      expect(parsed.issues[0].description).toContain('top:')
+      expect(parsed.issues[0].description).toContain('width:')
+      expect(parsed.issues[0].description).toContain('height:')
     })
   })
 
