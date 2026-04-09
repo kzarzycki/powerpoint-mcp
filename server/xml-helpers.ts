@@ -245,6 +245,7 @@ export async function updateZipFiles(zip: JSZip, files: Record<string, string>):
 
 const CONTENT_TYPE_MAP: Record<string, string> = {
   'ppt/charts/': 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml',
+  'ppt/notesSlides/': 'application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml',
 }
 
 /**
