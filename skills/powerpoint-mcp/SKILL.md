@@ -23,6 +23,7 @@ When asked to enable or configure PowerPoint MCP in a project — follow the [se
 | `list_presentations` | Discover connected presentations | — |
 | `inspect_deck` | Deck overview: slide list + theme (colors, fonts). Use as first call | `presentationId?` |
 | `inspect_layouts` | All slide layouts with names, indices (for `slides.add`), placeholders. `usedOnly` for fast mode | `usedOnly?`, `presentationId?` |
+| `add_slide` | Add a new slide with a specific layout at a given position. Returns placeholder shape IDs | `layoutName`, `position?`, `presentationId?` |
 | `inspect_slide` | Detailed shape inspector (~80 tok/shape): text, positions, fills | `slideRange`, `presentationId?` |
 | `scan_slide` | Lightweight shape scanner (~40 tok/shape): IDs, types, positions | `slideRange`, `presentationId?` |
 | `screenshot_slide` | Capture one slide as PNG (~1000 tok) | `slideIndex`, `width?` (default 720), `presentationId?` |
@@ -68,7 +69,7 @@ All positioning values are in **points** (1 pt = 1/72 inch). **Always read `slid
 Key return formats to know:
 
 - **`scan_slide`** returns `{ slideWidth, slideHeight, slides: [{ slideIndex, slideId, shapes: [{ id, name, type, left, top, width, height }] }] }` — `id` is a stable numeric string (use this for read/edit tools); `name` is locale-dependent (never use as selector); `type` is one of "GeometricShape", "TextBox", "Table", "Chart", "Picture", "Group"
-- **`verify_slides`** returns `{ slideIndex, issues: [{ type, description, shapeIds }] }` — `type` is "overlap", "bounds", "empty_text", "tiny_shapes", or "unused_placeholder"; `shapeIds` are stable IDs
+- **`verify_slides`** returns `{ slideIndex, issues: [{ type, description, shapeIds }] }` — `type` is "overlap", "bounds", "empty_text", "tiny_shapes", "unused_placeholder", or "background_cover"; `shapeIds` are stable IDs
 - **`search_fluent_icons`** returns `[{ id, description, isMono, contentTier, searchScore, svgUrl }]` — `isMono: false` = filled/colorful, `isMono: true` = outline/mono; pick highest `searchScore` matching intent; use `svgUrl` with `insert_image` (sourceType: "url") to insert
 - **`read_shape_paragraphs`** returns raw OOXML `<a:p>` paragraph elements (does NOT include `<a:bodyPr>` or `<a:lstStyle>`)
 - **`read_slide_zip`** returns `{ zipContents: { path: content }, allPaths: [...] }`
@@ -202,7 +203,7 @@ If overlaps/overflow: shorten text, reduce font, reposition body content (not ti
 - No unused images or stale shapes from previous slide versions
 - No shape text below 14pt
 - All shapes have explicit `left` + `top` set
-- No full-bleed rectangles covering layout backgrounds
+- No full-bleed rectangles covering layout backgrounds (enforced by `verify_slides` `background_cover` check — severity: error)
 
 **Intentional overlaps**: When using card patterns (TextBoxes + icons inside RoundedRectangles), `verify_slides` will report many overlaps — these are expected by design. Also, decorative HR lines spanning the full width will overlap with adjacent elements. Only act on overlaps between shapes that should NOT be layered, or on overflow (shapes going off-slide).
 
@@ -400,7 +401,7 @@ Standard cards with a small colored RoundedRectangle "badge" overlaid (e.g., sho
 - Use `getTextFrameOrNullObject()` — never `.textFrame` directly (tables/images/charts throw)
 - Loaded values are snapshots — don't branch on stale reads after writes (`hasText` stays stale after setting `textRange.text`)
 - No `paragraphs` collection in PowerPoint Office.js
-- `slides.add()` always appends — use `slide.moveTo(index)` to reposition
+- Use `add_slide` tool to add slides with a layout at a given position (handles `slides.add()` + `moveTo` internally)
 - Always use last master: `masters.items[masters.items.length - 1]` — earlier may be stale
 - No `#` prefix for background colors: `{ color: "1A1A1E" }` not `"#1A1A1E"`
 - Don't delete placeholders after writing text — `hasText` is stale, you'll delete what you just wrote. But DO delete genuinely unused placeholders (ones you never wrote to) — never leave empty placeholders on a finished slide.

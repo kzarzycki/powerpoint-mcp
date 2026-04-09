@@ -86,6 +86,7 @@ describe('MCP Tools', () => {
     const result = await client.listTools()
     const names = result.tools.map((t) => t.name).sort()
     expect(names).toEqual([
+      'add_slide',
       'copy_slides',
       'duplicate_slide',
       'edit_shape_paragraphs',
@@ -149,6 +150,220 @@ describe('MCP Tools', () => {
       expect(result.isError).toBe(true)
       const text = (result.content as Array<{ text: string }>)[0].text
       expect(text).toContain('No presentations connected')
+    })
+  })
+
+  describe('add_slide', () => {
+    it('rejects technical layouts starting with _', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+      const { client } = await setupMcpClient(pool)
+
+      const result = await client.callTool({
+        name: 'add_slide',
+        arguments: { layoutName: '_Content Slides', position: 0 },
+      })
+
+      expect(result.isError).toBe(true)
+      const text = (result.content as Array<{ text: string }>)[0].text
+      expect(text).toContain('technical gallery separator')
+      expect(ws.send).not.toHaveBeenCalled()
+    })
+
+    it('adds slide, renames placeholders to layout names, and sets text', async () => {
+      const layoutXml = `<?xml version="1.0" encoding="UTF-8"?>
+        <p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                     xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" type="obj">
+          <p:cSld name="Title and Content">
+            <p:spTree>
+              <p:sp>
+                <p:nvSpPr>
+                  <p:cNvPr id="2" name="slide_title"/>
+                  <p:cNvSpPr/><p:nvPr><p:ph type="title" idx="0"/></p:nvPr>
+                </p:nvSpPr>
+                <p:spPr/>
+              </p:sp>
+              <p:sp>
+                <p:nvSpPr>
+                  <p:cNvPr id="3" name="slide_body"/>
+                  <p:cNvSpPr/><p:nvPr><p:ph idx="1"/></p:nvPr>
+                </p:nvSpPr>
+                <p:spPr/>
+              </p:sp>
+            </p:spTree>
+          </p:cSld>
+        </p:sldLayout>`
+      const masterRels = `<?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+        </Relationships>`
+      const pptxZip = new JSZip()
+      pptxZip.file('ppt/slideMasters/_rels/slideMaster1.xml.rels', masterRels)
+      pptxZip.file('ppt/slideLayouts/slideLayout1.xml', layoutXml)
+      const pptxBuffer = await pptxZip.generateAsync({ type: 'nodebuffer' })
+
+      const { readFileSync } = await import('node:fs')
+      vi.mocked(readFileSync).mockReturnValueOnce(pptxBuffer as never)
+
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: '/path/test.pptx' })
+      const { client } = await setupMcpClient(pool)
+
+      const toolPromise = client.callTool({
+        name: 'add_slide',
+        arguments: {
+          layoutName: 'Title and Content',
+          position: 2,
+          placeholders: { slide_title: 'My Title', slide_body: 'My Content' },
+        },
+      })
+
+      // WS call 1: add slide
+      await new Promise((r) => setTimeout(r, 10))
+      const addJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      expect(addJson.action).toBe('executeCode')
+      pool.handleResponse(addJson.id, 'response', {
+        slideIndex: 2,
+        slideId: 'slide-2',
+        slideCount: 5,
+        layoutName: 'Title and Content',
+      })
+
+      // WS call 2: exportSlide
+      await new Promise((r) => setTimeout(r, 10))
+      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      expect(exportJson.action).toBe('executeCode')
+      const slideXml = `<?xml version="1.0" encoding="UTF-8"?>
+        <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:cSld><p:spTree>
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="100" name="Title 1"/>
+                <p:cNvSpPr/><p:nvPr><p:ph type="title" idx="0"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr/>
+            </p:sp>
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="101" name="Content Placeholder 2"/>
+                <p:cNvSpPr/><p:nvPr><p:ph idx="1"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr/>
+            </p:sp>
+          </p:spTree></p:cSld>
+        </p:sld>`
+      const slideZip = new JSZip()
+      slideZip.file('ppt/slides/slide1.xml', slideXml)
+      const slideBase64 = await slideZip.generateAsync({ type: 'base64' })
+      pool.handleResponse(exportJson.id, 'response', {
+        base64: slideBase64,
+        slideId: 'slide-2',
+        prevSlideId: 'slide-1',
+      })
+
+      // WS call 3: rename + set text
+      await new Promise((r) => setTimeout(r, 10))
+      const renameJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[2][0])
+      expect(renameJson.action).toBe('executeCode')
+      const code = renameJson.params.code as string
+      expect(code).toContain('slide_title')
+      expect(code).toContain('slide_body')
+      pool.handleResponse(renameJson.id, 'response', [
+        { id: '100', name: 'slide_title', text: 'My Title' },
+        { id: '101', name: 'slide_body', text: 'My Content' },
+      ])
+
+      const result = await toolPromise
+      const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+      expect(parsed.slideIndex).toBe(2)
+      expect(parsed.layoutName).toBe('Title and Content')
+      expect(parsed.placeholders).toHaveLength(2)
+      expect(parsed.placeholders[0].name).toBe('slide_title')
+      expect(parsed.placeholders[0].text).toBe('My Title')
+      expect(parsed.placeholders[1].name).toBe('slide_body')
+    })
+
+    it('warns about unknown placeholder names', async () => {
+      const layoutXml = `<?xml version="1.0" encoding="UTF-8"?>
+        <p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                     xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:cSld name="Simple">
+            <p:spTree>
+              <p:sp>
+                <p:nvSpPr>
+                  <p:cNvPr id="2" name="title_ph"/>
+                  <p:cNvSpPr/><p:nvPr><p:ph type="title" idx="0"/></p:nvPr>
+                </p:nvSpPr>
+                <p:spPr/>
+              </p:sp>
+            </p:spTree>
+          </p:cSld>
+        </p:sldLayout>`
+      const masterRels = `<?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+        </Relationships>`
+      const pptxZip = new JSZip()
+      pptxZip.file('ppt/slideMasters/_rels/slideMaster1.xml.rels', masterRels)
+      pptxZip.file('ppt/slideLayouts/slideLayout1.xml', layoutXml)
+      const pptxBuffer = await pptxZip.generateAsync({ type: 'nodebuffer' })
+
+      const { readFileSync } = await import('node:fs')
+      vi.mocked(readFileSync).mockReturnValueOnce(pptxBuffer as never)
+
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: '/path/test.pptx' })
+      const { client } = await setupMcpClient(pool)
+
+      const toolPromise = client.callTool({
+        name: 'add_slide',
+        arguments: {
+          layoutName: 'Simple',
+          placeholders: { title_ph: 'OK', wrong_name: 'Oops' },
+        },
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+      const addJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      pool.handleResponse(addJson.id, 'response', {
+        slideIndex: 0,
+        slideId: 'slide-0',
+        slideCount: 1,
+        layoutName: 'Simple',
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const slideXml = `<?xml version="1.0" encoding="UTF-8"?>
+        <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+          <p:cSld><p:spTree>
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="50" name="Title 1"/>
+                <p:cNvSpPr/><p:nvPr><p:ph type="title" idx="0"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr/>
+            </p:sp>
+          </p:spTree></p:cSld>
+        </p:sld>`
+      const slideZip = new JSZip()
+      slideZip.file('ppt/slides/slide1.xml', slideXml)
+      const slideBase64 = await slideZip.generateAsync({ type: 'base64' })
+      pool.handleResponse(exportJson.id, 'response', {
+        base64: slideBase64,
+        slideId: 'slide-0',
+        prevSlideId: null,
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+      const renameJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[2][0])
+      pool.handleResponse(renameJson.id, 'response', [{ id: '50', name: 'title_ph', text: 'OK' }])
+
+      const result = await toolPromise
+      const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+      expect(parsed.warnings).toHaveLength(1)
+      expect(parsed.warnings[0]).toContain('wrong_name')
     })
   })
 
@@ -2071,6 +2286,97 @@ describe('MCP Tools', () => {
       expect(parsed.issues[0].description).toContain('width:')
       expect(parsed.issues[0].description).toContain('height:')
     })
+
+    it('detects full-bleed background cover', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+      const { client } = await setupMcpClient(pool)
+
+      const toolPromise = client.callTool({
+        name: 'verify_slides',
+        arguments: { slideIndex: 0, checks: ['background_cover'] },
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+
+      pool.handleResponse(sentJson.id, 'response', {
+        shapes: [
+          { name: 'Background Rect', id: '10', left: 0, top: 0, width: 960, height: 540 },
+          { name: 'Normal Shape', id: '11', left: 100, top: 100, width: 200, height: 100 },
+        ],
+        slideWidth: 960,
+        slideHeight: 540,
+      })
+
+      const result = await toolPromise
+      const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+      expect(parsed.issueCount).toBe(1)
+      expect(parsed.issues[0].type).toBe('background_cover')
+      expect(parsed.issues[0].severity).toBe('error')
+      expect(parsed.issues[0].shapeIds).toContain('10')
+    })
+
+    it('excludes placeholders from background_cover check', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+      const { client } = await setupMcpClient(pool)
+
+      const toolPromise = client.callTool({
+        name: 'verify_slides',
+        arguments: { slideIndex: 0, checks: ['background_cover'] },
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+
+      pool.handleResponse(sentJson.id, 'response', {
+        shapes: [
+          {
+            name: 'Title Placeholder',
+            id: '2',
+            left: 0,
+            top: 0,
+            width: 960,
+            height: 540,
+            isPlaceholder: true,
+          },
+        ],
+        slideWidth: 960,
+        slideHeight: 540,
+      })
+
+      const result = await toolPromise
+      const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+      expect(parsed.issueCount).toBe(0)
+    })
+
+    it('does not flag large but sub-threshold shapes', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: null })
+      const { client } = await setupMcpClient(pool)
+
+      const toolPromise = client.callTool({
+        name: 'verify_slides',
+        arguments: { slideIndex: 0, checks: ['background_cover'] },
+      })
+
+      await new Promise((r) => setTimeout(r, 10))
+      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+
+      pool.handleResponse(sentJson.id, 'response', {
+        shapes: [
+          { name: 'Banner', id: '5', left: 0, top: 0, width: 960, height: 162 },
+          { name: 'Card', id: '6', left: 96, top: 54, width: 768, height: 432 },
+        ],
+        slideWidth: 960,
+        slideHeight: 540,
+      })
+
+      const result = await toolPromise
+      const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+      expect(parsed.issueCount).toBe(0)
+    })
   })
 
   describe('read_slide_zip', () => {
@@ -2211,8 +2517,11 @@ describe('MCP Tools', () => {
       const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
       pool.handleResponse(exportJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
-      // reimportSlide — the reimported base64 should contain the chart + updated Content_Types
-      await new Promise((r) => setTimeout(r, 10))
+      // reimportSlide — wait for the second ws.send call (zip processing can take variable time)
+      for (let attempt = 0; attempt < 20; attempt++) {
+        await new Promise((r) => setTimeout(r, 10))
+        if ((ws.send as ReturnType<typeof vi.fn>).mock.calls.length >= 2) break
+      }
       const reimportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
       // Verify the reimported base64 contains the auto-registered Content_Types
       const reimportCode = reimportJson.params.code as string
