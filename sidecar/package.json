@@ -1,0 +1,19 @@
+{
+  "name": "powerpoint-bridge-acp-sidecar",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ACP sidecar: spawns claude-agent-acp over stdio, exposes WSS, injects PowerPoint MCP into every session",
+  "scripts": {
+    "start": "node --experimental-strip-types index.ts",
+    "test:e2e": "node --experimental-strip-types test-client.ts"
+  },
+  "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "0.32.0",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1"
+  }
+}
