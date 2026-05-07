@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { createConnection } from 'node:net'
 import { resolve } from 'node:path'
 import {
   E2E_BRIDGE_HEALTH,
@@ -10,6 +11,8 @@ import {
   HEALTH_POLL_INTERVAL,
   SERVER_START_TIMEOUT,
 } from './config.ts'
+
+import { loadE2eEnv } from './helpers/load-env.ts'
 
 const PROJECT_ROOT = resolve(import.meta.dirname, '..')
 
@@ -31,6 +34,8 @@ async function pollHealth(url: string, label: string, timeoutMs: number): Promis
 }
 
 export default async function globalSetup(): Promise<() => Promise<void>> {
+  loadE2eEnv()
+
   // Verify certs exist
   const certPath = resolve(PROJECT_ROOT, 'certs', 'localhost.pem')
   const keyPath = resolve(PROJECT_ROOT, 'certs', 'localhost-key.pem')
@@ -41,22 +46,34 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   // Verify .env has E2E_DOC_URL
   const docUrl = process.env.E2E_DOC_URL
   if (!docUrl) {
-    throw new Error('E2E_DOC_URL not set. Copy e2e/.env.sample to e2e/.env and set the OneDrive document URL.')
+    throw new Error('E2E_DOC_URL not set. Create e2e/local-config.json with {"E2E_DOC_URL": "<onedrive edit url>"}.')
   }
 
-  // Check if ports are already in use (avoid conflict with dev instance)
+  // Check if ports are already in use (avoid conflict with dev instance).
+  // Use a raw TCP connection check rather than HTTP/HTTPS so that TLS cert errors
+  // (which happen with self-signed certs) are not mistaken for "port is free".
+  const isPortBound = (port: number): Promise<boolean> =>
+    new Promise((resolve) => {
+      const socket = createConnection(port, '127.0.0.1')
+      socket.on('connect', () => {
+        socket.destroy()
+        resolve(true)
+      })
+      socket.on('error', () => resolve(false))
+      socket.setTimeout(1000, () => {
+        socket.destroy()
+        resolve(false)
+      })
+    })
+
   for (const [port, label] of [
     [E2E_BRIDGE_PORT, 'Bridge'],
     [E2E_MCP_PORT, 'MCP'],
   ] as const) {
-    try {
-      const res = await fetch(`https://localhost:${port}/health`, { signal: AbortSignal.timeout(1000) })
-      if (res.ok) {
-        throw new Error(`${label} port ${port} is already in use. Stop any running bridge/MCP server on that port.`)
-      }
-    } catch (err) {
-      if (err instanceof Error && err.message.includes('already in use')) throw err
-      // Connection refused = port is free, good
+    if (await isPortBound(port)) {
+      throw new Error(
+        `${label} port ${port} is already in use. Stop any running bridge/MCP server on that port before running e2e tests.`,
+      )
     }
   }
 

@@ -33,9 +33,6 @@
                     xsi:type="VersionOverridesV1_0">
     <Hosts>
       <Host xsi:type="Presentation">
-        <Runtimes>
-          <Runtime resid="TaskpaneUrl" lifetime="long" />
-        </Runtimes>
         <DesktopFormFactor>
           <ExtensionPoint xsi:type="PrimaryCommandSurface">
             <OfficeTab id="TabHome">
@@ -58,7 +55,7 @@
                     <bt:Image size="80" resid="Icon80"/>
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
-                    <TaskpaneId>Office.AutoShowTaskpaneWithDocument</TaskpaneId>
+                    <TaskpaneId>BridgeTaskpane</TaskpaneId>
                     <SourceLocation resid="TaskpaneUrl"/>
                   </Action>
                 </Control>

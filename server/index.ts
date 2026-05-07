@@ -181,6 +181,7 @@ const MIME_TYPES = {
   '.json': 'application/json',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
+  '.xml': 'application/xml; charset=UTF-8',
 } as const
 
 type KnownExt = keyof typeof MIME_TYPES
@@ -288,6 +289,21 @@ async function handleMcpDelete(req: IncomingMessage, res: ServerResponse): Promi
 function serveStatic(req: IncomingMessage, res: ServerResponse): void {
   const rawUrl = (req.url ?? '/').split('?')[0]
 
+  // Handle CORS preflight — including Chrome's Private Network Access (PNA) preflight.
+  // WAC (officeapps.live.com) fetches the manifest from localhost, which is a public→loopback
+  // request. Chrome sends an OPTIONS preflight with Access-Control-Request-Private-Network:true
+  // and only proceeds if the response includes Access-Control-Allow-Private-Network:true.
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Private-Network': 'true',
+    })
+    res.end()
+    return
+  }
+
   if (rawUrl === '/health' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ status: 'ok', connections: pool.size }))
@@ -324,6 +340,7 @@ function serveStatic(req: IncomingMessage, res: ServerResponse): void {
   }
 
   const urlPath = rawUrl === '/' ? '/index.html' : rawUrl
+  console.error(`[bridge] GET ${rawUrl}`)
   const filePath = resolve(join(ADDIN_STATIC_DIR, urlPath))
 
   if (!filePath.startsWith(ADDIN_STATIC_DIR)) {
@@ -338,8 +355,23 @@ function serveStatic(req: IncomingMessage, res: ServerResponse): void {
     return
   }
 
-  const content = readFileSync(filePath)
-  res.writeHead(200, { 'Content-Type': getMimeType(filePath) })
+  const raw = readFileSync(filePath)
+  const mimeType = getMimeType(filePath)
+  // For XML manifests served over the bridge, substitute the default port with
+  // the actual running port so the taskpane SourceLocation URLs are correct.
+  const content =
+    extname(filePath) === '.xml'
+      ? substituteManifestPort(
+          raw.toString(),
+          bridgeTls ? BRIDGE_DEFAULT_HTTPS_PORT : BRIDGE_DEFAULT_HTTP_PORT,
+          BRIDGE_PORT,
+        )
+      : raw
+  res.writeHead(200, {
+    'Content-Type': mimeType,
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Private-Network': 'true',
+  })
   res.end(content)
 }
 

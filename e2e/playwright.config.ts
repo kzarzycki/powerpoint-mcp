@@ -7,8 +7,8 @@ export default defineConfig({
   workers: 1, // Sequential: PowerPoint Web supports one add-in WS connection at a time
   globalSetup: './global-setup.ts',
   use: {
-    trace: 'on-first-retry',
-    video: 'on-first-retry',
+    trace: 'retain-on-failure',
+    video: 'retain-on-failure',
     ignoreHTTPSErrors: true, // mkcert self-signed certs
   },
   reporter: [['html', { open: 'never' }], ['list']],
