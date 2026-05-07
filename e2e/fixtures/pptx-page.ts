@@ -37,13 +37,43 @@ export const test = base.extend<PptxTestFixtures, PptxWorkerFixtures>({
       const docUrl = process.env.E2E_DOC_URL
       if (!docUrl) throw new Error('E2E_DOC_URL not set')
 
+      // WAC (Office Web) silently skips add-in sideloading when it detects "HeadlessChrome"
+      // in the User-Agent or sec-ch-ua client hint headers. Spoof them to look like
+      // regular Chrome so the sideload URL params are processed normally.
       const context = await chromium.launchPersistentContext(BROWSER_PROFILE_DIR, {
-        headless: false,
+        headless: true,
         ignoreHTTPSErrors: true,
-        args: [
-          '--disable-blink-features=AutomationControlled', // Avoid automation detection
-        ],
+        userAgent:
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36',
+        extraHTTPHeaders: {
+          'sec-ch-ua': '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"macOS"',
+        },
+        args: ['--disable-blink-features=AutomationControlled'],
       })
+
+      // Chrome's Private Network Access (PNA) policy blocks public HTTPS origins
+      // (euc-powerpoint.officeapps.live.com) from accessing loopback addresses.
+      // Playwright intercepts these requests at the CDP layer before PNA enforcement
+      // and proxies them via its own Node.js fetch (which has no PNA restriction).
+      for (const host of ['127.0.0.1', 'localhost']) {
+        await context.route(`https://${host}:${E2E_BRIDGE_PORT}/**`, async (route) => {
+          try {
+            const response = await route.fetch()
+            await route.fulfill({
+              response,
+              headers: {
+                ...response.headers(),
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Private-Network': 'true',
+              },
+            })
+          } catch {
+            await route.continue()
+          }
+        })
+      }
 
       await use(context)
       await context.close()
@@ -59,15 +89,26 @@ export const test = base.extend<PptxTestFixtures, PptxWorkerFixtures>({
     const page = await context.newPage()
     await page.goto(sideloadUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
 
-    // Handle one-time "Developer Mode" dialog if it appears
+    // Handle "Enable Developer Mode" dialog if it appears.
+    // The dialog has a checkbox that MUST be checked before clicking OK,
+    // otherwise WAC ignores the confirmation and the add-in won't load.
     try {
       const devModeDialog = page.getByText(/trust this add-in|developer mode|enable developer/i)
       await devModeDialog.waitFor({ state: 'visible', timeout: 10_000 })
+      console.log('[e2e] Developer mode dialog detected')
+      // Check the "Enable Developer Mode now." checkbox.
+      // Use locator().first() to avoid strict-mode errors when multiple checkboxes are present;
+      // the unchecked dev-mode checkbox is the only one in this dialog.
+      const enableCheckbox = page.locator('input[type="checkbox"]').first()
+      await enableCheckbox.check()
+      console.log('[e2e] Checkbox checked')
       const confirmBtn = page.getByRole('button', { name: /ok|enable|trust|yes/i })
       await confirmBtn.click()
-      console.log('[e2e] Developer mode dialog accepted')
-    } catch {
-      // No dialog = already accepted in this profile, continue
+      console.log('[e2e] Developer mode dialog accepted (checkbox checked)')
+      // Wait for dialog to close and add-in to begin loading
+      await page.waitForTimeout(2000)
+    } catch (err) {
+      console.log('[e2e] Dialog handling (skipped or errored):', err instanceof Error ? err.message : String(err))
     }
 
     // Wait for add-in taskpane iframe to appear
