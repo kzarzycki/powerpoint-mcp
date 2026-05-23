@@ -145,6 +145,16 @@ var placeholders = shapes.items.filter(function(s) { return s.type === "Placehol
 // placeholders tell you where the chrome is — build content below them
 ```
 
+## API Pitfalls (sandbox runtime)
+
+The bridge runs Office.js inside a sandboxed WKWebView. A few APIs that look correct per official docs are unreliable here — use the right column.
+
+| Don't | Do | Why |
+|-------|----|----|
+| `shapes.addGeometricShape(PowerPoint.GeometricShapeType.rectangle)` | `shapes.addGeometricShape("Rectangle")` | The `Office.PowerPoint.ShapeType` / `PowerPoint.GeometricShapeType` enum is often `undefined` in the sandbox — pass the string literal instead. |
+| `shape.fill.setForeColor("FFFF00")` | `shape.fill.setSolidColor("FFFF00")` | `setForeColor` is not on the fill object in this runtime. |
+| `slides[0]` | `slides.getItemAt(0)` or `slides.items[0]` after `load("items")` + `sync()` | Bracket indexing does not work on Office.js collections. |
+
 ## Geometric Shapes
 
 ```javascript
@@ -153,14 +163,14 @@ slides.load("items");
 await context.sync();
 var shapes = slides.items[0].shapes;
 
-// Add rectangle
-var rect = shapes.addGeometricShape(PowerPoint.GeometricShapeType.rectangle);
+// Add rectangle (use the string form — the enum is unreliable in the sandbox)
+var rect = shapes.addGeometricShape("Rectangle");
 rect.left = 100; rect.top = 100; rect.width = 200; rect.height = 150;
 rect.fill.setSolidColor("#2196F3");
 await context.sync();
 ```
 
-Use string literals for shape types:
+Shape types must be passed as string literals:
 
 ```javascript
 var shape = shapes.addGeometricShape("Rectangle", {
