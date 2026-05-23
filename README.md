@@ -126,6 +126,8 @@ Then restart PowerPoint, open a presentation, and click the bridge add-in in the
 
 This project was inspired by the [Claude in PowerPoint](https://support.anthropic.com/en/articles/11360939-using-claude-in-powerpoint) add-in. The first time I tried it, I was amazed — it edits live, open decks via Office.js, and the results are far better than file-based pptx tools. But it only works inside the add-in, which means no access to CLAUDE.md, skills, or any other Claude Code features. PowerPoint MCP brings those same Office.js capabilities to Claude Code (and any MCP client) so you get live editing with the full power of your coding environment.
 
+> The project was originally named **powerpoint-bridge** and renamed to **powerpoint-mcp** in v0.5.0. Older planning docs under `.planning/` still use the former name. The "bridge server" component keeps its name — it bridges MCP and the Office.js add-in over WebSocket.
+
 ## Architecture
 
 ```
