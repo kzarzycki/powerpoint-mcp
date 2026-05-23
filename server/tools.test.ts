@@ -56,6 +56,18 @@ function mockWs(): WebSocket {
   return { send: vi.fn(), readyState: 1 } as unknown as WebSocket
 }
 
+// Polls until the add-in has received its Nth WS command, then returns the
+// parsed message. Replaces fixed setTimeout waits that raced on slow CI runners.
+async function waitForSend(ws: WebSocket, index: number) {
+  const sendMock = ws.send as unknown as ReturnType<typeof vi.fn>
+  await vi.waitFor(() => {
+    if (sendMock.mock.calls.length <= index) {
+      throw new Error(`ws.send call #${index} not sent yet`)
+    }
+  })
+  return JSON.parse(sendMock.mock.calls[index][0])
+}
+
 async function setupMcpClient(pool: ConnectionPool) {
   const server = new McpServer({ name: 'test', version: '0.0.1' })
   registerTools(
@@ -219,8 +231,7 @@ describe('MCP Tools', () => {
       })
 
       // WS call 1: add slide
-      await new Promise((r) => setTimeout(r, 10))
-      const addJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const addJson = await waitForSend(ws, 0)
       expect(addJson.action).toBe('executeCode')
       pool.handleResponse(addJson.id, 'response', {
         slideIndex: 2,
@@ -230,8 +241,7 @@ describe('MCP Tools', () => {
       })
 
       // WS call 2: exportSlide
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const exportJson = await waitForSend(ws, 1)
       expect(exportJson.action).toBe('executeCode')
       const slideXml = `<?xml version="1.0" encoding="UTF-8"?>
         <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
@@ -263,8 +273,7 @@ describe('MCP Tools', () => {
       })
 
       // WS call 3: rename + set text
-      await new Promise((r) => setTimeout(r, 10))
-      const renameJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[2][0])
+      const renameJson = await waitForSend(ws, 2)
       expect(renameJson.action).toBe('executeCode')
       const code = renameJson.params.code as string
       expect(code).toContain('slide_title')
@@ -324,8 +333,7 @@ describe('MCP Tools', () => {
         },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const addJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const addJson = await waitForSend(ws, 0)
       pool.handleResponse(addJson.id, 'response', {
         slideIndex: 0,
         slideId: 'slide-0',
@@ -333,8 +341,7 @@ describe('MCP Tools', () => {
         layoutName: 'Simple',
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const exportJson = await waitForSend(ws, 1)
       const slideXml = `<?xml version="1.0" encoding="UTF-8"?>
         <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
           <p:cSld><p:spTree>
@@ -356,8 +363,7 @@ describe('MCP Tools', () => {
         prevSlideId: null,
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const renameJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[2][0])
+      const renameJson = await waitForSend(ws, 2)
       pool.handleResponse(renameJson.id, 'response', [{ id: '50', name: 'title_ph', text: 'OK' }])
 
       const result = await toolPromise
@@ -384,9 +390,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0 },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       expect(sentJson.action).toBe('executeCode')
       expect(sentJson.params.code).toContain('getImageAsBase64')
       expect(sentJson.params.code).toContain('width: 720')
@@ -425,9 +429,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, width: 1280, height: 720 },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       expect(sentJson.params.code).toContain('width: 1280')
       expect(sentJson.params.code).toContain('height: 720')
 
@@ -481,9 +483,7 @@ describe('MCP Tools', () => {
       })
 
       // Wait for export command to be sent to source
-      await new Promise((r) => setTimeout(r, 10))
-
-      const exportJson = JSON.parse((sourceWs.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const exportJson = await waitForSend(sourceWs, 0)
       expect(exportJson.action).toBe('executeCode')
       expect(exportJson.params.code).toContain('exportAsBase64')
 
@@ -495,9 +495,7 @@ describe('MCP Tools', () => {
       })
 
       // Wait for insert command to be sent to destination
-      await new Promise((r) => setTimeout(r, 10))
-
-      const insertJson = JSON.parse((destWs.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const insertJson = await waitForSend(destWs, 0)
       expect(insertJson.action).toBe('executeCode')
       expect(insertJson.params.code).toContain('insertSlidesFromBase64')
       expect(insertJson.params.code).toContain('UEsDBBQ=')
@@ -542,18 +540,14 @@ describe('MCP Tools', () => {
         },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const exportJson = JSON.parse((sourceWs.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const exportJson = await waitForSend(sourceWs, 0)
       pool.handleResponse(exportJson.id, 'response', {
         base64: 'DATA',
         slideIndex: 0,
         slideId: 'slide-0',
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const insertJson = JSON.parse((destWs.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const insertJson = await waitForSend(destWs, 0)
       expect(insertJson.params.code).toContain('UseDestinationTheme')
       expect(insertJson.params.code).toContain('267#')
 
@@ -605,8 +599,7 @@ describe('MCP Tools', () => {
       })
 
       // Export succeeds
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const exportJson = await waitForSend(ws, 0)
       pool.handleResponse(exportJson.id, 'response', {
         base64: 'DATA',
         slideIndex: 0,
@@ -640,9 +633,7 @@ describe('MCP Tools', () => {
         },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       expect(sentJson.action).toBe('executeCode')
       expect(sentJson.params.code).toContain('setSelectedDataAsync')
       expect(sentJson.params.code).toContain('iVBORw0KGgoAAAANSUhEUg==')
@@ -678,11 +669,9 @@ describe('MCP Tools', () => {
         },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
+      const sentJson = await waitForSend(ws, 0)
 
       expect(readFileSync).toHaveBeenCalledWith('/path/to/image.png')
-
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
       expect(sentJson.params.code).toContain('setSelectedDataAsync')
       // The base64 of [0x89, 0x50, 0x4e, 0x47] is "iVBORw=="
       expect(sentJson.params.code).toContain(Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64'))
@@ -716,11 +705,9 @@ describe('MCP Tools', () => {
         },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
+      const sentJson = await waitForSend(ws, 0)
 
       expect(globalThis.fetch).toHaveBeenCalledWith('https://example.com/image.png')
-
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
       expect(sentJson.params.code).toContain('setSelectedDataAsync')
       expect(sentJson.params.code).toContain(Buffer.from(new Uint8Array([1, 2, 3])).toString('base64'))
 
@@ -748,9 +735,7 @@ describe('MCP Tools', () => {
         },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       // slideIndex 2 (0-based) → goToByIdAsync(3, ...) (1-based)
       expect(sentJson.params.code).toContain('goToByIdAsync(3,')
       expect(sentJson.params.code).toContain('GoToType.Index')
@@ -782,9 +767,7 @@ describe('MCP Tools', () => {
         },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       expect(sentJson.params.code).toContain('imageLeft: 100')
       expect(sentJson.params.code).toContain('imageTop: 50')
       expect(sentJson.params.code).toContain('imageWidth: 400')
@@ -868,9 +851,7 @@ describe('MCP Tools', () => {
         arguments: {},
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       expect(sentJson.action).toBe('executeCode')
       expect(sentJson.params.code).toContain('getImageAsBase64')
       expect(sentJson.params.code).toContain('width: 480')
@@ -951,9 +932,7 @@ describe('MCP Tools', () => {
         arguments: { includeImages: false },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       // Should NOT contain getImageAsBase64 in the code
       expect(sentJson.params.code).not.toContain('getImageAsBase64')
 
@@ -1000,9 +979,7 @@ describe('MCP Tools', () => {
         arguments: { imageWidth: 960 },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       expect(sentJson.params.code).toContain('width: 960')
 
       pool.handleResponse(sentJson.id, 'response', { slideCount: 0, slideWidth: 960, slideHeight: 540, slides: [] })
@@ -1025,9 +1002,7 @@ describe('MCP Tools', () => {
         arguments: { slideRange: '0-2,5' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       expect(sentJson.params.code).toContain('[0,1,2,5]')
 
       pool.handleResponse(sentJson.id, 'response', { slideCount: 10, slideWidth: 960, slideHeight: 540, slides: [] })
@@ -1103,14 +1078,12 @@ describe('MCP Tools', () => {
       const toolPromise = client.callTool({ name: 'get_local_copy', arguments: {} })
 
       // First command: get revision number
-      await new Promise((r) => setTimeout(r, 10))
-      const revJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const revJson = await waitForSend(ws, 0)
       expect(revJson.params.code).toContain('revisionNumber')
       pool.handleResponse(revJson.id, 'response', 42)
 
       // Second command: export via getFileAsync
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const exportJson = await waitForSend(ws, 1)
       expect(exportJson.params.code).toContain('getFileAsync')
       pool.handleResponse(exportJson.id, 'response', 'UEsDBBQAAAA=')
 
@@ -1144,8 +1117,7 @@ describe('MCP Tools', () => {
       const toolPromise = client.callTool({ name: 'get_local_copy', arguments: {} })
 
       // Revision check returns same revision
-      await new Promise((r) => setTimeout(r, 10))
-      const revJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const revJson = await waitForSend(ws, 0)
       pool.handleResponse(revJson.id, 'response', 7)
 
       const result = await toolPromise
@@ -1176,13 +1148,11 @@ describe('MCP Tools', () => {
       const toolPromise = client.callTool({ name: 'get_local_copy', arguments: {} })
 
       // Revision check returns NEW revision
-      await new Promise((r) => setTimeout(r, 10))
-      const revJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const revJson = await waitForSend(ws, 0)
       pool.handleResponse(revJson.id, 'response', 6)
 
       // Should trigger export via getFileAsync
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const exportJson = await waitForSend(ws, 1)
       expect(exportJson.params.code).toContain('getFileAsync')
       pool.handleResponse(exportJson.id, 'response', 'UEsDBBQAAAA=')
 
@@ -1217,8 +1187,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, shapeId: '2' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       expect(sentJson.params.code).toContain('exportAsBase64')
       pool.handleResponse(sentJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
@@ -1242,8 +1211,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, shapeId: '999' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       pool.handleResponse(sentJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
       const result = await toolPromise
@@ -1278,14 +1246,12 @@ describe('MCP Tools', () => {
       })
 
       // Export command
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const exportJson = await waitForSend(ws, 0)
       expect(exportJson.params.code).toContain('exportAsBase64')
       pool.handleResponse(exportJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
       // Reimport command
-      await new Promise((r) => setTimeout(r, 10))
-      const reimportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const reimportJson = await waitForSend(ws, 1)
       expect(reimportJson.params.code).toContain('insertSlidesFromBase64')
       expect(reimportJson.params.code).toContain('slide-0')
       // Verify atomic reimport: delete + insert batched before sync, with post-verification
@@ -1315,8 +1281,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, shapeId: '999', xml: '<a:p/>' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       pool.handleResponse(sentJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
       const result = await toolPromise
@@ -1338,8 +1303,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0 },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       pool.handleResponse(sentJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
       const result = await toolPromise
@@ -1360,8 +1324,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, shapeId: '5' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       pool.handleResponse(sentJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
       const result = await toolPromise
@@ -1383,8 +1346,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, shapeId: '999' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       pool.handleResponse(sentJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
       const result = await toolPromise
@@ -1405,13 +1367,11 @@ describe('MCP Tools', () => {
       })
 
       // Export
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const exportJson = await waitForSend(ws, 0)
       pool.handleResponse(exportJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
       // Reimport
-      await new Promise((r) => setTimeout(r, 10))
-      const reimportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const reimportJson = await waitForSend(ws, 1)
       expect(reimportJson.params.code).toContain('insertSlidesFromBase64')
       pool.handleResponse(reimportJson.id, 'response', { success: true })
 
@@ -1438,13 +1398,11 @@ describe('MCP Tools', () => {
       })
 
       // Export
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const exportJson = await waitForSend(ws, 0)
       pool.handleResponse(exportJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
       // Reimport
-      await new Promise((r) => setTimeout(r, 10))
-      const reimportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const reimportJson = await waitForSend(ws, 1)
       pool.handleResponse(reimportJson.id, 'response', { success: true })
 
       const result = await toolPromise
@@ -1462,8 +1420,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, xml: '<p:sp/>', shapeId: '999' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       pool.handleResponse(sentJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
       const result = await toolPromise
@@ -1494,13 +1451,11 @@ describe('MCP Tools', () => {
       })
 
       // Export
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const exportJson = await waitForSend(ws, 0)
       pool.handleResponse(exportJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
       // Reimport
-      await new Promise((r) => setTimeout(r, 10))
-      const reimportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const reimportJson = await waitForSend(ws, 1)
       expect(reimportJson.params.code).toContain('insertSlidesFromBase64')
       pool.handleResponse(reimportJson.id, 'response', { success: true })
 
@@ -1551,8 +1506,7 @@ describe('MCP Tools', () => {
       })
 
       // Export
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const exportJson = await waitForSend(ws, 0)
       pool.handleResponse(exportJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
       const result = await toolPromise
@@ -1577,8 +1531,7 @@ describe('MCP Tools', () => {
         },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       expect(sentJson.params.code).toContain('setSolidColor')
       expect(sentJson.params.code).toContain('1A1A1E')
       pool.handleResponse(sentJson.id, 'response', { success: true })
@@ -1601,8 +1554,7 @@ describe('MCP Tools', () => {
         },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       const code = sentJson.params.code
       expect(code).toContain('font.bold = true')
       expect(code).toContain('font.size = 16')
@@ -1629,8 +1581,7 @@ describe('MCP Tools', () => {
         },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       const code = sentJson.params.code
       expect(code).toContain('"2"')
       expect(code).toContain('"5"')
@@ -1653,8 +1604,7 @@ describe('MCP Tools', () => {
         },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       const code = sentJson.params.code
       expect(code).not.toContain('setSolidColor')
       expect(code).toContain('font.italic = true')
@@ -1691,11 +1641,8 @@ describe('MCP Tools', () => {
         arguments: { code: 'return 42' },
       })
 
-      // Wait a tick for the command to be sent
-      await new Promise((r) => setTimeout(r, 10))
-
       // Extract and respond to the command
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       pool.handleResponse(sentJson.id, 'response', 42)
 
       const result = await toolPromise
@@ -1753,8 +1700,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 1 },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       expect(sentJson.params.code).toContain('exportAsBase64')
       expect(sentJson.params.code).toContain('insertSlidesFromBase64')
 
@@ -1781,8 +1727,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, insertAfter: 3 },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       // The code should reference both index 0 (source) and index 3 (insert position)
       expect(sentJson.params.code).toContain('items[0]')
       expect(sentJson.params.code).toContain('items[3]')
@@ -1810,8 +1755,7 @@ describe('MCP Tools', () => {
         arguments: { slideRange: '0' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         slideWidth: 960,
@@ -1852,8 +1796,7 @@ describe('MCP Tools', () => {
         arguments: { slideRange: '0' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       // Verify the Office.js code does NOT load text or fill
       expect(sentJson.params.code).not.toContain('textFrame')
@@ -1888,8 +1831,7 @@ describe('MCP Tools', () => {
         arguments: { slideRange: '0', shapeType: 'Placeholder' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         slideWidth: 960,
@@ -1923,8 +1865,7 @@ describe('MCP Tools', () => {
         arguments: { slideRange: '0', namePattern: 'Title*' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         slideWidth: 960,
@@ -1958,8 +1899,7 @@ describe('MCP Tools', () => {
         arguments: { slideRange: '0', namePattern: 'Card*', shapeType: 'GeometricShape' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         slideWidth: 960,
@@ -1993,8 +1933,7 @@ describe('MCP Tools', () => {
         arguments: { slideRange: '0', shapeType: 'Picture' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         slideWidth: 960,
@@ -2025,8 +1964,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, checks: ['overlap'] },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         shapes: [
@@ -2056,8 +1994,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, checks: ['bounds'] },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         shapes: [
@@ -2086,8 +2023,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, checks: ['empty_text', 'tiny_shapes'] },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         shapes: [
@@ -2122,8 +2058,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0 },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         shapes: [{ name: 'Good', id: '1', left: 100, top: 100, width: 200, height: 100, text: 'OK' }],
@@ -2147,8 +2082,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, checks: ['layout_drift'] },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         shapes: [
@@ -2188,8 +2122,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, checks: ['layout_drift'] },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         shapes: [
@@ -2224,8 +2157,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, checks: ['layout_drift'] },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         shapes: [
@@ -2257,8 +2189,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, checks: ['layout_drift'] },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         shapes: [
@@ -2297,8 +2228,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, checks: ['background_cover'] },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         shapes: [
@@ -2327,8 +2257,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, checks: ['background_cover'] },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         shapes: [
@@ -2361,8 +2290,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, checks: ['background_cover'] },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
 
       pool.handleResponse(sentJson.id, 'response', {
         shapes: [
@@ -2397,8 +2325,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0 },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       pool.handleResponse(sentJson.id, 'response', {
         base64,
         slideId: 'slide-0',
@@ -2431,8 +2358,7 @@ describe('MCP Tools', () => {
         arguments: { slideIndex: 0, paths: ['ppt/charts/chart1.xml'] },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = await waitForSend(ws, 0)
       pool.handleResponse(sentJson.id, 'response', {
         base64,
         slideId: 'slide-0',
@@ -2466,8 +2392,7 @@ describe('MCP Tools', () => {
       })
 
       // First call: exportSlide
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const exportJson = await waitForSend(ws, 0)
       expect(exportJson.params.code).toContain('exportAsBase64')
       pool.handleResponse(exportJson.id, 'response', {
         base64,
@@ -2476,8 +2401,7 @@ describe('MCP Tools', () => {
       })
 
       // Second call: reimportSlide
-      await new Promise((r) => setTimeout(r, 10))
-      const reimportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const reimportJson = await waitForSend(ws, 1)
       expect(reimportJson.params.code).toContain('insertSlidesFromBase64')
       pool.handleResponse(reimportJson.id, 'response', { success: true })
 
@@ -2513,16 +2437,11 @@ describe('MCP Tools', () => {
       })
 
       // exportSlide
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const exportJson = await waitForSend(ws, 0)
       pool.handleResponse(exportJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
       // reimportSlide — wait for the second ws.send call (zip processing can take variable time)
-      for (let attempt = 0; attempt < 20; attempt++) {
-        await new Promise((r) => setTimeout(r, 10))
-        if ((ws.send as ReturnType<typeof vi.fn>).mock.calls.length >= 2) break
-      }
-      const reimportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const reimportJson = await waitForSend(ws, 1)
       // Verify the reimported base64 contains the auto-registered Content_Types
       const reimportCode = reimportJson.params.code as string
       // Extract the base64 from insertSlidesFromBase64("...") call
@@ -2569,13 +2488,11 @@ describe('MCP Tools', () => {
       })
 
       // exportSlide
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const exportJson = await waitForSend(ws, 0)
       pool.handleResponse(exportJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
       // reimportSlide — should use the explicit Content_Types, not auto-registered
-      await new Promise((r) => setTimeout(r, 10))
-      const reimportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const reimportJson = await waitForSend(ws, 1)
       const reimportCode = reimportJson.params.code as string
       const b64Match = reimportCode.match(/insertSlidesFromBase64\("([^"]+)"/)
       const reimportedZip = new JSZip()
@@ -2619,13 +2536,11 @@ describe('MCP Tools', () => {
       })
 
       // exportSlide
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const exportJson = await waitForSend(ws, 0)
       pool.handleResponse(exportJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
       // reimportSlide — verify the reimported zip has chart, rels, graphic frame
-      await new Promise((r) => setTimeout(r, 10))
-      const reimportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const reimportJson = await waitForSend(ws, 1)
       const reimportCode = reimportJson.params.code as string
       const b64Match = reimportCode.match(/insertSlidesFromBase64\("([^"]+)"/)
       expect(b64Match).not.toBeNull()
@@ -2697,12 +2612,10 @@ describe('MCP Tools', () => {
         },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const exportJson = await waitForSend(ws, 0)
       pool.handleResponse(exportJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const reimportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const reimportJson = await waitForSend(ws, 1)
       const reimportCode = reimportJson.params.code as string
       const b64Match = reimportCode.match(/insertSlidesFromBase64\("([^"]+)"/)
 
@@ -2746,12 +2659,10 @@ describe('MCP Tools', () => {
         },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const exportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const exportJson = await waitForSend(ws, 0)
       pool.handleResponse(exportJson.id, 'response', { base64, slideId: 'slide-0', prevSlideId: null })
 
-      await new Promise((r) => setTimeout(r, 10))
-      const reimportJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[1][0])
+      const reimportJson = await waitForSend(ws, 1)
       const reimportCode = reimportJson.params.code as string
       const b64Match = reimportCode.match(/insertSlidesFromBase64\("([^"]+)"/)
 
@@ -2788,9 +2699,7 @@ describe('MCP Tools', () => {
         arguments: { query: 'budget' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sent = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sent = await waitForSend(ws, 0)
       expect(sent.action).toBe('executeCode')
       expect(sent.params.code).toContain('budget')
 
@@ -2843,9 +2752,7 @@ describe('MCP Tools', () => {
         arguments: { query: 'hello', slideRange: '2-4' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sent = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sent = await waitForSend(ws, 0)
       expect(sent.params.code).toContain('2-4')
 
       pool.handleResponse(sent.id, 'response', {
@@ -2877,9 +2784,7 @@ describe('MCP Tools', () => {
         arguments: { query: 'Budget', caseSensitive: true },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sent = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sent = await waitForSend(ws, 0)
       expect(sent.params.code).toContain('caseSensitive = true')
 
       pool.handleResponse(sent.id, 'response', {
@@ -2920,9 +2825,7 @@ describe('MCP Tools', () => {
         arguments: { query: '\\d+%', regex: true },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sent = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sent = await waitForSend(ws, 0)
       expect(sent.params.code).toContain('useRegex = true')
       expect(sent.params.code).toContain('new RegExp')
 
@@ -2964,9 +2867,7 @@ describe('MCP Tools', () => {
         arguments: { query: 'budget', context: 'slide' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sent = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sent = await waitForSend(ws, 0)
       expect(sent.params.code).toContain('"slide"')
 
       pool.handleResponse(sent.id, 'response', {
@@ -3011,9 +2912,7 @@ describe('MCP Tools', () => {
         arguments: { query: 'AI', context: 'none' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sent = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sent = await waitForSend(ws, 0)
       expect(sent.params.code).toContain('"none"')
 
       pool.handleResponse(sent.id, 'response', {
@@ -3046,9 +2945,7 @@ describe('MCP Tools', () => {
         arguments: { query: 'reminder' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sent = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sent = await waitForSend(ws, 0)
       expect(sent.params.code).toContain('searchNotes = true')
       expect(sent.params.code).toContain('notesSlide')
 
@@ -3089,9 +2986,7 @@ describe('MCP Tools', () => {
         arguments: { query: 'test', includeNotes: false },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sent = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sent = await waitForSend(ws, 0)
       expect(sent.params.code).toContain('searchNotes = false')
 
       pool.handleResponse(sent.id, 'response', {
@@ -3123,9 +3018,7 @@ describe('MCP Tools', () => {
         arguments: { query: 'revenue' },
       })
 
-      await new Promise((r) => setTimeout(r, 10))
-
-      const sent = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sent = await waitForSend(ws, 0)
       expect(sent.params.code).toContain('Table')
       expect(sent.params.code).toContain('getCell')
 
