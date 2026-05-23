@@ -52131,6 +52131,13 @@ var PROJECT_ROOT = (0, import_node_path3.resolve)(SCRIPT_DIR, "..");
 var BRIDGE_CERT_PATH = (0, import_node_path3.resolve)(PROJECT_ROOT, "certs", "localhost.pem");
 var BRIDGE_KEY_PATH = (0, import_node_path3.resolve)(PROJECT_ROOT, "certs", "localhost-key.pem");
 var ADDIN_STATIC_DIR = (0, import_node_path3.resolve)(PROJECT_ROOT, "addin");
+var PKG_VERSION = (() => {
+  try {
+    return JSON.parse((0, import_node_fs3.readFileSync)((0, import_node_path3.resolve)(PROJECT_ROOT, "package.json"), "utf8")).version;
+  } catch {
+    return "0.0.0";
+  }
+})();
 var cliArgs = process.argv.slice(2);
 var enableStdio = cliArgs.includes("--stdio");
 var enableHttp = cliArgs.includes("--http");
@@ -52216,7 +52223,7 @@ var mcpHttpTransports = /* @__PURE__ */ new Map();
 function createMcpServer(getSessionId, getActiveSessionCount) {
   const mcpServer = new McpServer({
     name: "powerpoint-mcp",
-    version: "0.1.0"
+    version: PKG_VERSION
   });
   registerTools(mcpServer, pool, getSessionId, getActiveSessionCount);
   return mcpServer;
@@ -52472,11 +52479,7 @@ if (stdioActive) {
     console.error("MCP STDIO transport running");
   });
 }
-try {
-  const pkg = JSON.parse((0, import_node_fs3.readFileSync)((0, import_node_path3.resolve)(PROJECT_ROOT, "package.json"), "utf8"));
-  runVersionCheck(pkg.version);
-} catch {
-}
+runVersionCheck(PKG_VERSION);
 var activeInterfaces = [
   stdioActive && "STDIO",
   httpActive && `HTTP(:${MCP_HTTP_PORT})`,
