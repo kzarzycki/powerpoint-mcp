@@ -31,6 +31,16 @@ const BRIDGE_CERT_PATH = resolve(PROJECT_ROOT, 'certs', 'localhost.pem')
 const BRIDGE_KEY_PATH = resolve(PROJECT_ROOT, 'certs', 'localhost-key.pem')
 const ADDIN_STATIC_DIR = resolve(PROJECT_ROOT, 'addin')
 
+// Single source of truth for the running version (package.json), reused by the
+// MCP server handshake and the update check.
+const PKG_VERSION: string = (() => {
+  try {
+    return JSON.parse(readFileSync(resolve(PROJECT_ROOT, 'package.json'), 'utf8')).version
+  } catch {
+    return '0.0.0'
+  }
+})()
+
 // ---------------------------------------------------------------------------
 // Flag parsing
 // ---------------------------------------------------------------------------
@@ -164,7 +174,7 @@ const mcpHttpTransports = new Map<string, StreamableHTTPServerTransport>()
 function createMcpServer(getSessionId: () => string | undefined, getActiveSessionCount: () => number): McpServer {
   const mcpServer = new McpServer({
     name: 'powerpoint-mcp',
-    version: '0.1.0',
+    version: PKG_VERSION,
   })
   registerTools(mcpServer, pool, getSessionId, getActiveSessionCount)
   return mcpServer
@@ -487,10 +497,7 @@ if (stdioActive) {
 // Version check (non-blocking, fire-and-forget)
 // ---------------------------------------------------------------------------
 
-try {
-  const pkg = JSON.parse(readFileSync(resolve(PROJECT_ROOT, 'package.json'), 'utf8'))
-  runVersionCheck(pkg.version)
-} catch {}
+runVersionCheck(PKG_VERSION)
 
 // ---------------------------------------------------------------------------
 // Startup summary
