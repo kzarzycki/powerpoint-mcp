@@ -2,7 +2,9 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests',
-  timeout: 120_000,
+  // Cold WAC can take 20-40s just to surface the sideload dialogs, and a
+  // freshly-registered add-in needs a ribbon click + WS connect on top.
+  timeout: 180_000,
   retries: 1,
   workers: 1, // Sequential: PowerPoint Web supports one add-in WS connection at a time
   globalSetup: './global-setup.ts',

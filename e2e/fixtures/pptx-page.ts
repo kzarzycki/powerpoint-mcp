@@ -25,7 +25,12 @@ function findAddinFrame(page: PptxPage): AddinFrame | undefined {
 async function dismissSideloadDialogs(page: PptxPage, windowMs = 60_000): Promise<void> {
   const deadline = Date.now() + windowMs
   let devModeHandled = false
-  while (Date.now() < deadline) {
+  let manifestHandled = false
+  // Once the manifest dialog is accepted, keep polling only briefly — the pane
+  // either auto-opens (addin frame appears) or it won't, and we fall back to the
+  // ribbon. Avoids burning the whole window when auto-show doesn't fire.
+  let settleDeadline = Number.POSITIVE_INFINITY
+  while (Date.now() < deadline && Date.now() < settleDeadline) {
     // Taskpane already loaded — nothing left to dismiss.
     if (findAddinFrame(page)) return
 
@@ -45,12 +50,15 @@ async function dismissSideloadDialogs(page: PptxPage, windowMs = 60_000): Promis
           continue
         }
         if (
-          await frame
+          !manifestHandled &&
+          (await frame
             .getByText(/registering developer add-?in manifest/i)
             .first()
-            .isVisible()
+            .isVisible())
         ) {
           await frame.getByRole('button', { name: /^yes$/i }).first().click()
+          manifestHandled = true
+          settleDeadline = Date.now() + 10_000
           console.log('[e2e] Accepted add-in manifest registration')
         }
       } catch {
@@ -59,6 +67,33 @@ async function dismissSideloadDialogs(page: PptxPage, windowMs = 60_000): Promis
     }
     await page.waitForTimeout(1000)
   }
+}
+
+/**
+ * Open the add-in taskpane from the ribbon. After a fresh manifest registration,
+ * Office Web does NOT honor AutoShowTaskpaneWithDocument — the pane only auto-opens
+ * once it has been opened manually at least once on the profile. The button lives
+ * in the WAC host frame (euc-powerpoint.officeapps.live.com), labelled by the
+ * manifest DisplayName. Returns true if a button was found and clicked.
+ */
+async function openTaskpaneFromRibbon(page: PptxPage, windowMs = 30_000): Promise<boolean> {
+  const deadline = Date.now() + windowMs
+  while (Date.now() < deadline) {
+    for (const frame of page.frames()) {
+      try {
+        const button = frame.getByRole('button', { name: /^powerpoint mcp$/i }).first()
+        if (await button.isVisible()) {
+          await button.click()
+          console.log('[e2e] Opened taskpane from ribbon')
+          return true
+        }
+      } catch {
+        // Frame detached or button not in this frame — keep scanning.
+      }
+    }
+    await page.waitForTimeout(1000)
+  }
+  return false
 }
 
 /** Test-scoped fixtures (created per test) */
@@ -155,11 +190,21 @@ export const test = base.extend<PptxTestFixtures, PptxWorkerFixtures>({
     // every frame until both are handled or the taskpane iframe appears.
     await dismissSideloadDialogs(page)
 
-    // The taskpane auto-opens (manifest AutoShowTaskpaneWithDocument) and connects
-    // back over WebSocket. Gate readiness on the server-side connection rather than
-    // a DOM probe — the taskpane frame is nested in the WAC host frame and isn't
-    // reachable from a top-level frameLocator.
-    await waitForAddinConnection()
+    // On a primed profile the taskpane auto-opens (AutoShowTaskpaneWithDocument)
+    // and connects back over WebSocket. On a freshly-registered profile auto-show
+    // doesn't fire, so if the connection doesn't appear within a short grace window,
+    // open the pane from the ribbon and wait for the full timeout. Gate readiness on
+    // the server-side connection rather than a DOM probe — the taskpane frame is
+    // nested in the WAC host frame and isn't reachable from a top-level frameLocator.
+    try {
+      await waitForAddinConnection(8_000)
+    } catch {
+      console.log('[e2e] Taskpane did not auto-open; opening from ribbon')
+      if (!(await openTaskpaneFromRibbon(page))) {
+        throw new Error('Add-in ribbon button never appeared; cannot open taskpane')
+      }
+      await waitForAddinConnection()
+    }
 
     await use(page)
     await page.close()
