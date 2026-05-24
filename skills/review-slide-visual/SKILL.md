@@ -1,5 +1,5 @@
 ---
-name: review-slide
+name: review-slide-visual
 description: >
   Visually review a PowerPoint slide for layout issues, spacing problems, contrast errors,
   and alignment inconsistencies. Spawns an independent reviewer with no conversation context.
