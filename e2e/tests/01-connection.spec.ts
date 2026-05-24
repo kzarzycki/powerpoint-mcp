@@ -1,4 +1,4 @@
-import { E2E_BRIDGE_HEALTH, E2E_BRIDGE_PORT } from '../config.ts'
+import { E2E_BRIDGE_HEALTH } from '../config.ts'
 import { expect, test } from '../fixtures/pptx-page.ts'
 import { getTextContent, isToolError } from '../helpers/content-parsers.ts'
 
@@ -18,9 +18,8 @@ test.describe('Connection & Sideloading', () => {
     expect(body.connections).toBeGreaterThanOrEqual(1)
   })
 
-  test('add-in taskpane shows Connected status', async ({ pptxPage }) => {
-    const taskpane = pptxPage.frameLocator(`iframe[src*="localhost:${E2E_BRIDGE_PORT}"]`)
-    await expect(taskpane.locator('#status')).toContainText(/connected/i, { timeout: 10_000 })
+  test('add-in taskpane shows Connected status', async ({ addinFrame }) => {
+    await expect(addinFrame.locator('#status')).toContainText(/connected/i, { timeout: 10_000 })
   })
 
   test('list_presentations returns the test deck', async ({ pptxPage, mcpClient }) => {
