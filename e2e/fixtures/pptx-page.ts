@@ -102,7 +102,13 @@ export const test = base.extend<PptxTestFixtures, PptxWorkerFixtures>({
           'sec-ch-ua-mobile': '?0',
           'sec-ch-ua-platform': '"macOS"',
         },
-        args: ['--disable-blink-features=AutomationControlled'],
+        // Suppress the "Restore pages? Chromium didn't shut down correctly" bubble
+        // that appears when a prior run was killed rather than closed cleanly.
+        args: [
+          '--disable-blink-features=AutomationControlled',
+          '--disable-session-crashed-bubble',
+          '--hide-crash-restore-bubble',
+        ],
       })
 
       // Chrome's Private Network Access (PNA) policy blocks public HTTPS origins
