@@ -165,7 +165,7 @@ For multi-step work, check in at key milestones. Show interim outputs and confir
 4. **Detect deck type**: Determine blank / custom-styled / template (see above) — this decides whether to apply a theme first.
 4. **See**: `screenshot_slide` — visually inspect specific slides
 5. **Modify**: `execute_officejs` — build entire slides in a single call (all shapes, text, connectors, accents at once) for efficiency and to avoid mid-build visual flashing
-6. **Verify**: full verification loop — `verify_slides` + `/review-slide` (see below). **Both steps are mandatory. Never skip `/review-slide`.**
+6. **Verify**: full verification loop — `verify_slides` + `/review-slide-visual` (see below). **Both steps are mandatory. Never skip `/review-slide-visual`.**
 
 Always inspect before modifying. Always verify after modifying. Every modified slide must pass both structural AND visual review before you move on or declare done.
 
@@ -188,10 +188,10 @@ Do NOT build an entire multi-slide deck in a single call.
 1. **Auto-size first**: set `autoSizeSetting = "AutoSizeShapeToFitText"` on edited text shapes via `execute_officejs` — otherwise `verify_slides` sees stale dimensions
 2. **Structural check**: `verify_slides` — overlap, bounds, empty text, tiny shapes, unused placeholders
 3. **Text contrast check**: verify font color (set in the master's `p:txStyles`) contrasts the slide background. Flag and fix any per-shape color override that reduces legibility.
-4. **Visual review**: invoke `/review-slide N presentationId` — this is NOT optional. The independent reviewer catches issues you cannot see from data alone (spacing, alignment, visual weight, contrast).
+4. **Visual review**: invoke `/review-slide-visual N presentationId` — this is NOT optional. The independent reviewer catches issues you cannot see from data alone (spacing, alignment, visual weight, contrast).
 5. **Fix issues** and re-run from step 1. Repeat until only minor issues remain or only deliberate, acknowledged inconsistencies are left. Do NOT stop after one cycle if the reviewer flags real problems.
 
-Do NOT declare success until the verify → fix → re-verify loop converges. Skipping `/review-slide` means you have NOT verified.
+Do NOT declare success until the verify → fix → re-verify loop converges. Skipping `/review-slide-visual` means you have NOT verified.
 
 If overlaps/overflow: shorten text, reduce font, reposition body content (not title), or split across slides.
 
@@ -209,16 +209,16 @@ If overlaps/overflow: shorten text, reduce font, reposition body content (not ti
 
 **Efficient verification**: For large decks, visually verify only the most complex slides (high shape count, dense content) rather than every slide. Run `verify_slides` on all slides structurally, but pick 4-5 key slides for the visual subagent check.
 
-### Visual Review — `/review-slide`
+### Visual Review — `/review-slide-visual`
 
 **When**: After every slide edit — step 4 of the verification loop. This is the final gate before declaring a slide done.
 
-**How**: Invoke `/review-slide N presentationId` (N = 0-based slide index). Always pass the full presentationId — skips lookup and avoids ambiguity. The skill runs in a forked context with no conversation knowledge — it evaluates purely what it sees, eliminating confirmation bias.
+**How**: Invoke `/review-slide-visual N presentationId` (N = 0-based slide index). Always pass the full presentationId — skips lookup and avoids ambiguity. The skill runs in a forked context with no conversation knowledge — it evaluates purely what it sees, eliminating confirmation bias.
 
 **Why mandatory**: `verify_slides` catches structural issues (overlaps, bounds) but cannot detect spacing problems, visual imbalance, contrast issues, misaligned elements, or text overflow that Office.js doesn't report. Only a visual screenshot review catches these.
 
 **Rules**:
-- For large decks: run `verify_slides` structurally on all slides, but `/review-slide` only on the 4-5 most complex slides.
+- For large decks: run `verify_slides` structurally on all slides, but `/review-slide-visual` only on the 4-5 most complex slides.
 
 For `execute_officejs` code patterns, see [code-patterns.md](references/code-patterns.md).
 
