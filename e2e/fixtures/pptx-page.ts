@@ -2,99 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { type BrowserContext, test as base, chromium } from '@playwright/test'
 import { BROWSER_PROFILE_DIR, buildSideloadUrl, E2E_BRIDGE_PORT, E2E_MCP_URL } from '../config.ts'
-import { waitForAddinConnection } from '../helpers/wait-for-connection.ts'
-
-type PptxPage = Awaited<ReturnType<BrowserContext['newPage']>>
-type AddinFrame = ReturnType<PptxPage['frames']>[number]
-
-/**
- * Find the add-in taskpane frame. It loads from the bridge (localhost:PORT) but
- * is nested inside the WAC host frame, so a top-level locator/frameLocator can't
- * reach it — enumerate all frames instead.
- */
-function findAddinFrame(page: PptxPage): AddinFrame | undefined {
-  return page.frames().find((f) => f.url().includes(`localhost:${E2E_BRIDGE_PORT}/index.html`))
-}
-
-/**
- * Poll every frame of the page and dismiss the two sideload gating dialogs Office
- * Web raises before an add-in loads: "Enable Developer Mode" (check the box, then
- * OK) and "Registering Developer Add-in Manifest" (Yes). Returns once both are
- * handled, the taskpane frame shows up, or the window elapses.
- */
-async function dismissSideloadDialogs(page: PptxPage, windowMs = 60_000): Promise<void> {
-  const deadline = Date.now() + windowMs
-  let devModeHandled = false
-  let manifestHandled = false
-  // Once the manifest dialog is accepted, keep polling only briefly — the pane
-  // either auto-opens (addin frame appears) or it won't, and we fall back to the
-  // ribbon. Avoids burning the whole window when auto-show doesn't fire.
-  let settleDeadline = Number.POSITIVE_INFINITY
-  while (Date.now() < deadline && Date.now() < settleDeadline) {
-    // Taskpane already loaded — nothing left to dismiss.
-    if (findAddinFrame(page)) return
-
-    for (const frame of page.frames()) {
-      try {
-        if (
-          !devModeHandled &&
-          (await frame
-            .getByText(/enable developer mode/i)
-            .first()
-            .isVisible())
-        ) {
-          await frame.locator('input[type="checkbox"]').first().check()
-          await frame.getByRole('button', { name: /^ok$/i }).first().click()
-          devModeHandled = true
-          console.log('[e2e] Enabled developer mode')
-          continue
-        }
-        if (
-          !manifestHandled &&
-          (await frame
-            .getByText(/registering developer add-?in manifest/i)
-            .first()
-            .isVisible())
-        ) {
-          await frame.getByRole('button', { name: /^yes$/i }).first().click()
-          manifestHandled = true
-          settleDeadline = Date.now() + 10_000
-          console.log('[e2e] Accepted add-in manifest registration')
-        }
-      } catch {
-        // Frame detached or dialog vanished mid-check — keep polling.
-      }
-    }
-    await page.waitForTimeout(1000)
-  }
-}
-
-/**
- * Open the add-in taskpane from the ribbon. After a fresh manifest registration,
- * Office Web does NOT honor AutoShowTaskpaneWithDocument — the pane only auto-opens
- * once it has been opened manually at least once on the profile. The button lives
- * in the WAC host frame (euc-powerpoint.officeapps.live.com), labelled by the
- * manifest DisplayName. Returns true if a button was found and clicked.
- */
-async function openTaskpaneFromRibbon(page: PptxPage, windowMs = 30_000): Promise<boolean> {
-  const deadline = Date.now() + windowMs
-  while (Date.now() < deadline) {
-    for (const frame of page.frames()) {
-      try {
-        const button = frame.getByRole('button', { name: /^powerpoint mcp$/i }).first()
-        if (await button.isVisible()) {
-          await button.click()
-          console.log('[e2e] Opened taskpane from ribbon')
-          return true
-        }
-      } catch {
-        // Frame detached or button not in this frame — keep scanning.
-      }
-    }
-    await page.waitForTimeout(1000)
-  }
-  return false
-}
+import { type AddinFrame, connectAddin, findAddinFrame, type PptxPage } from '../helpers/sideload.ts'
 
 /** Test-scoped fixtures (created per test) */
 export interface PptxTestFixtures {
@@ -182,29 +90,9 @@ export const test = base.extend<PptxTestFixtures, PptxWorkerFixtures>({
     const page = await context.newPage()
     await page.goto(sideloadUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
 
-    // Dismiss the sideload gating dialogs. Office Web shows up to two, in sequence:
-    //   1. "Enable Developer Mode" — the checkbox MUST be checked before OK, or WAC
-    //      ignores the confirmation. Persists per-profile once accepted.
-    //   2. "Registering Developer Add-in Manifest" — "Yes" to load the local manifest.
-    // They can take well over 10s to render and may live in a nested frame, so poll
-    // every frame until both are handled or the taskpane iframe appears.
-    await dismissSideloadDialogs(page)
-
-    // On a primed profile the taskpane auto-opens (AutoShowTaskpaneWithDocument)
-    // and connects back over WebSocket. On a freshly-registered profile auto-show
-    // doesn't fire, so if the connection doesn't appear within a short grace window,
-    // open the pane from the ribbon and wait for the full timeout. Gate readiness on
-    // the server-side connection rather than a DOM probe — the taskpane frame is
-    // nested in the WAC host frame and isn't reachable from a top-level frameLocator.
-    try {
-      await waitForAddinConnection(8_000)
-    } catch {
-      console.log('[e2e] Taskpane did not auto-open; opening from ribbon')
-      if (!(await openTaskpaneFromRibbon(page))) {
-        throw new Error('Add-in ribbon button never appeared; cannot open taskpane')
-      }
-      await waitForAddinConnection()
-    }
+    // Dismiss the sideload dialogs, then wait for the add-in to connect — opening
+    // the pane from the ribbon if AutoShowTaskpaneWithDocument doesn't fire.
+    await connectAddin(page)
 
     await use(page)
     await page.close()
