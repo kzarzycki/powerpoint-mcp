@@ -206,32 +206,36 @@ async function main(): Promise<void> {
       })
     }
 
-    const page = context.pages()[0] ?? (await context.newPage())
+    // Keep the splash in its own tab so the user can always flip back to the
+    // instructions, and run sign-in + the deck in a second tab.
+    const splashPage = context.pages()[0] ?? (await context.newPage())
+    await splashPage.setContent(LOGIN_SPLASH)
+    console.log('[setup] Splash shown. A second tab will open for sign-in.')
+    await splashPage.waitForTimeout(4000)
 
-    // Show the splash, give the user a few seconds to read, then send them to the
-    // deck — which redirects to M365 sign-in on a clean profile.
-    await page.setContent(LOGIN_SPLASH)
-    console.log('[setup] Splash shown. Sign in to Microsoft 365 in the browser window when it opens.')
-    await page.waitForTimeout(4000)
-
-    await page.goto(buildSideloadUrl(docUrl), { waitUntil: 'domcontentloaded', timeout: 120_000 })
+    const deckPage = await context.newPage()
+    await deckPage.goto(buildSideloadUrl(docUrl), { waitUntil: 'domcontentloaded', timeout: 120_000 })
 
     // Wait patiently for the user to finish signing in (the deck rendering is the
-    // signal), then run the automated dialog + ribbon connect.
-    console.log(`[setup] Sign in now. Waiting up to ${SIGN_IN_WINDOW_MS / 60_000} min for the deck...`)
-    await waitForDeck(page, SIGN_IN_WINDOW_MS)
+    // signal), then run the automated dialog + ribbon connect in the deck tab.
+    console.log(
+      `[setup] Sign in now in the second tab. Waiting up to ${SIGN_IN_WINDOW_MS / 60_000} min for the deck...`,
+    )
+    await waitForDeck(deckPage, SIGN_IN_WINDOW_MS)
     console.log('[setup] Deck loaded. Accepting dialogs and connecting the add-in...')
     try {
-      await connectAddin(page)
+      await connectAddin(deckPage)
     } catch (err) {
-      await page.setContent(ERROR_SPLASH).catch(() => {})
-      await page.waitForTimeout(8000)
+      await splashPage.setContent(ERROR_SPLASH).catch(() => {})
+      await splashPage.bringToFront().catch(() => {})
+      await splashPage.waitForTimeout(8000)
       throw err
     }
 
     console.log('[setup] Add-in connected. Profile primed.')
-    await page.setContent(SUCCESS_SPLASH).catch(() => {})
-    await page.waitForTimeout(3000)
+    await splashPage.setContent(SUCCESS_SPLASH).catch(() => {})
+    await splashPage.bringToFront().catch(() => {})
+    await splashPage.waitForTimeout(3000)
   } finally {
     await context.close().catch(() => {})
     console.log('[setup] Stopping bridge server...')
