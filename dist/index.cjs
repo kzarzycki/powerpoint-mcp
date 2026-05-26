@@ -52234,7 +52234,8 @@ var MIME_TYPES = {
   ".css": "text/css",
   ".json": "application/json",
   ".png": "image/png",
-  ".ico": "image/x-icon"
+  ".ico": "image/x-icon",
+  ".xml": "application/xml; charset=UTF-8"
 };
 function getMimeType(filePath) {
   const ext = (0, import_node_path3.extname)(filePath);
@@ -52323,6 +52324,16 @@ async function handleMcpDelete(req, res) {
 }
 function serveStatic(req, res) {
   const rawUrl = (req.url ?? "/").split("?")[0];
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Private-Network": "true"
+    });
+    res.end();
+    return;
+  }
   if (rawUrl === "/health" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ status: "ok", connections: pool.size }));
@@ -52354,6 +52365,7 @@ function serveStatic(req, res) {
     return;
   }
   const urlPath = rawUrl === "/" ? "/index.html" : rawUrl;
+  console.error(`[bridge] GET ${rawUrl}`);
   const filePath = (0, import_node_path3.resolve)((0, import_node_path3.join)(ADDIN_STATIC_DIR, urlPath));
   if (!filePath.startsWith(ADDIN_STATIC_DIR)) {
     res.writeHead(403, { "Content-Type": "text/plain" });
@@ -52365,8 +52377,18 @@ function serveStatic(req, res) {
     res.end("404 Not Found");
     return;
   }
-  const content = (0, import_node_fs3.readFileSync)(filePath);
-  res.writeHead(200, { "Content-Type": getMimeType(filePath) });
+  const raw = (0, import_node_fs3.readFileSync)(filePath);
+  const mimeType = getMimeType(filePath);
+  const content = (0, import_node_path3.extname)(filePath) === ".xml" ? substituteManifestPort(
+    raw.toString(),
+    bridgeTls ? BRIDGE_DEFAULT_HTTPS_PORT : BRIDGE_DEFAULT_HTTP_PORT,
+    BRIDGE_PORT
+  ) : raw;
+  res.writeHead(200, {
+    "Content-Type": mimeType,
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Private-Network": "true"
+  });
   res.end(content);
 }
 if (bridgeActive) {

@@ -1,18 +1,13 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { type BrowserContext, test as base, chromium } from '@playwright/test'
-import {
-  ADDIN_CONNECT_TIMEOUT,
-  BROWSER_PROFILE_DIR,
-  buildSideloadUrl,
-  E2E_BRIDGE_PORT,
-  E2E_MCP_URL,
-} from '../config.ts'
-import { waitForAddinConnection } from '../helpers/wait-for-connection.ts'
+import { BROWSER_PROFILE_DIR, buildSideloadUrl, E2E_BRIDGE_PORT, E2E_MCP_URL } from '../config.ts'
+import { type AddinFrame, connectAddin, findAddinFrame, type PptxPage } from '../helpers/sideload.ts'
 
 /** Test-scoped fixtures (created per test) */
 export interface PptxTestFixtures {
-  pptxPage: Awaited<ReturnType<BrowserContext['newPage']>>
+  pptxPage: PptxPage
+  addinFrame: AddinFrame
   mcpClient: Client
 }
 
@@ -37,13 +32,49 @@ export const test = base.extend<PptxTestFixtures, PptxWorkerFixtures>({
       const docUrl = process.env.E2E_DOC_URL
       if (!docUrl) throw new Error('E2E_DOC_URL not set')
 
+      // WAC (Office Web) silently skips add-in sideloading when it detects "HeadlessChrome"
+      // in the User-Agent or sec-ch-ua client hint headers. Spoof them to look like
+      // regular Chrome so the sideload URL params are processed normally.
       const context = await chromium.launchPersistentContext(BROWSER_PROFILE_DIR, {
-        headless: false,
+        headless: process.env.E2E_HEADED !== '1',
         ignoreHTTPSErrors: true,
+        userAgent:
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36',
+        extraHTTPHeaders: {
+          'sec-ch-ua': '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"macOS"',
+        },
+        // Suppress the "Restore pages? Chromium didn't shut down correctly" bubble
+        // that appears when a prior run was killed rather than closed cleanly.
         args: [
-          '--disable-blink-features=AutomationControlled', // Avoid automation detection
+          '--disable-blink-features=AutomationControlled',
+          '--disable-session-crashed-bubble',
+          '--hide-crash-restore-bubble',
         ],
       })
+
+      // Chrome's Private Network Access (PNA) policy blocks public HTTPS origins
+      // (euc-powerpoint.officeapps.live.com) from accessing loopback addresses.
+      // Playwright intercepts these requests at the CDP layer before PNA enforcement
+      // and proxies them via its own Node.js fetch (which has no PNA restriction).
+      for (const host of ['127.0.0.1', 'localhost']) {
+        await context.route(`https://${host}:${E2E_BRIDGE_PORT}/**`, async (route) => {
+          try {
+            const response = await route.fetch()
+            await route.fulfill({
+              response,
+              headers: {
+                ...response.headers(),
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Private-Network': 'true',
+              },
+            })
+          } catch {
+            await route.continue()
+          }
+        })
+      }
 
       await use(context)
       await context.close()
@@ -59,34 +90,19 @@ export const test = base.extend<PptxTestFixtures, PptxWorkerFixtures>({
     const page = await context.newPage()
     await page.goto(sideloadUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
 
-    // Handle one-time "Developer Mode" dialog if it appears
-    try {
-      const devModeDialog = page.getByText(/trust this add-in|developer mode|enable developer/i)
-      await devModeDialog.waitFor({ state: 'visible', timeout: 10_000 })
-      const confirmBtn = page.getByRole('button', { name: /ok|enable|trust|yes/i })
-      await confirmBtn.click()
-      console.log('[e2e] Developer mode dialog accepted')
-    } catch {
-      // No dialog = already accepted in this profile, continue
-    }
-
-    // Wait for add-in taskpane iframe to appear
-    const taskpaneIframe = page.frameLocator(`iframe[src*="localhost:${E2E_BRIDGE_PORT}"]`)
-    try {
-      await taskpaneIframe.locator('#status').waitFor({ state: 'visible', timeout: ADDIN_CONNECT_TIMEOUT })
-    } catch {
-      throw new Error(
-        `Add-in taskpane iframe did not appear within ${ADDIN_CONNECT_TIMEOUT}ms. ` +
-          'Office Web may not have processed the sideload URL parameters. ' +
-          'Verify the document URL is correct and the bridge server is serving the manifest.',
-      )
-    }
-
-    // Wait for WebSocket connection (server-side confirmation)
-    await waitForAddinConnection()
+    // Dismiss the sideload dialogs, then wait for the add-in to connect — opening
+    // the pane from the ribbon if AutoShowTaskpaneWithDocument doesn't fire.
+    await connectAddin(page)
 
     await use(page)
     await page.close()
+  },
+
+  // Test-scoped: the connected add-in taskpane frame (nested in the WAC host frame)
+  addinFrame: async ({ pptxPage: page }, use) => {
+    const frame = findAddinFrame(page)
+    if (!frame) throw new Error('Add-in taskpane frame not found despite an active bridge connection')
+    await use(frame)
   },
 
   // Test-scoped: MCP client

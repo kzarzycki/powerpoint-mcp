@@ -16,5 +16,9 @@ logs/
 .sideloaded
 e2e/.browser-profile/
 e2e/.env
+e2e/local-config.json
 e2e/test-results/
 e2e/playwright-report/
+.playwright-cli/
+playwright-report/
+test-results/

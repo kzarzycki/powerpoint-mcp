@@ -12,10 +12,22 @@ export function getTextContent(result: ToolResult): string {
     .join('\n')
 }
 
-/** Parse the text content of an MCP tool result as JSON */
+/**
+ * Parse the text content of an MCP tool result as JSON.
+ *
+ * Some tools append a human-readable note after the JSON payload (e.g. the
+ * concurrent-session warning from inspect_deck). Parse the leading JSON object/array
+ * and ignore any trailing text.
+ */
 export function getJsonContent<T = unknown>(result: ToolResult): T {
   const text = getTextContent(result)
-  return JSON.parse(text) as T
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    const end = Math.max(text.lastIndexOf('}'), text.lastIndexOf(']'))
+    if (end !== -1) return JSON.parse(text.slice(0, end + 1)) as T
+    throw new Error(`Tool result is not JSON: ${text.slice(0, 200)}`)
+  }
 }
 
 /** Check if the tool result indicates an error */

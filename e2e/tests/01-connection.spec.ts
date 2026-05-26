@@ -1,6 +1,12 @@
-import { E2E_BRIDGE_HEALTH, E2E_BRIDGE_PORT } from '../config.ts'
+import { E2E_BRIDGE_HEALTH } from '../config.ts'
 import { expect, test } from '../fixtures/pptx-page.ts'
-import { getTextContent, isToolError } from '../helpers/content-parsers.ts'
+import { getJsonContent, getTextContent, isToolError } from '../helpers/content-parsers.ts'
+
+interface DeckOverview {
+  slideWidth: number
+  slideHeight: number
+  slides: Array<{ index: number; id: string; layout: string; shapeCount: number }>
+}
 
 test.describe('Connection & Sideloading', () => {
   test('bridge server is healthy', async ({}) => {
@@ -18,9 +24,8 @@ test.describe('Connection & Sideloading', () => {
     expect(body.connections).toBeGreaterThanOrEqual(1)
   })
 
-  test('add-in taskpane shows Connected status', async ({ pptxPage }) => {
-    const taskpane = pptxPage.frameLocator(`iframe[src*="localhost:${E2E_BRIDGE_PORT}"]`)
-    await expect(taskpane.locator('#status')).toContainText(/connected/i, { timeout: 10_000 })
+  test('add-in taskpane shows Connected status', async ({ addinFrame }) => {
+    await expect(addinFrame.locator('#status')).toContainText(/connected/i, { timeout: 10_000 })
   })
 
   test('list_presentations returns the test deck', async ({ pptxPage, mcpClient }) => {
@@ -32,12 +37,26 @@ test.describe('Connection & Sideloading', () => {
     expect(text).toContain('presentation')
   })
 
-  test('inspect_deck returns slide information', async ({ pptxPage, mcpClient }) => {
+  test('inspect_deck reports the 5-slide test deck', async ({ pptxPage, mcpClient }) => {
     const result = await mcpClient.callTool({ name: 'inspect_deck', arguments: {} })
     expect(isToolError(result)).toBe(false)
 
-    const text = getTextContent(result)
-    // Test deck should have at least 5 slides
-    expect(text).toMatch(/slides?/i)
+    const deck = getJsonContent<DeckOverview>(result)
+
+    // The test deck has exactly 5 slides.
+    expect(deck.slides).toHaveLength(5)
+
+    // Slide dimensions are real, positive point values.
+    expect(deck.slideWidth).toBeGreaterThan(0)
+    expect(deck.slideHeight).toBeGreaterThan(0)
+
+    // Each slide carries the expected structure: 0-based index, a stable id,
+    // a layout name, and a shape count.
+    deck.slides.forEach((slide, i) => {
+      expect(slide.index).toBe(i)
+      expect(slide.id).toBeTruthy()
+      expect(slide.layout).toBeTruthy()
+      expect(slide.shapeCount).toBeGreaterThanOrEqual(0)
+    })
   })
 })
