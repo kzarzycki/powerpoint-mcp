@@ -2,6 +2,7 @@ import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 import {
   autoRegisterContentTypes,
+  buildEditedZipBase64,
   escapeXml,
   extractDeckText,
   extractLayoutsFromZip,
@@ -624,5 +625,50 @@ describe('xml-helpers', () => {
       expect(result[0]!.title).toBe('First by display order')
       expect(result[0]!.slide).toBe(0)
     })
+  })
+})
+
+describe('buildEditedZipBase64', () => {
+  const CT_XML =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '</Types>'
+  const CHART_CT = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml'
+
+  async function baseZipBase64(): Promise<string> {
+    const zip = new JSZip()
+    zip.file('[Content_Types].xml', CT_XML)
+    zip.file('ppt/slides/slide1.xml', '<p:sld/>')
+    return await zip.generateAsync({ type: 'base64' })
+  }
+
+  it('auto-registers a new part content type exactly once when files map omits Content_Types', async () => {
+    const exported = await baseZipBase64()
+    const { base64, newPaths } = await buildEditedZipBase64(exported, {
+      'ppt/charts/chart1.xml': '<c:chartSpace/>',
+    })
+    expect(newPaths).toEqual(['ppt/charts/chart1.xml'])
+    const out = await JSZip.loadAsync(Buffer.from(base64, 'base64'))
+    const ct = await out.file('[Content_Types].xml')!.async('string')
+    const occurrences = ct.split(`PartName="/ppt/charts/chart1.xml"`).length - 1
+    expect(occurrences).toBe(1)
+    expect(ct).toContain(CHART_CT)
+  })
+
+  it('does not double-register when files map already provides Content_Types', async () => {
+    const exported = await baseZipBase64()
+    const userCt = CT_XML.replace(
+      '</Types>',
+      `<Override PartName="/ppt/charts/chart1.xml" ContentType="${CHART_CT}"/></Types>`,
+    )
+    const { base64 } = await buildEditedZipBase64(exported, {
+      'ppt/charts/chart1.xml': '<c:chartSpace/>',
+      '[Content_Types].xml': userCt,
+    })
+    const out = await JSZip.loadAsync(Buffer.from(base64, 'base64'))
+    const ct = await out.file('[Content_Types].xml')!.async('string')
+    const occurrences = ct.split(`PartName="/ppt/charts/chart1.xml"`).length - 1
+    expect(occurrences).toBe(1)
   })
 })

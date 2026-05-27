@@ -51741,6 +51741,24 @@ async function autoRegisterContentTypes(zip, newPaths) {
   }
   zip.file("[Content_Types].xml", ctXml);
 }
+async function buildEditedZipBase64(exportedBase64, files) {
+  const { zip } = await extractZipFiles(exportedBase64);
+  const existingPaths = new Set(listZipPaths(zip));
+  const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p));
+  const modifiedBase64 = await updateZipFiles(zip, files);
+  if (newPaths.length > 0 && !files["[Content_Types].xml"]) {
+    const { zip: updatedZip } = await extractZipFiles(modifiedBase64);
+    await autoRegisterContentTypes(updatedZip, newPaths);
+    const finalBase64 = await updatedZip.generateAsync({ type: "base64" });
+    return { base64: finalBase64, newPaths };
+  }
+  return { base64: modifiedBase64, newPaths };
+}
+async function applyZipEditAndReimport(pool2, exported, files, targetWs) {
+  const { base64: base643, newPaths } = await buildEditedZipBase64(exported.base64, files);
+  await reimportSlide(pool2, base643, exported.slideId, exported.prevSlideId, targetWs);
+  return newPaths;
+}
 async function extractSlideXmlFromZip(base643) {
   const { zip, files } = await extractZipFiles(base643, [SLIDE_XML_PATH]);
   return { zip, xmlString: files[SLIDE_XML_PATH] };
@@ -53589,18 +53607,7 @@ ${textParts.join("\n")}` : "\n(no text content)";
     withTool(async ({ slideIndex, files, presentationId }) => {
       const target = pool2.resolveTarget(presentationId);
       const exported = await exportSlide(pool2, slideIndex, target.ws);
-      const { zip } = await extractZipFiles(exported.base64);
-      const existingPaths = new Set(listZipPaths(zip));
-      const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p));
-      const modifiedBase64 = await updateZipFiles(zip, files);
-      if (newPaths.length > 0 && !files["[Content_Types].xml"]) {
-        const { zip: updatedZip } = await extractZipFiles(modifiedBase64);
-        await autoRegisterContentTypes(updatedZip, newPaths);
-        const finalBase64 = await updatedZip.generateAsync({ type: "base64" });
-        await reimportSlide(pool2, finalBase64, exported.slideId, exported.prevSlideId, target.ws);
-      } else {
-        await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
-      }
+      const newPaths = await applyZipEditAndReimport(pool2, exported, files, target.ws);
       const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
       const text = JSON.stringify({ success: true, filesUpdated: Object.keys(files).length, newFiles: newPaths }, null, 2) + (warning ?? "");
       return { content: [{ type: "text", text }] };
@@ -53670,16 +53677,7 @@ ${textParts.join("\n")}` : "\n(no text content)";
         [chartZipPath]: chartXml,
         [relsPath]: modifiedRels
       };
-      const newPaths = Object.keys(files).filter((p) => !new Set(existingPaths).has(p));
-      const modifiedBase64 = await updateZipFiles(zip, files);
-      if (newPaths.length > 0) {
-        const { zip: updatedZip } = await extractZipFiles(modifiedBase64);
-        await autoRegisterContentTypes(updatedZip, newPaths);
-        const finalBase64 = await updatedZip.generateAsync({ type: "base64" });
-        await reimportSlide(pool2, finalBase64, exported.slideId, exported.prevSlideId, target.ws);
-      } else {
-        await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
-      }
+      await applyZipEditAndReimport(pool2, exported, files, target.ws);
       const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
       const text = JSON.stringify(
         {
@@ -54028,17 +54026,7 @@ return { success: true, shapesFormatted: ${shapes.length} };`;
           const slideRelsXml = slideRelsFile ? await slideRelsFile.async("string") : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
           const files = buildNotesInjection(slideRelsXml, entry.text);
-          const existingPaths = new Set(listZipPaths(zip));
-          const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p));
-          const modifiedBase64 = await updateZipFiles(zip, files);
-          if (newPaths.length > 0 && !files["[Content_Types].xml"]) {
-            const { zip: updatedZip } = await extractZipFiles(modifiedBase64);
-            await autoRegisterContentTypes(updatedZip, newPaths);
-            const finalBase64 = await updatedZip.generateAsync({ type: "base64" });
-            await reimportSlide(pool2, finalBase64, exported.slideId, exported.prevSlideId, target.ws);
-          } else {
-            await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
-          }
+          await applyZipEditAndReimport(pool2, exported, files, target.ws);
           results.push({ slideIndex: entry.slideIndex, success: true });
         } catch (err) {
           results.push({ slideIndex: entry.slideIndex, success: false, error: errorMessage(err) });

@@ -12,7 +12,7 @@ import { buildNotesInjection, readNotesFromDeck } from './notes-helpers.ts'
 import { errorMessage, withTool } from './tool-helpers.ts'
 import type { ThemeInfo } from './xml-helpers.ts'
 import {
-  autoRegisterContentTypes,
+  applyZipEditAndReimport,
   escapeXml,
   exportSlide,
   extractDeckText,
@@ -31,7 +31,6 @@ import {
   replaceShape,
   serializeXml,
   updateSlideXmlInZip,
-  updateZipFiles,
 } from './xml-helpers.ts'
 
 // ---------------------------------------------------------------------------
@@ -1863,24 +1862,7 @@ export function registerTools(
     withTool(async ({ slideIndex, files, presentationId }) => {
       const target = pool.resolveTarget(presentationId)
       const exported = await exportSlide(pool, slideIndex, target.ws)
-      const { zip } = await extractZipFiles(exported.base64)
-
-      // Detect new files (not already in zip) for Content_Types auto-registration
-      const existingPaths = new Set(listZipPaths(zip))
-      const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p))
-
-      // Apply user-provided file changes first (explicit takes precedence)
-      const modifiedBase64 = await updateZipFiles(zip, files)
-
-      // Auto-register Content_Types for new chart files (if not already handled by user)
-      if (newPaths.length > 0 && !files['[Content_Types].xml']) {
-        const { zip: updatedZip } = await extractZipFiles(modifiedBase64)
-        await autoRegisterContentTypes(updatedZip, newPaths)
-        const finalBase64 = await updatedZip.generateAsync({ type: 'base64' })
-        await reimportSlide(pool, finalBase64, exported.slideId, exported.prevSlideId, target.ws)
-      } else {
-        await reimportSlide(pool, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws)
-      }
+      const newPaths = await applyZipEditAndReimport(pool, exported, files, target.ws)
 
       const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
       const text =
@@ -1992,18 +1974,7 @@ export function registerTools(
         [relsPath]: modifiedRels,
       }
 
-      const newPaths = Object.keys(files).filter((p) => !new Set(existingPaths).has(p))
-      const modifiedBase64 = await updateZipFiles(zip, files)
-
-      // Auto-register Content_Types for the new chart file
-      if (newPaths.length > 0) {
-        const { zip: updatedZip } = await extractZipFiles(modifiedBase64)
-        await autoRegisterContentTypes(updatedZip, newPaths)
-        const finalBase64 = await updatedZip.generateAsync({ type: 'base64' })
-        await reimportSlide(pool, finalBase64, exported.slideId, exported.prevSlideId, target.ws)
-      } else {
-        await reimportSlide(pool, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws)
-      }
+      await applyZipEditAndReimport(pool, exported, files, target.ws)
 
       const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
       const text =
@@ -2422,22 +2393,7 @@ return { success: true, shapesFormatted: ${shapes.length} };`
           // Build the notes injection files
           const files = buildNotesInjection(slideRelsXml, entry.text)
 
-          // Detect new files for Content_Types
-          const existingPaths = new Set(listZipPaths(zip))
-          const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p))
-
-          // Apply changes
-          const modifiedBase64 = await updateZipFiles(zip, files)
-
-          // Auto-register Content_Types for new notes files
-          if (newPaths.length > 0 && !files['[Content_Types].xml']) {
-            const { zip: updatedZip } = await extractZipFiles(modifiedBase64)
-            await autoRegisterContentTypes(updatedZip, newPaths)
-            const finalBase64 = await updatedZip.generateAsync({ type: 'base64' })
-            await reimportSlide(pool, finalBase64, exported.slideId, exported.prevSlideId, target.ws)
-          } else {
-            await reimportSlide(pool, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws)
-          }
+          await applyZipEditAndReimport(pool, exported, files, target.ws)
 
           results.push({ slideIndex: entry.slideIndex, success: true })
         } catch (err: unknown) {

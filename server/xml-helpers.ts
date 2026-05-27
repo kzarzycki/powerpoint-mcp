@@ -279,6 +279,52 @@ export async function autoRegisterContentTypes(zip: JSZip, newPaths: string[]): 
   zip.file('[Content_Types].xml', ctXml)
 }
 
+// ---------------------------------------------------------------------------
+// Shared zip-edit → reimport flow (edit_slide_zip, edit_slide_chart, edit_speaker_notes)
+// ---------------------------------------------------------------------------
+
+/**
+ * Apply a set of file edits to an exported slide zip and return the resulting
+ * base64 plus the list of newly added parts. Pure (no network): suitable for
+ * unit testing. New parts get their Content_Types auto-registered unless the
+ * caller already supplied a `[Content_Types].xml` override in `files`.
+ */
+export async function buildEditedZipBase64(
+  exportedBase64: string,
+  files: Record<string, string>,
+): Promise<{ base64: string; newPaths: string[] }> {
+  const { zip } = await extractZipFiles(exportedBase64)
+
+  const existingPaths = new Set(listZipPaths(zip))
+  const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p))
+
+  const modifiedBase64 = await updateZipFiles(zip, files)
+
+  if (newPaths.length > 0 && !files['[Content_Types].xml']) {
+    const { zip: updatedZip } = await extractZipFiles(modifiedBase64)
+    await autoRegisterContentTypes(updatedZip, newPaths)
+    const finalBase64 = await updatedZip.generateAsync({ type: 'base64' })
+    return { base64: finalBase64, newPaths }
+  }
+
+  return { base64: modifiedBase64, newPaths }
+}
+
+/**
+ * Build the edited zip via {@link buildEditedZipBase64} and reimport the slide
+ * into the live presentation. Returns the newly added parts (for result text).
+ */
+export async function applyZipEditAndReimport(
+  pool: ConnectionPool,
+  exported: ExportedSlide,
+  files: Record<string, string>,
+  targetWs: WebSocket,
+): Promise<string[]> {
+  const { base64, newPaths } = await buildEditedZipBase64(exported.base64, files)
+  await reimportSlide(pool, base64, exported.slideId, exported.prevSlideId, targetWs)
+  return newPaths
+}
+
 // Legacy wrappers — used by existing read/edit_shape_paragraphs and read/edit_slide_xml tools
 export async function extractSlideXmlFromZip(base64: string): Promise<{ zip: JSZip; xmlString: string }> {
   const { zip, files } = await extractZipFiles(base64, [SLIDE_XML_PATH])
