@@ -5,7 +5,7 @@ import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WebSocket } from 'ws'
 import { ConnectionPool } from './bridge.ts'
-import { localCopyCache, parseSlideRange, registerTools } from './tools.ts'
+import { buildFormatShapeOps, buildInsertOptions, localCopyCache, parseSlideRange, registerTools } from './tools.ts'
 
 vi.mock('node:fs', () => ({ existsSync: vi.fn(() => true), readFileSync: vi.fn(), writeFileSync: vi.fn() }))
 
@@ -3047,6 +3047,39 @@ describe('MCP Tools', () => {
       expect(parsed.matches[0].source).toBe('tableCell')
       expect(parsed.matches[0].row).toBe(2)
       expect(parsed.matches[0].col).toBe(1)
+    })
+  })
+
+  describe('buildFormatShapeOps', () => {
+    // The add-in compiles these op strings via AsyncFunction (the font branch
+    // emits `await context.sync()`), so wrap in an async function to compile.
+    const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
+
+    it('escapes embedded quotes in font.name so generated code is valid JS', () => {
+      const out = buildFormatShapeOps([{ id: 'sp1', font: { name: 'My "Quoted" Font' } }], 0)
+      expect(out).toContain(JSON.stringify('My "Quoted" Font'))
+      expect(() => new AsyncFunction('context', 'shapeMap', out)).not.toThrow()
+    })
+
+    it('escapes embedded quotes in id and fill', () => {
+      const out = buildFormatShapeOps([{ id: 'a"b', fill: 'FF"00' }], 3)
+      expect(out).toContain(JSON.stringify('a"b'))
+      expect(out).toContain(JSON.stringify('FF"00'))
+      expect(() => new AsyncFunction('context', 'shapeMap', out)).not.toThrow()
+    })
+  })
+
+  describe('buildInsertOptions', () => {
+    it('escapes embedded quotes in targetSlideId so the fragment is safe', () => {
+      const malicious = 'a" + x() + "'
+      const out = buildInsertOptions(undefined, malicious)
+      expect(out).toContain(JSON.stringify(malicious))
+      // The fragment is appended after the base64 arg: insertSlidesFromBase64("..."<fragment>)
+      expect(() => new Function(`var f = (function(){}); f("base64"${out});`)).not.toThrow()
+    })
+
+    it('returns empty string when no options', () => {
+      expect(buildInsertOptions(undefined, undefined)).toBe('')
     })
   })
 })

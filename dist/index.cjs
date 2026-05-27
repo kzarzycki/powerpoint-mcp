@@ -50185,6 +50185,35 @@ function parseSlideRange(range) {
   if (indices.size === 0) return null;
   return [...indices].sort((a, b) => a - b);
 }
+function buildFormatShapeOps(shapes, slideIndex) {
+  return shapes.map((s) => {
+    const lines = [];
+    lines.push(`  var s = shapeMap[${JSON.stringify(s.id)}];`);
+    lines.push(`  if (!s) throw new Error("Shape " + ${JSON.stringify(s.id)} + " not found on slide ${slideIndex}");`);
+    if (s.fill) {
+      lines.push(`  s.fill.setSolidColor(${JSON.stringify(s.fill)});`);
+    }
+    if (s.font) {
+      lines.push(`  var tf = s.getTextFrameOrNullObject();`);
+      lines.push(`  await context.sync();`);
+      lines.push(`  if (!tf.isNullObject) {`);
+      lines.push(`    var tr = tf.textRange;`);
+      if (s.font.bold !== void 0) lines.push(`    tr.font.bold = ${s.font.bold};`);
+      if (s.font.italic !== void 0) lines.push(`    tr.font.italic = ${s.font.italic};`);
+      if (s.font.size !== void 0) lines.push(`    tr.font.size = ${s.font.size};`);
+      if (s.font.color !== void 0) lines.push(`    tr.font.color = ${JSON.stringify(s.font.color)};`);
+      if (s.font.name !== void 0) lines.push(`    tr.font.name = ${JSON.stringify(s.font.name)};`);
+      lines.push(`  }`);
+    }
+    return lines.join("\n");
+  }).join("\n");
+}
+function buildInsertOptions(formatting, targetSlideId) {
+  const optionsParts = [];
+  if (formatting) optionsParts.push(`formatting: ${JSON.stringify(formatting)}`);
+  if (targetSlideId) optionsParts.push(`targetSlideId: ${JSON.stringify(targetSlideId)}`);
+  return optionsParts.length > 0 ? `, { ${optionsParts.join(", ")} }` : "";
+}
 function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
   async function getLocalCopyPath(connPool, target) {
     const filePath = target.filePath;
@@ -50842,14 +50871,7 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
         `;
         const exported = await pool2.sendCommand("executeCode", { code: exportCode }, source.ws);
         const dest = pool2.resolveTarget(destinationPresentationId);
-        const optionsParts = [];
-        if (formatting) {
-          optionsParts.push(`formatting: "${formatting}"`);
-        }
-        if (targetSlideId) {
-          optionsParts.push(`targetSlideId: "${targetSlideId}"`);
-        }
-        const optionsArg = optionsParts.length > 0 ? `, { ${optionsParts.join(", ")} }` : "";
+        const optionsArg = buildInsertOptions(formatting, targetSlideId);
         const insertCode = `
           context.presentation.insertSlidesFromBase64("${exported.base64}"${optionsArg});
           await context.sync();
@@ -51929,29 +51951,7 @@ ${textParts.join("\n")}` : "\n(no text content)";
     async ({ slideIndex, shapes, presentationId }) => {
       try {
         const target = pool2.resolveTarget(presentationId);
-        const shapeOps = shapes.map((s) => {
-          const lines = [];
-          lines.push(`  var s = shapeMap["${s.id}"];`);
-          lines.push(
-            `  if (!s) throw new Error("Shape " + ${JSON.stringify(s.id)} + " not found on slide ${slideIndex}");`
-          );
-          if (s.fill) {
-            lines.push(`  s.fill.setSolidColor("${s.fill}");`);
-          }
-          if (s.font) {
-            lines.push(`  var tf = s.getTextFrameOrNullObject();`);
-            lines.push(`  await context.sync();`);
-            lines.push(`  if (!tf.isNullObject) {`);
-            lines.push(`    var tr = tf.textRange;`);
-            if (s.font.bold !== void 0) lines.push(`    tr.font.bold = ${s.font.bold};`);
-            if (s.font.italic !== void 0) lines.push(`    tr.font.italic = ${s.font.italic};`);
-            if (s.font.size !== void 0) lines.push(`    tr.font.size = ${s.font.size};`);
-            if (s.font.color !== void 0) lines.push(`    tr.font.color = "${s.font.color}";`);
-            if (s.font.name !== void 0) lines.push(`    tr.font.name = "${s.font.name}";`);
-            lines.push(`  }`);
-          }
-          return lines.join("\n");
-        }).join("\n");
+        const shapeOps = buildFormatShapeOps(shapes, slideIndex);
         const code = `
 var slides = context.presentation.slides;
 slides.load("items");
