@@ -32,6 +32,10 @@ Note: v2 phases executed directly from plan, not via GSD phase workflow.
 
 </details>
 
+## Future
+
+- [ ] Bridge authentication — WebSocket Origin allowlist + per-session handshake token. Required before binding to any non-loopback interface or shipping a remote-MCP deployment. (Audit 2026-05-27: bridge currently unauthenticated, loopback-only.)
+
 ## Progress
 
 | Phase | Milestone | Status | Completed |

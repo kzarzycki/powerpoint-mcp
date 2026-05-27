@@ -190,13 +190,18 @@ When multiple presentations are open, pass `presentationId` (from `list_presenta
 
 ## Security
 
-PowerPoint MCP runs entirely on localhost:
+PowerPoint MCP assumes a single-user, locally-trusted machine. Both network servers bind to the loopback interface only:
 
-- The bridge server binds to `localhost:8080` (HTTP) or `localhost:8443` (HTTPS with `BRIDGE_TLS=1`)
-- MCP transport is either STDIO (no network port) or HTTP on `localhost:3001`
+- The bridge server (HTTP + WebSocket) binds to `127.0.0.1:8080` (or `127.0.0.1:8443` with `BRIDGE_TLS=1`)
+- The MCP HTTP transport binds to `127.0.0.1:3001`; the default STDIO transport opens no network port
+- The MCP HTTP transport enables DNS-rebinding protection (rejects requests whose `Host` header is not `127.0.0.1:3001` / `localhost:3001`)
 - No data leaves your machine
 
+**Local-trust posture.** The add-in executes whatever JavaScript the bridge sends it over the local WebSocket, so any local process that can reach the loopback port can drive the open presentation. There is currently **no WebSocket authentication and no Origin allowlist** — loopback binding is the only access control. Do not run PowerPoint MCP on a shared or multi-user host.
+
 **`execute_officejs` runs arbitrary code** inside PowerPoint's Office.js runtime. This is by design — it gives the AI full access to the Office.js API. Only use this with MCP clients you trust.
+
+**Planned hardening.** Before binding to any non-loopback interface or shipping a remote-MCP deployment, the bridge needs a per-session handshake token, a WebSocket Origin allowlist, and an authenticated transport. See [`.planning/ROADMAP.md`](.planning/ROADMAP.md).
 
 ## Troubleshooting
 
