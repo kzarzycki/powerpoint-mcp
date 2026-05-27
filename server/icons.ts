@@ -45,7 +45,6 @@ const DEFAULT_SIZE = 24
 // ---------------------------------------------------------------------------
 
 let cachedIndex: IconIndexEntry[] | null = null
-const svgCache = new Map<string, string>()
 
 // ---------------------------------------------------------------------------
 // Name conversion helpers
@@ -269,35 +268,4 @@ export function recolorSvg(svg: string, color: string): string {
     '$1 class="icon-color"$2',
   )
   return result
-}
-
-/**
- * Fetch an icon SVG by icon ID, optionally recolor it, and return as base64.
- * Caches fetched SVGs in memory.
- */
-export async function fetchIconSvg(iconId: string, color?: string): Promise<string> {
-  const { snakeName, isMono } = parseIconId(iconId)
-  const cacheKey = `${snakeName}:${isMono ? 'regular' : 'filled'}`
-
-  let svg = svgCache.get(cacheKey)
-  if (!svg) {
-    const url = buildSvgUrl(snakeName, isMono)
-    const resp = await fetch(url)
-    if (!resp.ok) {
-      throw new Error(`Failed to fetch icon SVG: ${resp.status} ${resp.statusText} (${url})`)
-    }
-    svg = await resp.text()
-    svgCache.set(cacheKey, svg)
-  }
-
-  if (color) {
-    svg = recolorSvg(svg, color)
-  }
-
-  return Buffer.from(svg).toString('base64')
-}
-
-/** Reset SVG cache (for testing) */
-export function resetSvgCache(): void {
-  svgCache.clear()
 }

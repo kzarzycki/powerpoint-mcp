@@ -104,6 +104,79 @@ export function parseSlideRange(range: string | undefined): number[] | null {
 }
 
 // ---------------------------------------------------------------------------
+// Office.js code builders (pure, unit-testable)
+// ---------------------------------------------------------------------------
+
+export interface FormatShapeSpec {
+  id: string
+  fill?: string
+  font?: {
+    bold?: boolean
+    italic?: boolean
+    size?: number
+    color?: string
+    name?: string
+  }
+}
+
+/**
+ * Build the per-shape Office.js op string for format_shapes. User-supplied
+ * strings (id, fill, font.color, font.name) are JSON.stringify'd so embedded
+ * quotes can't break out of the generated string literals.
+ */
+export function buildFormatShapeOps(shapes: FormatShapeSpec[], slideIndex: number): string {
+  return shapes
+    .map((s) => {
+      const lines: string[] = []
+      lines.push(`  var s = shapeMap[${JSON.stringify(s.id)}];`)
+      lines.push(`  if (!s) throw new Error("Shape " + ${JSON.stringify(s.id)} + " not found on slide ${slideIndex}");`)
+
+      if (s.fill) {
+        lines.push(`  s.fill.setSolidColor(${JSON.stringify(s.fill)});`)
+      }
+
+      if (s.font) {
+        lines.push(`  var tf = s.getTextFrameOrNullObject();`)
+        lines.push(`  await context.sync();`)
+        lines.push(`  if (!tf.isNullObject) {`)
+        lines.push(`    var tr = tf.textRange;`)
+        if (s.font.bold !== undefined) lines.push(`    tr.font.bold = ${s.font.bold};`)
+        if (s.font.italic !== undefined) lines.push(`    tr.font.italic = ${s.font.italic};`)
+        if (s.font.size !== undefined) lines.push(`    tr.font.size = ${s.font.size};`)
+        if (s.font.color !== undefined) lines.push(`    tr.font.color = ${JSON.stringify(s.font.color)};`)
+        if (s.font.name !== undefined) lines.push(`    tr.font.name = ${JSON.stringify(s.font.name)};`)
+        lines.push(`  }`)
+      }
+
+      return lines.join('\n')
+    })
+    .join('\n')
+}
+
+/**
+ * Build the options fragment for insertSlidesFromBase64 (copy_slides). The
+ * leading `, ` is included when any option is present so it can be appended
+ * directly after the base64 argument. User-supplied targetSlideId/formatting
+ * are JSON.stringify'd to stay inside their string literals.
+ */
+export function buildInsertOptions(formatting?: string, targetSlideId?: string): string {
+  const optionsParts: string[] = []
+  if (formatting) optionsParts.push(`formatting: ${JSON.stringify(formatting)}`)
+  if (targetSlideId) optionsParts.push(`targetSlideId: ${JSON.stringify(targetSlideId)}`)
+  return optionsParts.length > 0 ? `, { ${optionsParts.join(', ')} }` : ''
+}
+
+/**
+ * Convert a glob pattern (only `*` wildcard) into a case-insensitive anchored
+ * RegExp. Regex metacharacters in the pattern are escaped so a literal `.` or
+ * `(` matches itself rather than acting as a regex operator.
+ */
+export function globToRegExp(pattern: string): RegExp {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')
+  return new RegExp(`^${escaped}$`, 'i')
+}
+
+// ---------------------------------------------------------------------------
 // Tool registration
 // ---------------------------------------------------------------------------
 
@@ -810,7 +883,7 @@ export function registerTools(
 
         // Apply optional filters (post-processing, no extra Office.js calls)
         if (namePattern || shapeType) {
-          const nameRegex = namePattern ? new RegExp(`^${namePattern.replace(/\*/g, '.*')}$`, 'i') : null
+          const nameRegex = namePattern ? globToRegExp(namePattern) : null
           const typeLower = shapeType?.toLowerCase()
           for (const slide of result.slides) {
             slide.shapes = slide.shapes.filter((s) => {
@@ -836,7 +909,7 @@ export function registerTools(
     'screenshot_slide',
     'Slide screenshot (~1000 tokens): captures one slide as PNG image. Use to visually verify layout after changes. Do NOT loop over all slides — use preview_deck instead.',
     {
-      slideIndex: z.number().int().min(0).describe('Zero-based slide index from list_slides results'),
+      slideIndex: z.number().int().min(0).describe('Zero-based slide index from scan_slide results'),
       width: z
         .number()
         .int()
@@ -955,14 +1028,7 @@ export function registerTools(
 
         // Step 2: Insert into destination presentation
         const dest = pool.resolveTarget(destinationPresentationId)
-        const optionsParts: string[] = []
-        if (formatting) {
-          optionsParts.push(`formatting: "${formatting}"`)
-        }
-        if (targetSlideId) {
-          optionsParts.push(`targetSlideId: "${targetSlideId}"`)
-        }
-        const optionsArg = optionsParts.length > 0 ? `, { ${optionsParts.join(', ')} }` : ''
+        const optionsArg = buildInsertOptions(formatting, targetSlideId)
 
         const insertCode = `
           context.presentation.insertSlidesFromBase64("${exported.base64}"${optionsArg});
@@ -1260,7 +1326,7 @@ export function registerTools(
     'read_shape_paragraphs',
     "Read raw OOXML <a:p> paragraphs from a shape's text body. Returns the paragraph XML as a string — preserves all formatting (bold, colors, bullets, etc.) that textRange.text strips. Use with the /pptx skill's OOXML knowledge to understand and modify the XML.",
     {
-      slideIndex: z.number().int().min(0).describe('Zero-based slide index from list_slides results'),
+      slideIndex: z.number().int().min(0).describe('Zero-based slide index from scan_slide results'),
       shapeId: z.string().describe('Shape ID from inspect_slide results (e.g. "5")'),
       presentationId: z
         .string()
@@ -1356,7 +1422,7 @@ export function registerTools(
     'read_slide_xml',
     "Read the full raw OOXML of a slide, or filter to a specific shape. Returns the slide's ppt/slides/slide1.xml content. Use with the /pptx skill's OOXML knowledge to understand the XML structure.",
     {
-      slideIndex: z.number().int().min(0).describe('Zero-based slide index from list_slides results'),
+      slideIndex: z.number().int().min(0).describe('Zero-based slide index from scan_slide results'),
       shapeId: z
         .string()
         .optional()
@@ -2323,34 +2389,7 @@ export function registerTools(
         const target = pool.resolveTarget(presentationId)
 
         // Build Office.js code that applies formatting to each shape
-        const shapeOps = shapes
-          .map((s) => {
-            const lines: string[] = []
-            lines.push(`  var s = shapeMap["${s.id}"];`)
-            lines.push(
-              `  if (!s) throw new Error("Shape " + ${JSON.stringify(s.id)} + " not found on slide ${slideIndex}");`,
-            )
-
-            if (s.fill) {
-              lines.push(`  s.fill.setSolidColor("${s.fill}");`)
-            }
-
-            if (s.font) {
-              lines.push(`  var tf = s.getTextFrameOrNullObject();`)
-              lines.push(`  await context.sync();`)
-              lines.push(`  if (!tf.isNullObject) {`)
-              lines.push(`    var tr = tf.textRange;`)
-              if (s.font.bold !== undefined) lines.push(`    tr.font.bold = ${s.font.bold};`)
-              if (s.font.italic !== undefined) lines.push(`    tr.font.italic = ${s.font.italic};`)
-              if (s.font.size !== undefined) lines.push(`    tr.font.size = ${s.font.size};`)
-              if (s.font.color !== undefined) lines.push(`    tr.font.color = "${s.font.color}";`)
-              if (s.font.name !== undefined) lines.push(`    tr.font.name = "${s.font.name}";`)
-              lines.push(`  }`)
-            }
-
-            return lines.join('\n')
-          })
-          .join('\n')
+        const shapeOps = buildFormatShapeOps(shapes, slideIndex)
 
         const code = `
 var slides = context.presentation.slides;

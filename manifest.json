@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "powerpoint-mcp",
   "display_name": "PowerPoint MCP",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Manipulate live, open PowerPoint presentations via Office.js — add shapes, text, images, and more to open presentations in real time.",
   "long_description": "PowerPoint MCP lets Claude control live, open PowerPoint presentations on macOS through Office.js APIs. Unlike file-based solutions, this extension manipulates the presentation in real time.\n\n**Capabilities:**\n- Add and modify shapes, text boxes, tables, and images\n- Read slide structure and content\n- Take visual screenshots of slides\n- Copy slides between presentations\n- Execute arbitrary Office.js code\n\n**How it works:**\nThe extension runs a local bridge server that connects to a PowerPoint add-in via WebSocket. On first launch, the add-in is automatically installed into PowerPoint.\n\n**Requirements:** Microsoft PowerPoint for Mac (16.96+), macOS.",
   "author": {
@@ -132,7 +132,7 @@
       "darwin"
     ],
     "runtimes": {
-      "node": ">=16.0.0"
+      "node": ">=24.0.0"
     }
   },
   "keywords": [

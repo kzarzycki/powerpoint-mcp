@@ -1,13 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  buildIndexFromManifest,
-  fetchIconSvg,
-  nameToId,
-  parseIconId,
-  resetIndex,
-  resetSvgCache,
-  searchIcons,
-} from './icons.ts'
+import { buildIndexFromManifest, nameToId, parseIconId, resetIndex, searchIcons } from './icons.ts'
 
 // Mock fs so loadStaticIndex() fails and we control the index via buildIndexFromManifest
 vi.mock('node:fs', () => ({
@@ -50,7 +42,6 @@ vi.stubGlobal('fetch', mockFetch)
 describe('icons', () => {
   afterEach(() => {
     resetIndex()
-    resetSvgCache()
     mockFetch.mockReset()
   })
 
@@ -213,80 +204,6 @@ describe('icons', () => {
       const results = await searchIcons('star', 1)
       expect(results.length).toBeGreaterThan(0)
       expect(mockFetch).toHaveBeenCalledTimes(1)
-    })
-  })
-
-  describe('fetchIconSvg', () => {
-    const SAMPLE_SVG = '<svg><path fill="#212121" d="M10 10"/></svg>'
-
-    it('fetches SVG and returns base64', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        text: async () => SAMPLE_SVG,
-      })
-      const result = await fetchIconSvg('Icons_Warning_M')
-      const decoded = Buffer.from(result, 'base64').toString('utf-8')
-      expect(decoded).toContain('<svg>')
-    })
-
-    it('recolors SVG when color is provided', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        text: async () => SAMPLE_SVG,
-      })
-      const result = await fetchIconSvg('Icons_Warning_M', '#FF0000')
-      const decoded = Buffer.from(result, 'base64').toString('utf-8')
-      expect(decoded).toContain('fill:#FF0000')
-      expect(decoded).toContain('class="icon-color"')
-    })
-
-    it('caches fetched SVGs', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        text: async () => SAMPLE_SVG,
-      })
-      await fetchIconSvg('Icons_Warning_M')
-      // Second call should use cache
-      await fetchIconSvg('Icons_Warning_M')
-      expect(mockFetch).toHaveBeenCalledTimes(1)
-    })
-
-    it('uses different cache keys for mono vs filled', async () => {
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, text: async () => '<svg>regular</svg>' })
-        .mockResolvedValueOnce({ ok: true, text: async () => '<svg>filled</svg>' })
-      await fetchIconSvg('Icons_Warning_M')
-      await fetchIconSvg('Icons_Warning')
-      expect(mockFetch).toHaveBeenCalledTimes(2)
-    })
-
-    it('throws on fetch failure', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        statusText: 'Not Found',
-      })
-      await expect(fetchIconSvg('Icons_Nonexistent_M')).rejects.toThrow('Failed to fetch icon SVG: 404')
-    })
-
-    it('constructs correct CDN URL for mono icons', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        text: async () => SAMPLE_SVG,
-      })
-      await fetchIconSvg('Icons_Warning_M')
-      const calledUrl = mockFetch.mock.calls[0][0] as string
-      expect(calledUrl).toContain('/Warning/SVG/ic_fluent_warning_24_regular.svg')
-    })
-
-    it('constructs correct CDN URL for filled icons', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        text: async () => SAMPLE_SVG,
-      })
-      await fetchIconSvg('Icons_Warning')
-      const calledUrl = mockFetch.mock.calls[0][0] as string
-      expect(calledUrl).toContain('/Warning/SVG/ic_fluent_warning_24_filled.svg')
     })
   })
 })

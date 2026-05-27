@@ -51130,12 +51130,6 @@ var ConnectionPool = class {
   add(presentationId, conn) {
     this.connections.set(presentationId, conn);
   }
-  remove(presentationId) {
-    this.connections.delete(presentationId);
-  }
-  has(presentationId) {
-    return this.connections.has(presentationId);
-  }
   entries() {
     return this.connections.entries();
   }
@@ -51562,197 +51556,10 @@ function recolorSvg(svg, color) {
 }
 
 // server/notes-helpers.ts
-var import_xmldom = __toESM(require_lib(), 1);
-var NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
-var NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main";
-var NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-var NS_RELS = "http://schemas.openxmlformats.org/package/2006/relationships";
-var REL_TYPE_NOTES_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide";
-var REL_TYPE_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide";
-function escapeXml(text) {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
-}
-function parseInlineFormatting(line) {
-  const runs = [];
-  const pattern = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|([^*]+))/g;
-  for (const match of line.matchAll(pattern)) {
-    if (match[2]) {
-      runs.push({ text: match[2], bold: true, italic: true });
-    } else if (match[3]) {
-      runs.push({ text: match[3], bold: true });
-    } else if (match[4]) {
-      runs.push({ text: match[4], italic: true });
-    } else if (match[5]) {
-      runs.push({ text: match[5] });
-    }
-  }
-  return runs.length > 0 ? runs : [{ text: line }];
-}
-function runToXml(run) {
-  const attrs = ['lang="en-US"', 'dirty="0"'];
-  if (run.bold) attrs.push('b="1"');
-  if (run.italic) attrs.push('i="1"');
-  return `<a:r><a:rPr ${attrs.join(" ")}/><a:t>${escapeXml(run.text)}</a:t></a:r>`;
-}
-function markdownToNotesXml(text) {
-  if (!text || !text.trim()) {
-    return '<a:p><a:endParaRPr lang="en-US"/></a:p>';
-  }
-  const lines = text.split("\n");
-  const paragraphs = [];
-  let currentPara = [];
-  function flushParagraph() {
-    if (currentPara.length === 0) return;
-    const combined = currentPara.join(" ");
-    const runs = parseInlineFormatting(combined);
-    paragraphs.push(`<a:p>${runs.map(runToXml).join("")}</a:p>`);
-    currentPara = [];
-  }
-  for (const rawLine of lines) {
-    const line = rawLine.trimEnd();
-    if (!line.trim()) {
-      flushParagraph();
-      continue;
-    }
-    const headingMatch = line.match(/^#{1,6}\s+(.+)$/);
-    if (headingMatch) {
-      flushParagraph();
-      const runs = [{ text: headingMatch[1], bold: true }];
-      paragraphs.push(`<a:p>${runs.map(runToXml).join("")}</a:p>`);
-      continue;
-    }
-    const bulletMatch = line.match(/^[\s]*[-*+]\s+(.+)$/);
-    if (bulletMatch) {
-      flushParagraph();
-      const runs = parseInlineFormatting(`- ${bulletMatch[1]}`);
-      paragraphs.push(`<a:p>${runs.map(runToXml).join("")}</a:p>`);
-      continue;
-    }
-    currentPara.push(line);
-  }
-  flushParagraph();
-  return paragraphs.length > 0 ? paragraphs.join("") : '<a:p><a:endParaRPr lang="en-US"/></a:p>';
-}
-function extractNotesText(notesXml) {
-  const doc = new import_xmldom.DOMParser().parseFromString(notesXml, "text/xml");
-  const shapes = doc.getElementsByTagNameNS(NS_P, "sp");
-  for (let i = 0; i < shapes.length; i++) {
-    const shape = shapes[i];
-    const phElements = shape.getElementsByTagNameNS(NS_P, "ph");
-    for (let j = 0; j < phElements.length; j++) {
-      const phType = phElements[j].getAttribute("type");
-      if (phType === "body") {
-        const paragraphs = shape.getElementsByTagNameNS(NS_A, "p");
-        const paraTexts = [];
-        for (let k = 0; k < paragraphs.length; k++) {
-          const runs = paragraphs[k].getElementsByTagNameNS(NS_A, "t");
-          let paraText = "";
-          for (let r = 0; r < runs.length; r++) {
-            paraText += runs[r].textContent || "";
-          }
-          if (paraText) paraTexts.push(paraText);
-        }
-        const result = paraTexts.join("\n");
-        return result.trim() || null;
-      }
-    }
-  }
-  return null;
-}
-function buildNotesSlideXml(paragraphXml) {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<p:notes xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="Slide Image Placeholder 1"/><p:cNvSpPr><a:spLocks noGrp="1" noRot="1" noChangeAspect="1"/></p:cNvSpPr><p:nvPr><p:ph type="sldImg"/></p:nvPr></p:nvSpPr><p:spPr/></p:sp><p:sp><p:nvSpPr><p:cNvPr id="3" name="Notes Placeholder 2"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>${paragraphXml}</p:txBody></p:sp><p:sp><p:nvSpPr><p:cNvPr id="4" name="Slide Number Placeholder 3"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="sldNum" sz="quarter" idx="5"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:notes>`;
-}
-function buildNotesSlideRels(slideFileName) {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="${NS_RELS}"><Relationship Id="rId1" Type="${REL_TYPE_SLIDE}" Target="../slides/${slideFileName}"/></Relationships>`;
-}
-async function resolveSlideToNotesMapping(zip) {
-  const mapping = /* @__PURE__ */ new Map();
-  const presFile = zip.file("ppt/presentation.xml");
-  if (!presFile) return mapping;
-  const presXml = await presFile.async("string");
-  const presDoc = new import_xmldom.DOMParser().parseFromString(presXml, "text/xml");
-  const presRelsFile = zip.file("ppt/_rels/presentation.xml.rels");
-  if (!presRelsFile) return mapping;
-  const presRelsXml = await presRelsFile.async("string");
-  const presRelsDoc = new import_xmldom.DOMParser().parseFromString(presRelsXml, "text/xml");
-  const rIdToTarget = /* @__PURE__ */ new Map();
-  const rels = presRelsDoc.getElementsByTagNameNS(NS_RELS, "Relationship");
-  for (let i = 0; i < rels.length; i++) {
-    const id = rels[i].getAttribute("Id");
-    const target = rels[i].getAttribute("Target");
-    if (id && target) rIdToTarget.set(id, target);
-  }
-  const sldIdLst = presDoc.getElementsByTagNameNS(NS_P, "sldId");
-  for (let idx = 0; idx < sldIdLst.length; idx++) {
-    const rId = sldIdLst[idx].getAttributeNS(NS_R, "id");
-    if (!rId) continue;
-    const target = rIdToTarget.get(rId);
-    if (!target) continue;
-    const slidePath = target.startsWith("ppt/") ? target : `ppt/${target}`;
-    const slideRelsPath = `${slidePath.replace("ppt/slides/", "ppt/slides/_rels/")}.rels`;
-    const slideRelsFile = zip.file(slideRelsPath);
-    let notesPath = null;
-    if (slideRelsFile) {
-      const slideRelsXml = await slideRelsFile.async("string");
-      const slideRelsDoc = new import_xmldom.DOMParser().parseFromString(slideRelsXml, "text/xml");
-      const slideRels = slideRelsDoc.getElementsByTagNameNS(NS_RELS, "Relationship");
-      for (let j = 0; j < slideRels.length; j++) {
-        if (slideRels[j].getAttribute("Type") === REL_TYPE_NOTES_SLIDE) {
-          const notesTarget = slideRels[j].getAttribute("Target");
-          if (notesTarget) {
-            notesPath = notesTarget.startsWith("ppt/") ? notesTarget : `ppt/notesSlides/${notesTarget.split("/").pop()}`;
-          }
-          break;
-        }
-      }
-    }
-    mapping.set(idx, { slidePath, notesPath });
-  }
-  return mapping;
-}
-async function readNotesFromDeck(zip, slideIndices) {
-  const mapping = await resolveSlideToNotesMapping(zip);
-  const result = /* @__PURE__ */ new Map();
-  const indices = slideIndices ?? [...mapping.keys()];
-  for (const idx of indices) {
-    const entry = mapping.get(idx);
-    if (!entry) {
-      result.set(idx, null);
-      continue;
-    }
-    if (!entry.notesPath) {
-      result.set(idx, null);
-      continue;
-    }
-    const notesFile = zip.file(entry.notesPath);
-    if (!notesFile) {
-      result.set(idx, null);
-      continue;
-    }
-    const notesXml = await notesFile.async("string");
-    result.set(idx, extractNotesText(notesXml));
-  }
-  return result;
-}
-function buildNotesInjection(slideRelsXml, markdownText) {
-  const files = {};
-  const paragraphXml = markdownToNotesXml(markdownText);
-  files["ppt/notesSlides/notesSlide1.xml"] = buildNotesSlideXml(paragraphXml);
-  files["ppt/notesSlides/_rels/notesSlide1.xml.rels"] = buildNotesSlideRels("slide1.xml");
-  if (!slideRelsXml.includes(REL_TYPE_NOTES_SLIDE)) {
-    const rIdMatches = [...slideRelsXml.matchAll(/Id="rId(\d+)"/g)];
-    const maxId = rIdMatches.reduce((max, m) => Math.max(max, Number(m[1])), 0);
-    const newRId = `rId${maxId + 1}`;
-    const newRel = `<Relationship Id="${newRId}" Type="${REL_TYPE_NOTES_SLIDE}" Target="../notesSlides/notesSlide1.xml"/>`;
-    files["ppt/slides/_rels/slide1.xml.rels"] = slideRelsXml.replace("</Relationships>", `${newRel}</Relationships>`);
-  }
-  return files;
-}
+var import_xmldom2 = __toESM(require_lib(), 1);
 
 // server/xml-helpers.ts
-var import_xmldom2 = __toESM(require_lib(), 1);
+var import_xmldom = __toESM(require_lib(), 1);
 var import_jszip = __toESM(require_lib4(), 1);
 var SLIDE_XML_PATH = "ppt/slides/slide1.xml";
 async function exportSlide(pool2, slideIndex, targetWs, timeout) {
@@ -51807,24 +51614,24 @@ async function reimportSlide(pool2, modifiedBase64, slideId, prevSlideId, target
   `;
   await pool2.sendCommand("executeCode", { code }, targetWs, timeout);
 }
-var NS_P2 = "http://schemas.openxmlformats.org/presentationml/2006/main";
-var NS_A2 = "http://schemas.openxmlformats.org/drawingml/2006/main";
-function escapeXml2(text) {
+var NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main";
+var NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
+function escapeXml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 function parseSlideXml(xmlString) {
-  return new import_xmldom2.DOMParser().parseFromString(xmlString, "text/xml");
+  return new import_xmldom.DOMParser().parseFromString(xmlString, "text/xml");
 }
 function serializeXml(doc) {
-  return new import_xmldom2.XMLSerializer().serializeToString(doc);
+  return new import_xmldom.XMLSerializer().serializeToString(doc);
 }
 function findShapeById(doc, shapeId) {
-  const shapes = doc.getElementsByTagNameNS(NS_P2, "sp");
+  const shapes = doc.getElementsByTagNameNS(NS_P, "sp");
   for (let i = 0; i < shapes.length; i++) {
     const shape = shapes[i];
-    const nvSpPr = shape.getElementsByTagNameNS(NS_P2, "nvSpPr");
+    const nvSpPr = shape.getElementsByTagNameNS(NS_P, "nvSpPr");
     if (nvSpPr.length === 0) continue;
-    const cNvPr = nvSpPr[0].getElementsByTagNameNS(NS_P2, "cNvPr");
+    const cNvPr = nvSpPr[0].getElementsByTagNameNS(NS_P, "cNvPr");
     if (cNvPr.length > 0 && cNvPr[0].getAttribute("id") === shapeId) {
       return shape;
     }
@@ -51832,12 +51639,12 @@ function findShapeById(doc, shapeId) {
   return null;
 }
 function extractParagraphs(shape) {
-  const txBody = shape.getElementsByTagNameNS(NS_P2, "txBody");
+  const txBody = shape.getElementsByTagNameNS(NS_P, "txBody");
   if (txBody.length === 0) {
     throw new Error("Shape has no text body (<p:txBody>)");
   }
   const body = txBody[0];
-  const paragraphs = body.getElementsByTagNameNS(NS_A2, "p");
+  const paragraphs = body.getElementsByTagNameNS(NS_A, "p");
   const parts = [];
   for (let i = 0; i < paragraphs.length; i++) {
     parts.push(serializeXml(paragraphs[i]));
@@ -51845,20 +51652,20 @@ function extractParagraphs(shape) {
   return parts.join("");
 }
 function replaceParagraphs(doc, shape, paragraphXml) {
-  const txBody = shape.getElementsByTagNameNS(NS_P2, "txBody");
+  const txBody = shape.getElementsByTagNameNS(NS_P, "txBody");
   if (txBody.length === 0) {
     throw new Error("Shape has no text body (<p:txBody>)");
   }
   const body = txBody[0];
-  const bodyPr = body.getElementsByTagNameNS(NS_A2, "bodyPr")[0] ?? null;
-  const lstStyle = body.getElementsByTagNameNS(NS_A2, "lstStyle")[0] ?? null;
+  const bodyPr = body.getElementsByTagNameNS(NS_A, "bodyPr")[0] ?? null;
+  const lstStyle = body.getElementsByTagNameNS(NS_A, "lstStyle")[0] ?? null;
   while (body.firstChild) {
     body.removeChild(body.firstChild);
   }
   if (bodyPr) body.appendChild(bodyPr);
   if (lstStyle) body.appendChild(lstStyle);
-  const wrapper = `<wrapper xmlns:a="${NS_A2}">${paragraphXml}</wrapper>`;
-  const fragDoc = new import_xmldom2.DOMParser().parseFromString(wrapper, "text/xml");
+  const wrapper = `<wrapper xmlns:a="${NS_A}">${paragraphXml}</wrapper>`;
+  const fragDoc = new import_xmldom.DOMParser().parseFromString(wrapper, "text/xml");
   if (!fragDoc.documentElement) throw new Error("Failed to parse paragraph XML");
   const newParagraphs = fragDoc.documentElement.childNodes;
   for (let i = 0; i < newParagraphs.length; i++) {
@@ -51867,7 +51674,7 @@ function replaceParagraphs(doc, shape, paragraphXml) {
   }
 }
 function replaceShape(doc, oldShape, newShapeXml) {
-  const fragDoc = new import_xmldom2.DOMParser().parseFromString(newShapeXml, "text/xml");
+  const fragDoc = new import_xmldom.DOMParser().parseFromString(newShapeXml, "text/xml");
   if (!fragDoc.documentElement) throw new Error("Failed to parse shape XML");
   const imported = doc.importNode(fragDoc.documentElement, true);
   oldShape.parentNode.replaceChild(imported, oldShape);
@@ -51946,8 +51753,8 @@ async function extractThemeFromZip(base643) {
   const themePath = Object.keys(zip.files).find((p) => p.startsWith("ppt/theme/") && p.endsWith(".xml"));
   if (!themePath) throw new Error("No theme file found in zip");
   const themeXml = await zip.file(themePath).async("string");
-  const doc = new import_xmldom2.DOMParser().parseFromString(themeXml, "text/xml");
-  const clrScheme = doc.getElementsByTagNameNS(NS_A2, "clrScheme")[0];
+  const doc = new import_xmldom.DOMParser().parseFromString(themeXml, "text/xml");
+  const clrScheme = doc.getElementsByTagNameNS(NS_A, "clrScheme")[0];
   const colors = {};
   if (clrScheme) {
     for (let i = 0; i < clrScheme.childNodes.length; i++) {
@@ -51955,15 +51762,15 @@ async function extractThemeFromZip(base643) {
       if (node.nodeType !== 1) continue;
       const tag = node.localName;
       if (!tag) continue;
-      const valElem = node.getElementsByTagNameNS(NS_A2, "srgbClr")[0] ?? node.getElementsByTagNameNS(NS_A2, "sysClr")[0];
+      const valElem = node.getElementsByTagNameNS(NS_A, "srgbClr")[0] ?? node.getElementsByTagNameNS(NS_A, "sysClr")[0];
       if (valElem) {
         colors[tag] = valElem.getAttribute("val") ?? valElem.getAttribute("lastClr") ?? "";
       }
     }
   }
-  const fontScheme = doc.getElementsByTagNameNS(NS_A2, "fontScheme")[0];
-  const majorLatin = fontScheme?.getElementsByTagNameNS(NS_A2, "majorFont")[0]?.getElementsByTagNameNS(NS_A2, "latin")[0];
-  const minorLatin = fontScheme?.getElementsByTagNameNS(NS_A2, "minorFont")[0]?.getElementsByTagNameNS(NS_A2, "latin")[0];
+  const fontScheme = doc.getElementsByTagNameNS(NS_A, "fontScheme")[0];
+  const majorLatin = fontScheme?.getElementsByTagNameNS(NS_A, "majorFont")[0]?.getElementsByTagNameNS(NS_A, "latin")[0];
+  const minorLatin = fontScheme?.getElementsByTagNameNS(NS_A, "minorFont")[0]?.getElementsByTagNameNS(NS_A, "latin")[0];
   return {
     name: clrScheme?.getAttribute("name") ?? "Unknown",
     colors,
@@ -51973,7 +51780,8 @@ async function extractThemeFromZip(base643) {
     }
   };
 }
-var NS_RELS2 = "http://schemas.openxmlformats.org/package/2006/relationships";
+var NS_RELS = "http://schemas.openxmlformats.org/package/2006/relationships";
+var NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 var LAYOUT_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout";
 var EMU_PER_PT = 12700;
 function emuToPoints(emu) {
@@ -51984,9 +51792,9 @@ async function extractLayoutsFromZip(zip) {
   const masterRelsFile = zip.file(masterRelsPath);
   if (!masterRelsFile) throw new Error("No slide master rels found");
   const masterRelsXml = await masterRelsFile.async("string");
-  const relsDoc = new import_xmldom2.DOMParser().parseFromString(masterRelsXml, "text/xml");
+  const relsDoc = new import_xmldom.DOMParser().parseFromString(masterRelsXml, "text/xml");
   const layoutTargets = [];
-  const rels = relsDoc.getElementsByTagNameNS(NS_RELS2, "Relationship");
+  const rels = relsDoc.getElementsByTagNameNS(NS_RELS, "Relationship");
   for (let i = 0; i < rels.length; i++) {
     const rel = rels[i];
     if (rel.getAttribute("Type") === LAYOUT_TYPE) {
@@ -52000,20 +51808,20 @@ async function extractLayoutsFromZip(zip) {
     const layoutFile = zip.file(layoutTargets[i]);
     if (!layoutFile) continue;
     const layoutXml = await layoutFile.async("string");
-    const doc = new import_xmldom2.DOMParser().parseFromString(layoutXml, "text/xml");
-    const sldLayout = doc.getElementsByTagNameNS(NS_P2, "sldLayout")[0];
+    const doc = new import_xmldom.DOMParser().parseFromString(layoutXml, "text/xml");
+    const sldLayout = doc.getElementsByTagNameNS(NS_P, "sldLayout")[0];
     const layoutType = sldLayout?.getAttribute("type") ?? void 0;
-    const cSld = doc.getElementsByTagNameNS(NS_P2, "cSld")[0];
+    const cSld = doc.getElementsByTagNameNS(NS_P, "cSld")[0];
     const name = cSld?.getAttribute("name") ?? `Layout ${i}`;
     const placeholders = [];
-    const shapes = doc.getElementsByTagNameNS(NS_P2, "sp");
+    const shapes = doc.getElementsByTagNameNS(NS_P, "sp");
     for (let j = 0; j < shapes.length; j++) {
       const shape = shapes[j];
-      const nvSpPr = shape.getElementsByTagNameNS(NS_P2, "nvSpPr")[0];
+      const nvSpPr = shape.getElementsByTagNameNS(NS_P, "nvSpPr")[0];
       if (!nvSpPr) continue;
-      const nvPr = nvSpPr.getElementsByTagNameNS(NS_P2, "nvPr")[0];
+      const nvPr = nvSpPr.getElementsByTagNameNS(NS_P, "nvPr")[0];
       if (!nvPr) continue;
-      const ph = nvPr.getElementsByTagNameNS(NS_P2, "ph")[0];
+      const ph = nvPr.getElementsByTagNameNS(NS_P, "ph")[0];
       if (!ph) continue;
       const phType = ph.getAttribute("type") || "obj";
       if (phType === "sldNum" || phType === "ftr" || phType === "dt" || phType === "hdr") continue;
@@ -52022,18 +51830,18 @@ async function extractLayoutsFromZip(zip) {
       if (idxStr) info.idx = Number.parseInt(idxStr, 10);
       const szStr = ph.getAttribute("sz");
       if (szStr) info.sz = szStr;
-      const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P2, "cNvPr")[0];
+      const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P, "cNvPr")[0];
       if (cNvPr) {
         const shapeName = cNvPr.getAttribute("name");
         if (shapeName) info.name = shapeName;
         const descr = cNvPr.getAttribute("descr");
         if (descr) info.description = descr;
       }
-      const spPr = shape.getElementsByTagNameNS(NS_P2, "spPr")[0];
-      const xfrm = spPr?.getElementsByTagNameNS(NS_A2, "xfrm")[0];
+      const spPr = shape.getElementsByTagNameNS(NS_P, "spPr")[0];
+      const xfrm = spPr?.getElementsByTagNameNS(NS_A, "xfrm")[0];
       if (xfrm) {
-        const off = xfrm.getElementsByTagNameNS(NS_A2, "off")[0];
-        const ext = xfrm.getElementsByTagNameNS(NS_A2, "ext")[0];
+        const off = xfrm.getElementsByTagNameNS(NS_A, "off")[0];
+        const ext = xfrm.getElementsByTagNameNS(NS_A, "ext")[0];
         if (off) {
           const x = off.getAttribute("x");
           const y = off.getAttribute("y");
@@ -52053,42 +51861,68 @@ async function extractLayoutsFromZip(zip) {
   }
   return layouts;
 }
-async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
-  const zip = await import_jszip.default.loadAsync(zipBuffer);
-  const slideFiles = Object.keys(zip.files).filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p)).sort((a, b) => {
+function filenameSortedSlideFiles(zip) {
+  return Object.keys(zip.files).filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p)).sort((a, b) => {
     const na = parseInt(a.match(/slide(\d+)/)[1], 10);
     const nb = parseInt(b.match(/slide(\d+)/)[1], 10);
     return na - nb;
   });
+}
+async function orderedSlideFiles(zip, parser) {
+  const presFile = zip.file("ppt/presentation.xml");
+  const presRelsFile = zip.file("ppt/_rels/presentation.xml.rels");
+  if (!presFile || !presRelsFile) return filenameSortedSlideFiles(zip);
+  const presDoc = parser.parseFromString(await presFile.async("string"), "text/xml");
+  const presRelsDoc = parser.parseFromString(await presRelsFile.async("string"), "text/xml");
+  const rIdToTarget = /* @__PURE__ */ new Map();
+  const rels = presRelsDoc.getElementsByTagNameNS(NS_RELS, "Relationship");
+  for (let i = 0; i < rels.length; i++) {
+    const id = rels[i].getAttribute("Id");
+    const target = rels[i].getAttribute("Target");
+    if (id && target) rIdToTarget.set(id, target.startsWith("ppt/") ? target : `ppt/${target}`);
+  }
+  const ordered = [];
+  const sldIds = presDoc.getElementsByTagNameNS(NS_P, "sldId");
+  for (let idx = 0; idx < sldIds.length; idx++) {
+    const rId = sldIds[idx].getAttributeNS(NS_R, "id");
+    if (!rId) continue;
+    const target = rIdToTarget.get(rId);
+    if (target) ordered.push(target);
+  }
+  return ordered.length > 0 ? ordered : filenameSortedSlideFiles(zip);
+}
+async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
+  const zip = await import_jszip.default.loadAsync(zipBuffer);
+  const parser = new import_xmldom.DOMParser();
+  const slideFiles = await orderedSlideFiles(zip, parser);
   const results = [];
-  const parser = new import_xmldom2.DOMParser();
   const allowed = slideIndices ? new Set(slideIndices) : null;
   for (let i = 0; i < slideFiles.length; i++) {
     if (allowed && !allowed.has(i)) continue;
     const slideFile = slideFiles[i];
-    const slideNum = parseInt(slideFile.match(/slide(\d+)/)[1], 10);
+    const slideNum = parseInt(slideFile.match(/slide(\d+)\.xml$/)[1], 10);
     const xmlStr = await zip.file(slideFile).async("string");
     const doc = parser.parseFromString(xmlStr, "text/xml");
     let title = "";
     const body = [];
-    const shapes = doc.getElementsByTagNameNS(NS_P2, "sp");
+    const shapes = doc.getElementsByTagNameNS(NS_P, "sp");
     for (let j = 0; j < shapes.length; j++) {
       const shape = shapes[j];
       let isTitle = false;
-      const nvSpPr = shape.getElementsByTagNameNS(NS_P2, "nvSpPr");
+      const nvSpPr = shape.getElementsByTagNameNS(NS_P, "nvSpPr");
       if (nvSpPr.length > 0) {
-        const phElements = nvSpPr[0].getElementsByTagNameNS(NS_P2, "ph");
+        const phElements = nvSpPr[0].getElementsByTagNameNS(NS_P, "ph");
         if (phElements.length > 0) {
           const phType = phElements[0].getAttribute("type");
           isTitle = phType === "title" || phType === "ctrTitle";
         }
       }
-      const txBody = shape.getElementsByTagNameNS(NS_P2, "txBody");
+      const txBody = shape.getElementsByTagNameNS(NS_P, "txBody");
       if (txBody.length === 0) continue;
-      const paragraphs = txBody[0].getElementsByTagNameNS(NS_A2, "p");
+      const paragraphs = txBody[0].getElementsByTagNameNS(NS_A, "p");
       const lines = [];
       for (let p = 0; p < paragraphs.length; p++) {
-        const runs = paragraphs[p].getElementsByTagNameNS(NS_A2, "t");
+        const runs = paragraphs[p].getElementsByTagNameNS(NS_A, "t");
         const parts = [];
         for (let r = 0; r < runs.length; r++) {
           const t = runs[r].textContent;
@@ -52104,15 +51938,15 @@ async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
         body.push(text);
       }
     }
-    const tables = doc.getElementsByTagNameNS(NS_A2, "tbl");
+    const tables = doc.getElementsByTagNameNS(NS_A, "tbl");
     for (let t = 0; t < tables.length; t++) {
-      const rows = tables[t].getElementsByTagNameNS(NS_A2, "tr");
+      const rows = tables[t].getElementsByTagNameNS(NS_A, "tr");
       const tableLines = [];
       for (let r = 0; r < rows.length; r++) {
-        const cells = rows[r].getElementsByTagNameNS(NS_A2, "tc");
+        const cells = rows[r].getElementsByTagNameNS(NS_A, "tc");
         const cellTexts = [];
         for (let c = 0; c < cells.length; c++) {
-          const runs = cells[c].getElementsByTagNameNS(NS_A2, "t");
+          const runs = cells[c].getElementsByTagNameNS(NS_A, "t");
           const parts = [];
           for (let x = 0; x < runs.length; x++) {
             const txt = runs[x].textContent;
@@ -52141,23 +51975,23 @@ async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
             if (notesFile) {
               const notesXml = await notesFile.async("string");
               const notesDoc = parser.parseFromString(notesXml, "text/xml");
-              const noteShapes = notesDoc.getElementsByTagNameNS(NS_P2, "sp");
+              const noteShapes = notesDoc.getElementsByTagNameNS(NS_P, "sp");
               const noteTexts = [];
               for (let ns = 0; ns < noteShapes.length; ns++) {
-                const nvSpPr2 = noteShapes[ns].getElementsByTagNameNS(NS_P2, "nvSpPr");
+                const nvSpPr2 = noteShapes[ns].getElementsByTagNameNS(NS_P, "nvSpPr");
                 if (nvSpPr2.length > 0) {
-                  const ph2 = nvSpPr2[0].getElementsByTagNameNS(NS_P2, "ph");
+                  const ph2 = nvSpPr2[0].getElementsByTagNameNS(NS_P, "ph");
                   if (ph2.length > 0) {
                     const phType2 = ph2[0].getAttribute("type");
                     if (phType2 === "sldImg" || phType2 === "sldNum" || phType2 === "dt" || phType2 === "hdr" || phType2 === "ftr")
                       continue;
                   }
                 }
-                const txBody2 = noteShapes[ns].getElementsByTagNameNS(NS_P2, "txBody");
+                const txBody2 = noteShapes[ns].getElementsByTagNameNS(NS_P, "txBody");
                 if (txBody2.length === 0) continue;
-                const paragraphs2 = txBody2[0].getElementsByTagNameNS(NS_A2, "p");
+                const paragraphs2 = txBody2[0].getElementsByTagNameNS(NS_A, "p");
                 for (let p2 = 0; p2 < paragraphs2.length; p2++) {
-                  const runs2 = paragraphs2[p2].getElementsByTagNameNS(NS_A2, "t");
+                  const runs2 = paragraphs2[p2].getElementsByTagNameNS(NS_A, "t");
                   const parts2 = [];
                   for (let r2 = 0; r2 < runs2.length; r2++) {
                     const txt = runs2[r2].textContent;
@@ -52177,6 +52011,192 @@ async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
     results.push(entry);
   }
   return results;
+}
+
+// server/notes-helpers.ts
+var NS_A2 = "http://schemas.openxmlformats.org/drawingml/2006/main";
+var NS_P2 = "http://schemas.openxmlformats.org/presentationml/2006/main";
+var NS_R2 = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+var NS_RELS2 = "http://schemas.openxmlformats.org/package/2006/relationships";
+var REL_TYPE_NOTES_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide";
+var REL_TYPE_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide";
+function parseInlineFormatting(line) {
+  const runs = [];
+  const pattern = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|([^*]+))/g;
+  for (const match of line.matchAll(pattern)) {
+    if (match[2]) {
+      runs.push({ text: match[2], bold: true, italic: true });
+    } else if (match[3]) {
+      runs.push({ text: match[3], bold: true });
+    } else if (match[4]) {
+      runs.push({ text: match[4], italic: true });
+    } else if (match[5]) {
+      runs.push({ text: match[5] });
+    }
+  }
+  return runs.length > 0 ? runs : [{ text: line }];
+}
+function runToXml(run) {
+  const attrs = ['lang="en-US"', 'dirty="0"'];
+  if (run.bold) attrs.push('b="1"');
+  if (run.italic) attrs.push('i="1"');
+  return `<a:r><a:rPr ${attrs.join(" ")}/><a:t>${escapeXml(run.text)}</a:t></a:r>`;
+}
+function markdownToNotesXml(text) {
+  if (!text || !text.trim()) {
+    return '<a:p><a:endParaRPr lang="en-US"/></a:p>';
+  }
+  const lines = text.split("\n");
+  const paragraphs = [];
+  let currentPara = [];
+  function flushParagraph() {
+    if (currentPara.length === 0) return;
+    const combined = currentPara.join(" ");
+    const runs = parseInlineFormatting(combined);
+    paragraphs.push(`<a:p>${runs.map(runToXml).join("")}</a:p>`);
+    currentPara = [];
+  }
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (!line.trim()) {
+      flushParagraph();
+      continue;
+    }
+    const headingMatch = line.match(/^#{1,6}\s+(.+)$/);
+    if (headingMatch) {
+      flushParagraph();
+      const runs = [{ text: headingMatch[1], bold: true }];
+      paragraphs.push(`<a:p>${runs.map(runToXml).join("")}</a:p>`);
+      continue;
+    }
+    const bulletMatch = line.match(/^[\s]*[-*+]\s+(.+)$/);
+    if (bulletMatch) {
+      flushParagraph();
+      const runs = parseInlineFormatting(`- ${bulletMatch[1]}`);
+      paragraphs.push(`<a:p>${runs.map(runToXml).join("")}</a:p>`);
+      continue;
+    }
+    currentPara.push(line);
+  }
+  flushParagraph();
+  return paragraphs.length > 0 ? paragraphs.join("") : '<a:p><a:endParaRPr lang="en-US"/></a:p>';
+}
+function extractNotesText(notesXml) {
+  const doc = new import_xmldom2.DOMParser().parseFromString(notesXml, "text/xml");
+  const shapes = doc.getElementsByTagNameNS(NS_P2, "sp");
+  for (let i = 0; i < shapes.length; i++) {
+    const shape = shapes[i];
+    const phElements = shape.getElementsByTagNameNS(NS_P2, "ph");
+    for (let j = 0; j < phElements.length; j++) {
+      const phType = phElements[j].getAttribute("type");
+      if (phType === "body") {
+        const paragraphs = shape.getElementsByTagNameNS(NS_A2, "p");
+        const paraTexts = [];
+        for (let k = 0; k < paragraphs.length; k++) {
+          const runs = paragraphs[k].getElementsByTagNameNS(NS_A2, "t");
+          let paraText = "";
+          for (let r = 0; r < runs.length; r++) {
+            paraText += runs[r].textContent || "";
+          }
+          if (paraText) paraTexts.push(paraText);
+        }
+        const result = paraTexts.join("\n");
+        return result.trim() || null;
+      }
+    }
+  }
+  return null;
+}
+function buildNotesSlideXml(paragraphXml) {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:notes xmlns:a="${NS_A2}" xmlns:r="${NS_R2}" xmlns:p="${NS_P2}"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="Slide Image Placeholder 1"/><p:cNvSpPr><a:spLocks noGrp="1" noRot="1" noChangeAspect="1"/></p:cNvSpPr><p:nvPr><p:ph type="sldImg"/></p:nvPr></p:nvSpPr><p:spPr/></p:sp><p:sp><p:nvSpPr><p:cNvPr id="3" name="Notes Placeholder 2"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>${paragraphXml}</p:txBody></p:sp><p:sp><p:nvSpPr><p:cNvPr id="4" name="Slide Number Placeholder 3"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="sldNum" sz="quarter" idx="5"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:notes>`;
+}
+function buildNotesSlideRels(slideFileName) {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="${NS_RELS2}"><Relationship Id="rId1" Type="${REL_TYPE_SLIDE}" Target="../slides/${slideFileName}"/></Relationships>`;
+}
+async function resolveSlideToNotesMapping(zip) {
+  const mapping = /* @__PURE__ */ new Map();
+  const presFile = zip.file("ppt/presentation.xml");
+  if (!presFile) return mapping;
+  const presXml = await presFile.async("string");
+  const presDoc = new import_xmldom2.DOMParser().parseFromString(presXml, "text/xml");
+  const presRelsFile = zip.file("ppt/_rels/presentation.xml.rels");
+  if (!presRelsFile) return mapping;
+  const presRelsXml = await presRelsFile.async("string");
+  const presRelsDoc = new import_xmldom2.DOMParser().parseFromString(presRelsXml, "text/xml");
+  const rIdToTarget = /* @__PURE__ */ new Map();
+  const rels = presRelsDoc.getElementsByTagNameNS(NS_RELS2, "Relationship");
+  for (let i = 0; i < rels.length; i++) {
+    const id = rels[i].getAttribute("Id");
+    const target = rels[i].getAttribute("Target");
+    if (id && target) rIdToTarget.set(id, target);
+  }
+  const sldIdLst = presDoc.getElementsByTagNameNS(NS_P2, "sldId");
+  for (let idx = 0; idx < sldIdLst.length; idx++) {
+    const rId = sldIdLst[idx].getAttributeNS(NS_R2, "id");
+    if (!rId) continue;
+    const target = rIdToTarget.get(rId);
+    if (!target) continue;
+    const slidePath = target.startsWith("ppt/") ? target : `ppt/${target}`;
+    const slideRelsPath = `${slidePath.replace("ppt/slides/", "ppt/slides/_rels/")}.rels`;
+    const slideRelsFile = zip.file(slideRelsPath);
+    let notesPath = null;
+    if (slideRelsFile) {
+      const slideRelsXml = await slideRelsFile.async("string");
+      const slideRelsDoc = new import_xmldom2.DOMParser().parseFromString(slideRelsXml, "text/xml");
+      const slideRels = slideRelsDoc.getElementsByTagNameNS(NS_RELS2, "Relationship");
+      for (let j = 0; j < slideRels.length; j++) {
+        if (slideRels[j].getAttribute("Type") === REL_TYPE_NOTES_SLIDE) {
+          const notesTarget = slideRels[j].getAttribute("Target");
+          if (notesTarget) {
+            notesPath = notesTarget.startsWith("ppt/") ? notesTarget : `ppt/notesSlides/${notesTarget.split("/").pop()}`;
+          }
+          break;
+        }
+      }
+    }
+    mapping.set(idx, { slidePath, notesPath });
+  }
+  return mapping;
+}
+async function readNotesFromDeck(zip, slideIndices) {
+  const mapping = await resolveSlideToNotesMapping(zip);
+  const result = /* @__PURE__ */ new Map();
+  const indices = slideIndices ?? [...mapping.keys()];
+  for (const idx of indices) {
+    const entry = mapping.get(idx);
+    if (!entry) {
+      result.set(idx, null);
+      continue;
+    }
+    if (!entry.notesPath) {
+      result.set(idx, null);
+      continue;
+    }
+    const notesFile = zip.file(entry.notesPath);
+    if (!notesFile) {
+      result.set(idx, null);
+      continue;
+    }
+    const notesXml = await notesFile.async("string");
+    result.set(idx, extractNotesText(notesXml));
+  }
+  return result;
+}
+function buildNotesInjection(slideRelsXml, markdownText) {
+  const files = {};
+  const paragraphXml = markdownToNotesXml(markdownText);
+  files["ppt/notesSlides/notesSlide1.xml"] = buildNotesSlideXml(paragraphXml);
+  files["ppt/notesSlides/_rels/notesSlide1.xml.rels"] = buildNotesSlideRels("slide1.xml");
+  if (!slideRelsXml.includes(REL_TYPE_NOTES_SLIDE)) {
+    const rIdMatches = [...slideRelsXml.matchAll(/Id="rId(\d+)"/g)];
+    const maxId = rIdMatches.reduce((max, m) => Math.max(max, Number(m[1])), 0);
+    const newRId = `rId${maxId + 1}`;
+    const newRel = `<Relationship Id="${newRId}" Type="${REL_TYPE_NOTES_SLIDE}" Target="../notesSlides/notesSlide1.xml"/>`;
+    files["ppt/slides/_rels/slide1.xml.rels"] = slideRelsXml.replace("</Relationships>", `${newRel}</Relationships>`);
+  }
+  return files;
 }
 
 // server/tools.ts
@@ -52220,6 +52240,39 @@ function parseSlideRange(range) {
   }
   if (indices.size === 0) return null;
   return [...indices].sort((a, b) => a - b);
+}
+function buildFormatShapeOps(shapes, slideIndex) {
+  return shapes.map((s) => {
+    const lines = [];
+    lines.push(`  var s = shapeMap[${JSON.stringify(s.id)}];`);
+    lines.push(`  if (!s) throw new Error("Shape " + ${JSON.stringify(s.id)} + " not found on slide ${slideIndex}");`);
+    if (s.fill) {
+      lines.push(`  s.fill.setSolidColor(${JSON.stringify(s.fill)});`);
+    }
+    if (s.font) {
+      lines.push(`  var tf = s.getTextFrameOrNullObject();`);
+      lines.push(`  await context.sync();`);
+      lines.push(`  if (!tf.isNullObject) {`);
+      lines.push(`    var tr = tf.textRange;`);
+      if (s.font.bold !== void 0) lines.push(`    tr.font.bold = ${s.font.bold};`);
+      if (s.font.italic !== void 0) lines.push(`    tr.font.italic = ${s.font.italic};`);
+      if (s.font.size !== void 0) lines.push(`    tr.font.size = ${s.font.size};`);
+      if (s.font.color !== void 0) lines.push(`    tr.font.color = ${JSON.stringify(s.font.color)};`);
+      if (s.font.name !== void 0) lines.push(`    tr.font.name = ${JSON.stringify(s.font.name)};`);
+      lines.push(`  }`);
+    }
+    return lines.join("\n");
+  }).join("\n");
+}
+function buildInsertOptions(formatting, targetSlideId) {
+  const optionsParts = [];
+  if (formatting) optionsParts.push(`formatting: ${JSON.stringify(formatting)}`);
+  if (targetSlideId) optionsParts.push(`targetSlideId: ${JSON.stringify(targetSlideId)}`);
+  return optionsParts.length > 0 ? `, { ${optionsParts.join(", ")} }` : "";
+}
+function globToRegExp(pattern) {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`, "i");
 }
 function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
   async function getLocalCopyPath(connPool, target) {
@@ -52556,15 +52609,15 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
         const { xmlString } = await extractSlideXmlFromZip(exported.base64);
         const doc = parseSlideXml(xmlString);
         const shapeIdToIdx = /* @__PURE__ */ new Map();
-        const spElements = doc.getElementsByTagNameNS(NS_P2, "sp");
+        const spElements = doc.getElementsByTagNameNS(NS_P, "sp");
         for (let i = 0; i < spElements.length; i++) {
           const sp = spElements[i];
-          const nvSpPr = sp.getElementsByTagNameNS(NS_P2, "nvSpPr")[0];
+          const nvSpPr = sp.getElementsByTagNameNS(NS_P, "nvSpPr")[0];
           if (!nvSpPr) continue;
-          const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P2, "cNvPr")[0];
-          const nvPr = nvSpPr.getElementsByTagNameNS(NS_P2, "nvPr")[0];
+          const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P, "cNvPr")[0];
+          const nvPr = nvSpPr.getElementsByTagNameNS(NS_P, "nvPr")[0];
           if (!cNvPr || !nvPr) continue;
-          const phEl = nvPr.getElementsByTagNameNS(NS_P2, "ph")[0];
+          const phEl = nvPr.getElementsByTagNameNS(NS_P, "ph")[0];
           if (!phEl) continue;
           const idx = phEl.getAttribute("idx");
           const id = cNvPr.getAttribute("id");
@@ -52775,7 +52828,7 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
         const target = pool2.resolveTarget(presentationId);
         const result = await pool2.sendCommand("executeCode", { code }, target.ws);
         if (namePattern || shapeType) {
-          const nameRegex = namePattern ? new RegExp(`^${namePattern.replace(/\*/g, ".*")}$`, "i") : null;
+          const nameRegex = namePattern ? globToRegExp(namePattern) : null;
           const typeLower = shapeType?.toLowerCase();
           for (const slide of result.slides) {
             slide.shapes = slide.shapes.filter((s) => {
@@ -52798,7 +52851,7 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
     "screenshot_slide",
     "Slide screenshot (~1000 tokens): captures one slide as PNG image. Use to visually verify layout after changes. Do NOT loop over all slides \u2014 use preview_deck instead.",
     {
-      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from list_slides results"),
+      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from scan_slide results"),
       width: external_exports3.number().int().min(1).max(4096).optional().describe(
         "Image width in pixels. Default: 720. Height auto-calculated to preserve aspect ratio unless also specified."
       ),
@@ -52878,14 +52931,7 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
         `;
         const exported = await pool2.sendCommand("executeCode", { code: exportCode }, source.ws);
         const dest = pool2.resolveTarget(destinationPresentationId);
-        const optionsParts = [];
-        if (formatting) {
-          optionsParts.push(`formatting: "${formatting}"`);
-        }
-        if (targetSlideId) {
-          optionsParts.push(`targetSlideId: "${targetSlideId}"`);
-        }
-        const optionsArg = optionsParts.length > 0 ? `, { ${optionsParts.join(", ")} }` : "";
+        const optionsArg = buildInsertOptions(formatting, targetSlideId);
         const insertCode = `
           context.presentation.insertSlidesFromBase64("${exported.base64}"${optionsArg});
           await context.sync();
@@ -53108,7 +53154,7 @@ ${textParts.join("\n")}` : "\n(no text content)";
     "read_shape_paragraphs",
     "Read raw OOXML <a:p> paragraphs from a shape's text body. Returns the paragraph XML as a string \u2014 preserves all formatting (bold, colors, bullets, etc.) that textRange.text strips. Use with the /pptx skill's OOXML knowledge to understand and modify the XML.",
     {
-      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from list_slides results"),
+      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from scan_slide results"),
       shapeId: external_exports3.string().describe('Shape ID from inspect_slide results (e.g. "5")'),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
@@ -53189,7 +53235,7 @@ ${textParts.join("\n")}` : "\n(no text content)";
     "read_slide_xml",
     "Read the full raw OOXML of a slide, or filter to a specific shape. Returns the slide's ppt/slides/slide1.xml content. Use with the /pptx skill's OOXML knowledge to understand the XML structure.",
     {
-      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from list_slides results"),
+      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from scan_slide results"),
       shapeId: external_exports3.string().optional().describe("Optional shape ID to filter to. If provided, returns only that shape's <p:sp> element."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
@@ -53249,9 +53295,9 @@ ${textParts.join("\n")}` : "\n(no text content)";
           const sandbox = {
             doc,
             findShapeById: (id) => findShapeById(doc, id),
-            NS_P: NS_P2,
-            NS_A: NS_A2,
-            escapeXml: escapeXml2,
+            NS_P,
+            NS_A,
+            escapeXml,
             serializeXml,
             DOMParser: import_xmldom3.DOMParser
           };
@@ -53965,29 +54011,7 @@ ${textParts.join("\n")}` : "\n(no text content)";
     async ({ slideIndex, shapes, presentationId }) => {
       try {
         const target = pool2.resolveTarget(presentationId);
-        const shapeOps = shapes.map((s) => {
-          const lines = [];
-          lines.push(`  var s = shapeMap["${s.id}"];`);
-          lines.push(
-            `  if (!s) throw new Error("Shape " + ${JSON.stringify(s.id)} + " not found on slide ${slideIndex}");`
-          );
-          if (s.fill) {
-            lines.push(`  s.fill.setSolidColor("${s.fill}");`);
-          }
-          if (s.font) {
-            lines.push(`  var tf = s.getTextFrameOrNullObject();`);
-            lines.push(`  await context.sync();`);
-            lines.push(`  if (!tf.isNullObject) {`);
-            lines.push(`    var tr = tf.textRange;`);
-            if (s.font.bold !== void 0) lines.push(`    tr.font.bold = ${s.font.bold};`);
-            if (s.font.italic !== void 0) lines.push(`    tr.font.italic = ${s.font.italic};`);
-            if (s.font.size !== void 0) lines.push(`    tr.font.size = ${s.font.size};`);
-            if (s.font.color !== void 0) lines.push(`    tr.font.color = "${s.font.color}";`);
-            if (s.font.name !== void 0) lines.push(`    tr.font.name = "${s.font.name}";`);
-            lines.push(`  }`);
-          }
-          return lines.join("\n");
-        }).join("\n");
+        const shapeOps = buildFormatShapeOps(shapes, slideIndex);
         const code = `
 var slides = context.presentation.slides;
 slides.load("items");
