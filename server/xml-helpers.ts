@@ -279,6 +279,52 @@ export async function autoRegisterContentTypes(zip: JSZip, newPaths: string[]): 
   zip.file('[Content_Types].xml', ctXml)
 }
 
+// ---------------------------------------------------------------------------
+// Shared zip-edit → reimport flow (edit_slide_zip, edit_slide_chart, edit_speaker_notes)
+// ---------------------------------------------------------------------------
+
+/**
+ * Apply a set of file edits to an exported slide zip and return the resulting
+ * base64 plus the list of newly added parts. Pure (no network): suitable for
+ * unit testing. New parts get their Content_Types auto-registered unless the
+ * caller already supplied a `[Content_Types].xml` override in `files`.
+ */
+export async function buildEditedZipBase64(
+  exportedBase64: string,
+  files: Record<string, string>,
+): Promise<{ base64: string; newPaths: string[] }> {
+  const { zip } = await extractZipFiles(exportedBase64)
+
+  const existingPaths = new Set(listZipPaths(zip))
+  const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p))
+
+  const modifiedBase64 = await updateZipFiles(zip, files)
+
+  if (newPaths.length > 0 && !files['[Content_Types].xml']) {
+    const { zip: updatedZip } = await extractZipFiles(modifiedBase64)
+    await autoRegisterContentTypes(updatedZip, newPaths)
+    const finalBase64 = await updatedZip.generateAsync({ type: 'base64' })
+    return { base64: finalBase64, newPaths }
+  }
+
+  return { base64: modifiedBase64, newPaths }
+}
+
+/**
+ * Build the edited zip via {@link buildEditedZipBase64} and reimport the slide
+ * into the live presentation. Returns the newly added parts (for result text).
+ */
+export async function applyZipEditAndReimport(
+  pool: ConnectionPool,
+  exported: ExportedSlide,
+  files: Record<string, string>,
+  targetWs: WebSocket,
+): Promise<string[]> {
+  const { base64, newPaths } = await buildEditedZipBase64(exported.base64, files)
+  await reimportSlide(pool, base64, exported.slideId, exported.prevSlideId, targetWs)
+  return newPaths
+}
+
 // Legacy wrappers — used by existing read/edit_shape_paragraphs and read/edit_slide_xml tools
 export async function extractSlideXmlFromZip(base64: string): Promise<{ zip: JSZip; xmlString: string }> {
   const { zip, files } = await extractZipFiles(base64, [SLIDE_XML_PATH])
@@ -495,20 +541,33 @@ function filenameSortedSlideFiles(zip: JSZip): string[] {
     })
 }
 
+/** One slide in presentation display order, with its sldIdLst position. */
+export interface OrderedSlide {
+  /** Zero-based position within <p:sldIdLst>. */
+  sldIdIndex: number
+  /** Slide part path, always normalized to a `ppt/`-prefixed path. */
+  slidePath: string
+}
+
 /**
- * Resolve slide file paths in presentation display order via <p:sldIdLst> +
- * presentation.xml.rels. Falls back to filename order when presentation.xml or
- * its rels are absent. Mirrors resolveSlideToNotesMapping in notes-helpers.ts.
+ * Resolve slides in presentation display order via <p:sldIdLst> +
+ * presentation.xml.rels. Returns entries (with their sldIdLst position) only
+ * for rIds that resolve to a target. Empty when presentation.xml or its rels
+ * are absent — callers decide how to fall back.
+ *
+ * Shared by orderedSlideFiles (text extraction) and resolveSlideToNotesMapping
+ * (notes reads); both rely on identical slide ordering.
  */
-async function orderedSlideFiles(zip: JSZip, parser: DOMParser): Promise<string[]> {
+export async function resolveOrderedSlidePaths(zip: JSZip, parser?: DOMParser): Promise<OrderedSlide[]> {
+  const p = parser ?? new DOMParser()
   const presFile = zip.file('ppt/presentation.xml')
   const presRelsFile = zip.file('ppt/_rels/presentation.xml.rels')
-  if (!presFile || !presRelsFile) return filenameSortedSlideFiles(zip)
+  if (!presFile || !presRelsFile) return []
 
-  const presDoc = parser.parseFromString(await presFile.async('string'), 'text/xml')
-  const presRelsDoc = parser.parseFromString(await presRelsFile.async('string'), 'text/xml')
+  const presDoc = p.parseFromString(await presFile.async('string'), 'text/xml')
+  const presRelsDoc = p.parseFromString(await presRelsFile.async('string'), 'text/xml')
 
-  // Build rId → slide path map
+  // Build rId → slide path map (normalized to ppt/-prefixed)
   const rIdToTarget = new Map<string, string>()
   const rels = presRelsDoc.getElementsByTagNameNS(NS_RELS, 'Relationship')
   for (let i = 0; i < rels.length; i++) {
@@ -517,16 +576,24 @@ async function orderedSlideFiles(zip: JSZip, parser: DOMParser): Promise<string[
     if (id && target) rIdToTarget.set(id, target.startsWith('ppt/') ? target : `ppt/${target}`)
   }
 
-  const ordered: string[] = []
+  const ordered: OrderedSlide[] = []
   const sldIds = presDoc.getElementsByTagNameNS(NS_P, 'sldId')
   for (let idx = 0; idx < sldIds.length; idx++) {
     const rId = sldIds[idx]!.getAttributeNS(NS_R, 'id')
     if (!rId) continue
     const target = rIdToTarget.get(rId)
-    if (target) ordered.push(target)
+    if (target) ordered.push({ sldIdIndex: idx, slidePath: target })
   }
+  return ordered
+}
 
-  return ordered.length > 0 ? ordered : filenameSortedSlideFiles(zip)
+/**
+ * Resolve slide file paths in presentation display order. Falls back to
+ * filename order when presentation.xml / its rels are absent or yield nothing.
+ */
+async function orderedSlideFiles(zip: JSZip, parser: DOMParser): Promise<string[]> {
+  const ordered = await resolveOrderedSlidePaths(zip, parser)
+  return ordered.length > 0 ? ordered.map((o) => o.slidePath) : filenameSortedSlideFiles(zip)
 }
 
 /**

@@ -5,15 +5,16 @@
  * substituting the correct port from BRIDGE_PORT env var.
  *
  * Usage:
- *   node scripts/sideload.mjs           # HTTP manifest, default port 8080
- *   node scripts/sideload.mjs --tls     # HTTPS manifest, default port 8443
- *   BRIDGE_PORT=9090 node scripts/sideload.mjs  # Custom port
+ *   node --experimental-strip-types scripts/sideload.ts        # HTTP manifest, default port 8080
+ *   node --experimental-strip-types scripts/sideload.ts --tls  # HTTPS manifest, default port 8443
+ *   BRIDGE_PORT=9090 node --experimental-strip-types scripts/sideload.ts  # Custom port
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { resolve, dirname } from 'node:path'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { substituteManifestPort } from '../server/manifest.ts'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = resolve(SCRIPT_DIR, '..')
@@ -27,11 +28,9 @@ const src = resolve(PROJECT_ROOT, 'addin', manifestName)
 const wefDir = resolve(homedir(), 'Library/Containers/com.microsoft.Powerpoint/Data/Documents/wef')
 const dest = resolve(wefDir, 'manifest.xml')
 
-// Read template and substitute port (mirrors server/manifest.ts substituteManifestPort)
-let content = readFileSync(src, 'utf8')
-if (port !== defaultPort) {
-  content = content.replaceAll(`localhost:${defaultPort}`, `localhost:${port}`)
-}
+// Read template and substitute port (shared with the bridge server via substituteManifestPort)
+const template = readFileSync(src, 'utf8')
+const content = substituteManifestPort(template, defaultPort, port)
 
 // Write to WEF directory
 mkdirSync(wefDir, { recursive: true })

@@ -26604,9 +26604,9 @@ var require_load = __commonJS({
 var require_lib4 = __commonJS({
   "node_modules/jszip/lib/index.js"(exports2, module2) {
     "use strict";
-    function JSZip3() {
-      if (!(this instanceof JSZip3)) {
-        return new JSZip3();
+    function JSZip5() {
+      if (!(this instanceof JSZip5)) {
+        return new JSZip5();
       }
       if (arguments.length) {
         throw new Error("The constructor with parameters has been removed in JSZip 3.0, please check the upgrade guide.");
@@ -26615,7 +26615,7 @@ var require_lib4 = __commonJS({
       this.comment = null;
       this.root = "";
       this.clone = function() {
-        var newObj = new JSZip3();
+        var newObj = new JSZip5();
         for (var i in this) {
           if (typeof this[i] !== "function") {
             newObj[i] = this[i];
@@ -26624,22 +26624,22 @@ var require_lib4 = __commonJS({
         return newObj;
       };
     }
-    JSZip3.prototype = require_object();
-    JSZip3.prototype.loadAsync = require_load();
-    JSZip3.support = require_support();
-    JSZip3.defaults = require_defaults2();
-    JSZip3.version = "3.10.1";
-    JSZip3.loadAsync = function(content, options) {
-      return new JSZip3().loadAsync(content, options);
+    JSZip5.prototype = require_object();
+    JSZip5.prototype.loadAsync = require_load();
+    JSZip5.support = require_support();
+    JSZip5.defaults = require_defaults2();
+    JSZip5.version = "3.10.1";
+    JSZip5.loadAsync = function(content, options) {
+      return new JSZip5().loadAsync(content, options);
     };
-    JSZip3.external = require_external();
-    module2.exports = JSZip3;
+    JSZip5.external = require_external();
+    module2.exports = JSZip5;
   }
 });
 
 // server/index.ts
 var import_node_crypto2 = require("node:crypto");
-var import_node_fs3 = require("node:fs");
+var import_node_fs8 = require("node:fs");
 var import_node_http = require("node:http");
 var import_node_https = require("node:https");
 var import_node_os2 = require("node:os");
@@ -27018,15 +27018,15 @@ var makeIssue = (params) => {
       message: issueData.message
     };
   }
-  let errorMessage = "";
+  let errorMessage2 = "";
   const maps = errorMaps.filter((m) => !!m).slice().reverse();
   for (const map2 of maps) {
-    errorMessage = map2(fullIssue, { data, defaultError: errorMessage }).message;
+    errorMessage2 = map2(fullIssue, { data, defaultError: errorMessage2 }).message;
   }
   return {
     ...issueData,
     path: fullPath,
-    message: errorMessage
+    message: errorMessage2
   };
 };
 function addIssueToContext(ctx, issueData) {
@@ -46059,19 +46059,19 @@ var getRefs = (options) => {
 };
 
 // node_modules/zod-to-json-schema/dist/esm/errorMessages.js
-function addErrorMessage(res, key, errorMessage, refs) {
+function addErrorMessage(res, key, errorMessage2, refs) {
   if (!refs?.errorMessages)
     return;
-  if (errorMessage) {
+  if (errorMessage2) {
     res.errorMessage = {
       ...res.errorMessage,
-      [key]: errorMessage
+      [key]: errorMessage2
     };
   }
 }
-function setResponseValueAndErrors(res, key, value, errorMessage, refs) {
+function setResponseValueAndErrors(res, key, value, errorMessage2, refs) {
   res[key] = value;
-  addErrorMessage(res, key, errorMessage, refs);
+  addErrorMessage(res, key, errorMessage2, refs);
 }
 
 // node_modules/zod-to-json-schema/dist/esm/getRelativePath.js
@@ -47382,8 +47382,8 @@ var Protocol = class {
                   if (queuedMessage.type === "response") {
                     resolver(message);
                   } else {
-                    const errorMessage = message;
-                    const error48 = new McpError(errorMessage.error.code, errorMessage.error.message, errorMessage.error.data);
+                    const errorMessage2 = message;
+                    const error48 = new McpError(errorMessage2.error.code, errorMessage2.error.message, errorMessage2.error.data);
                     resolver(error48);
                   }
                 } else {
@@ -48536,23 +48536,23 @@ var Server = class extends Protocol {
       const wrappedHandler = async (request, extra) => {
         const validatedRequest = safeParse2(CallToolRequestSchema, request);
         if (!validatedRequest.success) {
-          const errorMessage = validatedRequest.error instanceof Error ? validatedRequest.error.message : String(validatedRequest.error);
-          throw new McpError(ErrorCode.InvalidParams, `Invalid tools/call request: ${errorMessage}`);
+          const errorMessage2 = validatedRequest.error instanceof Error ? validatedRequest.error.message : String(validatedRequest.error);
+          throw new McpError(ErrorCode.InvalidParams, `Invalid tools/call request: ${errorMessage2}`);
         }
         const { params } = validatedRequest.data;
         const result = await Promise.resolve(handler(request, extra));
         if (params.task) {
           const taskValidationResult = safeParse2(CreateTaskResultSchema, result);
           if (!taskValidationResult.success) {
-            const errorMessage = taskValidationResult.error instanceof Error ? taskValidationResult.error.message : String(taskValidationResult.error);
-            throw new McpError(ErrorCode.InvalidParams, `Invalid task creation result: ${errorMessage}`);
+            const errorMessage2 = taskValidationResult.error instanceof Error ? taskValidationResult.error.message : String(taskValidationResult.error);
+            throw new McpError(ErrorCode.InvalidParams, `Invalid task creation result: ${errorMessage2}`);
           }
           return taskValidationResult.data;
         }
         const validationResult = safeParse2(CallToolResultSchema, result);
         if (!validationResult.success) {
-          const errorMessage = validationResult.error instanceof Error ? validationResult.error.message : String(validationResult.error);
-          throw new McpError(ErrorCode.InvalidParams, `Invalid tools/call result: ${errorMessage}`);
+          const errorMessage2 = validationResult.error instanceof Error ? validationResult.error.message : String(validationResult.error);
+          throw new McpError(ErrorCode.InvalidParams, `Invalid tools/call result: ${errorMessage2}`);
         }
         return validationResult.data;
       };
@@ -49046,12 +49046,12 @@ var McpServer = class {
    * @param errorMessage - The error message.
    * @returns The tool error result.
    */
-  createToolError(errorMessage) {
+  createToolError(errorMessage2) {
     return {
       content: [
         {
           type: "text",
-          text: errorMessage
+          text: errorMessage2
         }
       ],
       isError: true
@@ -49069,8 +49069,8 @@ var McpServer = class {
     const parseResult = await safeParseAsync2(schemaToParse, args);
     if (!parseResult.success) {
       const error48 = "error" in parseResult ? parseResult.error : "Unknown error";
-      const errorMessage = getParseErrorMessage(error48);
-      throw new McpError(ErrorCode.InvalidParams, `Input validation error: Invalid arguments for tool ${toolName}: ${errorMessage}`);
+      const errorMessage2 = getParseErrorMessage(error48);
+      throw new McpError(ErrorCode.InvalidParams, `Input validation error: Invalid arguments for tool ${toolName}: ${errorMessage2}`);
     }
     return parseResult.data;
   }
@@ -49094,8 +49094,8 @@ var McpServer = class {
     const parseResult = await safeParseAsync2(outputObj, result.structuredContent);
     if (!parseResult.success) {
       const error48 = "error" in parseResult ? parseResult.error : "Unknown error";
-      const errorMessage = getParseErrorMessage(error48);
-      throw new McpError(ErrorCode.InvalidParams, `Output validation error: Invalid structured content for tool ${toolName}: ${errorMessage}`);
+      const errorMessage2 = getParseErrorMessage(error48);
+      throw new McpError(ErrorCode.InvalidParams, `Output validation error: Invalid structured content for tool ${toolName}: ${errorMessage2}`);
     }
   }
   /**
@@ -49307,8 +49307,8 @@ var McpServer = class {
         const parseResult = await safeParseAsync2(argsObj, request.params.arguments);
         if (!parseResult.success) {
           const error48 = "error" in parseResult ? parseResult.error : "Unknown error";
-          const errorMessage = getParseErrorMessage(error48);
-          throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for prompt ${request.params.name}: ${errorMessage}`);
+          const errorMessage2 = getParseErrorMessage(error48);
+          throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for prompt ${request.params.name}: ${errorMessage2}`);
         }
         const args = parseResult.data;
         const cb = prompt.callback;
@@ -51154,7 +51154,7 @@ var ConnectionPool = class {
     }
   }
   /** Handle an incoming response/error from the add-in */
-  handleResponse(id, type, data, errorMessage) {
+  handleResponse(id, type, data, errorMessage2) {
     const pending = this.pendingRequests.get(id);
     if (!pending) return;
     clearTimeout(pending.timer);
@@ -51162,7 +51162,7 @@ var ConnectionPool = class {
     if (type === "response") {
       pending.resolve(data);
     } else {
-      pending.reject(new Error(errorMessage || "Command failed"));
+      pending.reject(new Error(errorMessage2 || "Command failed"));
     }
   }
   /** Generate a presentation ID for a new connection */
@@ -51211,13 +51211,6 @@ function substituteManifestPort(content, defaultPort, targetPort) {
   if (defaultPort === targetPort) return content;
   return content.replaceAll(`localhost:${defaultPort}`, `localhost:${targetPort}`);
 }
-
-// server/tools.ts
-var import_node_fs2 = require("node:fs");
-var import_node_os = require("node:os");
-var import_node_path2 = require("node:path");
-var import_xmldom3 = __toESM(require_lib(), 1);
-var import_jszip2 = __toESM(require_lib4(), 1);
 
 // server/chart-builder.ts
 var C_NS = "http://schemas.openxmlformats.org/drawingml/2006/chart";
@@ -51405,158 +51398,29 @@ function resolveChartPosition(pos) {
   };
 }
 
-// server/icons.ts
-var import_node_fs = require("node:fs");
-var import_node_path = require("node:path");
-var import_node_url = require("node:url");
-var import_meta = {};
-var MANIFEST_URL = "https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/fonts/FluentSystemIcons-Regular.json";
-var CDN_BASE = "https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/assets";
-var DEFAULT_SIZE = 24;
-var cachedIndex = null;
-function snakeToTitle(s) {
-  return s.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+// server/tool-helpers.ts
+function errorMessage(err) {
+  return err instanceof Error ? err.message : String(err);
 }
-function titleToSnake(s) {
-  return s.replace(/\s+/g, "_").toLowerCase();
+function isCallToolResult(value) {
+  return typeof value === "object" && value !== null && Array.isArray(value.content);
 }
-function nameToId(name, mono) {
-  const base = `Icons_${name.replace(/\s+/g, "_")}`;
-  return mono ? `${base}_M` : base;
-}
-function buildIndexFromManifest(manifest) {
-  const seen = /* @__PURE__ */ new Set();
-  const entries = [];
-  for (const key of Object.keys(manifest)) {
-    const match = key.match(/^ic_fluent_(.+)_(\d+)_regular$/);
-    if (!match) continue;
-    const snakeName = match[1];
-    if (seen.has(snakeName)) continue;
-    seen.add(snakeName);
-    const name = snakeToTitle(snakeName);
-    entries.push({
-      name,
-      snakeName,
-      keywords: snakeName.split("_")
-    });
-  }
-  return entries.sort((a, b) => a.name.localeCompare(b.name));
-}
-function loadStaticIndex() {
-  try {
-    const dir = (0, import_node_path.dirname)((0, import_node_url.fileURLToPath)(import_meta.url));
-    const raw = (0, import_node_fs.readFileSync)((0, import_node_path.join)(dir, "icon-index.json"), "utf-8");
-    const data = JSON.parse(raw);
-    return data.map((e) => ({
-      name: e.n,
-      snakeName: titleToSnake(e.n),
-      keywords: e.k.split(" ")
-    }));
-  } catch {
-    return null;
-  }
-}
-async function loadIndex() {
-  if (cachedIndex) return cachedIndex;
-  const staticIndex = loadStaticIndex();
-  if (staticIndex && staticIndex.length > 0) {
-    cachedIndex = staticIndex;
-    return cachedIndex;
-  }
-  const resp = await fetch(MANIFEST_URL);
-  if (!resp.ok) {
-    throw new Error(`Failed to fetch icon manifest: ${resp.status} ${resp.statusText}`);
-  }
-  const manifest = await resp.json();
-  cachedIndex = buildIndexFromManifest(manifest);
-  return cachedIndex;
-}
-function scoreMatch(entry, queryWords) {
-  let score = 0;
-  const nameLower = entry.name.toLowerCase();
-  const allWords = [nameLower, ...entry.keywords];
-  for (const qw of queryWords) {
-    if (entry.keywords.includes(qw)) {
-      score += 10;
-      continue;
+function withTool(handler) {
+  return async (args, extra) => {
+    try {
+      const result = await handler(args, extra);
+      if (typeof result === "string") {
+        return { content: [{ type: "text", text: result }] };
+      }
+      if (isCallToolResult(result)) {
+        return result;
+      }
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${errorMessage(err)}` }], isError: true };
     }
-    if (nameLower.includes(qw)) {
-      score += 8;
-      continue;
-    }
-    if (entry.keywords.some((kw) => kw.startsWith(qw))) {
-      score += 5;
-      continue;
-    }
-    if (allWords.some((w) => w.includes(qw))) {
-      score += 3;
-      continue;
-    }
-    score -= 2;
-  }
-  const queryJoined = queryWords.join(" ");
-  if (nameLower === queryJoined) {
-    score += 20;
-  }
-  return score;
+  };
 }
-async function searchIcons(query, top = 10, style) {
-  const index = await loadIndex();
-  const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 0);
-  if (queryWords.length === 0) return [];
-  const scored = index.map((entry) => ({ entry, score: scoreMatch(entry, queryWords) })).filter((x) => x.score > 0).sort((a, b) => b.score - a.score).slice(0, top);
-  const isMono = style === "regular";
-  const isFilled = style === "filled";
-  if (!isMono && !isFilled) {
-    const results = [];
-    for (const { entry, score } of scored) {
-      results.push({
-        id: nameToId(entry.name, true),
-        description: `${entry.name} (mono/outline)`,
-        isMono: true,
-        contentTier: "free",
-        searchScore: score,
-        svgUrl: buildSvgUrl(entry.snakeName, true)
-      });
-      results.push({
-        id: nameToId(entry.name, false),
-        description: `${entry.name} (filled)`,
-        isMono: false,
-        contentTier: "free",
-        searchScore: score,
-        svgUrl: buildSvgUrl(entry.snakeName, false)
-      });
-    }
-    return results.slice(0, top);
-  }
-  return scored.map(({ entry, score }) => ({
-    id: nameToId(entry.name, isMono),
-    description: `${entry.name} (${isMono ? "mono/outline" : "filled"})`,
-    isMono,
-    contentTier: "free",
-    searchScore: score,
-    svgUrl: buildSvgUrl(entry.snakeName, isMono)
-  }));
-}
-function buildSvgUrl(snakeName, isMono) {
-  const dirName = snakeToTitle(snakeName);
-  const style = isMono ? "regular" : "filled";
-  const fileName = `ic_fluent_${snakeName}_${DEFAULT_SIZE}_${style}.svg`;
-  return `${CDN_BASE}/${encodeURIComponent(dirName)}/SVG/${fileName}`;
-}
-function recolorSvg(svg, color) {
-  const styleTag = `<style>.icon-color{fill:${color}}</style>`;
-  let result = svg.replace(/(<svg[^>]*>)/, `$1${styleTag}`);
-  result = result.replace(/(<(?:path|circle|rect|polygon|ellipse)[^>]*?)fill="[^"]*"/g, '$1class="icon-color"');
-  result = result.replace(
-    /(<(?:path|circle|rect|polygon|ellipse)(?![^>]*class=)[^>]*?)(\/?>)/g,
-    '$1 class="icon-color"$2'
-  );
-  return result;
-}
-
-// server/notes-helpers.ts
-var import_xmldom2 = __toESM(require_lib(), 1);
 
 // server/xml-helpers.ts
 var import_xmldom = __toESM(require_lib(), 1);
@@ -51741,6 +51605,24 @@ async function autoRegisterContentTypes(zip, newPaths) {
   }
   zip.file("[Content_Types].xml", ctXml);
 }
+async function buildEditedZipBase64(exportedBase64, files) {
+  const { zip } = await extractZipFiles(exportedBase64);
+  const existingPaths = new Set(listZipPaths(zip));
+  const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p));
+  const modifiedBase64 = await updateZipFiles(zip, files);
+  if (newPaths.length > 0 && !files["[Content_Types].xml"]) {
+    const { zip: updatedZip } = await extractZipFiles(modifiedBase64);
+    await autoRegisterContentTypes(updatedZip, newPaths);
+    const finalBase64 = await updatedZip.generateAsync({ type: "base64" });
+    return { base64: finalBase64, newPaths };
+  }
+  return { base64: modifiedBase64, newPaths };
+}
+async function applyZipEditAndReimport(pool2, exported, files, targetWs) {
+  const { base64: base643, newPaths } = await buildEditedZipBase64(exported.base64, files);
+  await reimportSlide(pool2, base643, exported.slideId, exported.prevSlideId, targetWs);
+  return newPaths;
+}
 async function extractSlideXmlFromZip(base643) {
   const { zip, files } = await extractZipFiles(base643, [SLIDE_XML_PATH]);
   return { zip, xmlString: files[SLIDE_XML_PATH] };
@@ -51868,12 +51750,13 @@ function filenameSortedSlideFiles(zip) {
     return na - nb;
   });
 }
-async function orderedSlideFiles(zip, parser) {
+async function resolveOrderedSlidePaths(zip, parser) {
+  const p = parser ?? new import_xmldom.DOMParser();
   const presFile = zip.file("ppt/presentation.xml");
   const presRelsFile = zip.file("ppt/_rels/presentation.xml.rels");
-  if (!presFile || !presRelsFile) return filenameSortedSlideFiles(zip);
-  const presDoc = parser.parseFromString(await presFile.async("string"), "text/xml");
-  const presRelsDoc = parser.parseFromString(await presRelsFile.async("string"), "text/xml");
+  if (!presFile || !presRelsFile) return [];
+  const presDoc = p.parseFromString(await presFile.async("string"), "text/xml");
+  const presRelsDoc = p.parseFromString(await presRelsFile.async("string"), "text/xml");
   const rIdToTarget = /* @__PURE__ */ new Map();
   const rels = presRelsDoc.getElementsByTagNameNS(NS_RELS, "Relationship");
   for (let i = 0; i < rels.length; i++) {
@@ -51887,9 +51770,13 @@ async function orderedSlideFiles(zip, parser) {
     const rId = sldIds[idx].getAttributeNS(NS_R, "id");
     if (!rId) continue;
     const target = rIdToTarget.get(rId);
-    if (target) ordered.push(target);
+    if (target) ordered.push({ sldIdIndex: idx, slidePath: target });
   }
-  return ordered.length > 0 ? ordered : filenameSortedSlideFiles(zip);
+  return ordered;
+}
+async function orderedSlideFiles(zip, parser) {
+  const ordered = await resolveOrderedSlidePaths(zip, parser);
+  return ordered.length > 0 ? ordered.map((o) => o.slidePath) : filenameSortedSlideFiles(zip);
 }
 async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
   const zip = await import_jszip.default.loadAsync(zipBuffer);
@@ -52013,7 +51900,1199 @@ async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
   return results;
 }
 
+// server/tools/shared.ts
+var import_node_fs = require("node:fs");
+var import_node_os = require("node:os");
+var import_node_path = require("node:path");
+var localCopyCache = /* @__PURE__ */ new Map();
+var themeCache = /* @__PURE__ */ new Map();
+var sessionConcurrentWarnings = /* @__PURE__ */ new Map();
+function getConcurrentWarning(mcpSessionId, presentationId, activeSessions) {
+  if (!mcpSessionId) return null;
+  if (activeSessions <= 1) return null;
+  const warned = sessionConcurrentWarnings.get(mcpSessionId);
+  if (warned?.has(presentationId)) return null;
+  if (!warned) {
+    sessionConcurrentWarnings.set(mcpSessionId, /* @__PURE__ */ new Set([presentationId]));
+  } else {
+    warned.add(presentationId);
+  }
+  return "\n\nNote: Other MCP sessions are also connected to the bridge. If they target this presentation, changes apply immediately (last-write-wins).";
+}
+function clearSessionWarnings(sessionId) {
+  sessionConcurrentWarnings.delete(sessionId);
+}
+function parseSlideRange(range) {
+  if (!range) return null;
+  const indices = /* @__PURE__ */ new Set();
+  for (const part of range.split(",")) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const dashIdx = trimmed.indexOf("-", 1);
+    if (dashIdx === -1) {
+      const n = Number(trimmed);
+      if (!Number.isInteger(n) || n < 0) throw new Error(`Invalid slide index: "${trimmed}"`);
+      indices.add(n);
+    } else {
+      const start = Number(trimmed.slice(0, dashIdx));
+      const end = Number(trimmed.slice(dashIdx + 1));
+      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) {
+        throw new Error(`Invalid slide range: "${trimmed}"`);
+      }
+      for (let i = start; i <= end; i++) indices.add(i);
+    }
+  }
+  if (indices.size === 0) return null;
+  return [...indices].sort((a, b) => a - b);
+}
+function buildFormatShapeOps(shapes, slideIndex) {
+  return shapes.map((s) => {
+    const lines = [];
+    lines.push(`  var s = shapeMap[${JSON.stringify(s.id)}];`);
+    lines.push(`  if (!s) throw new Error("Shape " + ${JSON.stringify(s.id)} + " not found on slide ${slideIndex}");`);
+    if (s.fill) {
+      lines.push(`  s.fill.setSolidColor(${JSON.stringify(s.fill)});`);
+    }
+    if (s.font) {
+      lines.push(`  var tf = s.getTextFrameOrNullObject();`);
+      lines.push(`  await context.sync();`);
+      lines.push(`  if (!tf.isNullObject) {`);
+      lines.push(`    var tr = tf.textRange;`);
+      if (s.font.bold !== void 0) lines.push(`    tr.font.bold = ${s.font.bold};`);
+      if (s.font.italic !== void 0) lines.push(`    tr.font.italic = ${s.font.italic};`);
+      if (s.font.size !== void 0) lines.push(`    tr.font.size = ${s.font.size};`);
+      if (s.font.color !== void 0) lines.push(`    tr.font.color = ${JSON.stringify(s.font.color)};`);
+      if (s.font.name !== void 0) lines.push(`    tr.font.name = ${JSON.stringify(s.font.name)};`);
+      lines.push(`  }`);
+    }
+    return lines.join("\n");
+  }).join("\n");
+}
+function buildInsertOptions(formatting, targetSlideId) {
+  const optionsParts = [];
+  if (formatting) optionsParts.push(`formatting: ${JSON.stringify(formatting)}`);
+  if (targetSlideId) optionsParts.push(`targetSlideId: ${JSON.stringify(targetSlideId)}`);
+  return optionsParts.length > 0 ? `, { ${optionsParts.join(", ")} }` : "";
+}
+function globToRegExp(pattern) {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`, "i");
+}
+async function getLocalCopyPath(connPool, target) {
+  const filePath = target.filePath;
+  if (filePath && !filePath.startsWith("http")) {
+    if (!(0, import_node_fs.existsSync)(filePath)) throw new Error(`Local file not found: ${filePath}`);
+    return filePath;
+  }
+  const revCode = `
+    var p = context.presentation.properties;
+    p.load("revisionNumber");
+    await context.sync();
+    return p.revisionNumber;
+  `;
+  const currentRevision = await connPool.sendCommand("executeCode", { code: revCode }, target.ws);
+  const cached2 = localCopyCache.get(target.presentationId);
+  if (cached2 && cached2.revision === currentRevision && (0, import_node_fs.existsSync)(cached2.localPath)) {
+    return cached2.localPath;
+  }
+  const exportCode = `
+    return new Promise(function(resolve, reject) {
+      Office.context.document.getFileAsync(Office.FileType.Compressed, { sliceSize: 4194304 }, function(result) {
+        if (result.status !== Office.AsyncResultStatus.Succeeded) {
+          reject(new Error(result.error.message));
+          return;
+        }
+        var file = result.value;
+        var sliceCount = file.sliceCount;
+        var sliceData = [];
+        var totalSize = 0;
+        function getNextSlice(index) {
+          if (index >= sliceCount) {
+            file.closeAsync();
+            var combined = new Uint8Array(totalSize);
+            var offset = 0;
+            for (var i = 0; i < sliceData.length; i++) {
+              var arr = new Uint8Array(sliceData[i]);
+              combined.set(arr, offset);
+              offset += arr.length;
+            }
+            var binary = '';
+            var chunk = 8192;
+            for (var j = 0; j < combined.length; j += chunk) {
+              binary += String.fromCharCode.apply(null, combined.subarray(j, Math.min(j + chunk, combined.length)));
+            }
+            resolve(btoa(binary));
+            return;
+          }
+          file.getSliceAsync(index, function(sliceResult) {
+            if (sliceResult.status !== Office.AsyncResultStatus.Succeeded) {
+              file.closeAsync();
+              reject(new Error(sliceResult.error.message));
+              return;
+            }
+            sliceData.push(sliceResult.value.data);
+            totalSize += sliceResult.value.data.length;
+            getNextSlice(index + 1);
+          });
+        }
+        getNextSlice(0);
+      });
+    });
+  `;
+  const base643 = await connPool.sendCommand("executeCode", { code: exportCode }, target.ws, 12e4);
+  const filename = filePath ? decodeURIComponent(filePath.split("/").pop() || "presentation.pptx") : "presentation.pptx";
+  const dest = (0, import_node_path.join)((0, import_node_os.tmpdir)(), `pptbridge-${Date.now()}-${filename}`);
+  (0, import_node_fs.writeFileSync)(dest, Buffer.from(base643, "base64"));
+  localCopyCache.set(target.presentationId, { localPath: dest, revision: currentRevision });
+  return dest;
+}
+async function getLayoutUsage(connPool, ws) {
+  const code = `
+    var slides = context.presentation.slides;
+    slides.load("items");
+    await context.sync();
+    for (var i = 0; i < slides.items.length; i++) {
+      slides.items[i].layout.load("name,id");
+    }
+    await context.sync();
+    var seen = {};
+    var layouts = [];
+    for (var i = 0; i < slides.items.length; i++) {
+      var l = slides.items[i].layout;
+      if (!seen[l.id]) {
+        seen[l.id] = true;
+        layouts.push({ name: l.name, id: l.id, usedBySlides: [i] });
+      } else {
+        for (var j = 0; j < layouts.length; j++) {
+          if (layouts[j].id === l.id) { layouts[j].usedBySlides.push(i); break; }
+        }
+      }
+    }
+    return layouts;
+  `;
+  return await connPool.sendCommand("executeCode", { code }, ws);
+}
+
+// server/tools/charts.ts
+function registerChartTools(server, pool2, getSessionId, getActiveSessionCount) {
+  server.tool(
+    "edit_slide_chart",
+    "Create a chart on a slide from structured data. Generates all OOXML automatically (chart XML, rels, graphic frame, Content_Types). Supports column, bar, line, pie, doughnut, and area charts with multiple series.",
+    {
+      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
+      chartType: external_exports3.enum(["column", "bar", "line", "pie", "doughnut", "area"]).describe("Chart type"),
+      title: external_exports3.string().describe("Chart title"),
+      categories: external_exports3.array(external_exports3.string()).describe("Category labels (x-axis or pie slices)"),
+      series: external_exports3.array(
+        external_exports3.object({
+          name: external_exports3.string().describe("Series name"),
+          values: external_exports3.array(external_exports3.number()).describe("Data values (one per category)")
+        })
+      ).min(1).describe("Data series"),
+      position: external_exports3.object({
+        left: external_exports3.number().optional().describe("Left position in points"),
+        top: external_exports3.number().optional().describe("Top position in points"),
+        width: external_exports3.number().optional().describe("Width in points"),
+        height: external_exports3.number().optional().describe("Height in points")
+      }).optional().describe("Chart position in points. Defaults to centered on slide."),
+      options: external_exports3.object({
+        stacked: external_exports3.boolean().optional().describe("Use stacked grouping (bar/column/line/area)"),
+        showDataLabels: external_exports3.boolean().optional().describe("Show data labels (default true)"),
+        showLegend: external_exports3.boolean().optional().describe("Show legend (default true)"),
+        legendPosition: external_exports3.enum(["t", "b", "l", "r"]).optional().describe("Legend position: t=top, b=bottom, l=left, r=right")
+      }).optional().describe("Chart options"),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    withTool(async ({ slideIndex, chartType, title, categories, series, position, options, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const exported = await exportSlide(pool2, slideIndex, target.ws);
+      const { zip } = await extractZipFiles(exported.base64);
+      const existingPaths = listZipPaths(zip);
+      const chartPaths = existingPaths.filter((p) => p.startsWith("ppt/charts/chart") && p.endsWith(".xml"));
+      const chartNums = chartPaths.map((p) => {
+        const m = p.match(/chart(\d+)\.xml$/);
+        return m ? Number(m[1]) : 0;
+      });
+      const nextChartNum = chartNums.length > 0 ? Math.max(...chartNums) + 1 : 1;
+      const chartFileName = `chart${nextChartNum}.xml`;
+      const chartZipPath = `ppt/charts/${chartFileName}`;
+      const relsPath = "ppt/slides/_rels/slide1.xml.rels";
+      const relsContent = zip.file(relsPath) ? await zip.file(relsPath).async("string") : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+      const rIdMatches = [...relsContent.matchAll(/Id="rId(\d+)"/g)];
+      const rIdNums = rIdMatches.map((m) => Number(m[1]));
+      const nextRIdNum = rIdNums.length > 0 ? Math.max(...rIdNums) + 1 : 1;
+      const rId = `rId${nextRIdNum}`;
+      const chartXml = buildChartXml(chartType, title, categories, series, options);
+      const slideXmlPath = "ppt/slides/slide1.xml";
+      const slideXml = await zip.file(slideXmlPath).async("string");
+      const emuPos = resolveChartPosition(position);
+      const shapeIdMatches = [...slideXml.matchAll(/id="(\d+)"/g)];
+      const shapeIds = shapeIdMatches.map((m) => Number(m[1]));
+      const nextShapeId = shapeIds.length > 0 ? Math.max(...shapeIds) + 1 : 100;
+      const chartName = `Chart ${nextChartNum}`;
+      const graphicFrame = buildGraphicFrame(rId, emuPos, chartName, nextShapeId);
+      const modifiedSlideXml = slideXml.replace("</p:spTree>", `${graphicFrame}</p:spTree>`);
+      const relEntry = buildChartRelationship(rId, `../charts/${chartFileName}`);
+      const modifiedRels = relsContent.replace("</Relationships>", `${relEntry}</Relationships>`);
+      const files = {
+        [slideXmlPath]: modifiedSlideXml,
+        [chartZipPath]: chartXml,
+        [relsPath]: modifiedRels
+      };
+      await applyZipEditAndReimport(pool2, exported, files, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(
+        {
+          success: true,
+          chartType,
+          title,
+          seriesCount: series.length,
+          categoryCount: categories.length,
+          chartFile: chartZipPath
+        },
+        null,
+        2
+      ) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
+  );
+}
+
+// server/tools/exec.ts
+function registerExecTools(server, pool2, getSessionId, getActiveSessionCount) {
+  server.tool(
+    "execute_officejs",
+    "Execute arbitrary Office.js code inside the live PowerPoint presentation. The code runs inside PowerPoint.run(async (context) => { ... }) with 'context' available as a variable. Use 'await context.sync()' after loading properties. Return a value to get it back as the tool result. For positioning, all values are in points (1 point = 1/72 inch). Common operations: add shapes, set text, change colors, add/delete slides.",
+    {
+      code: external_exports3.string().describe(
+        "Office.js code to execute. Runs inside PowerPoint.run() with 'context' available. Use 'return' to send back a result."
+      ),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    withTool(async ({ code, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
+  );
+  server.tool(
+    "verify_slides",
+    "Run programmatic checks on a slide: detect overlapping shapes, out-of-bounds shapes, empty text, tiny shapes, unused placeholders, placeholder drift from layout defaults, and full-bleed background covers. Returns a list of issues found. Uses the same shape data as inspect_slide \u2014 no OOXML needed.",
+    {
+      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
+      checks: external_exports3.array(
+        external_exports3.enum([
+          "overlap",
+          "bounds",
+          "empty_text",
+          "tiny_shapes",
+          "unused_placeholder",
+          "layout_drift",
+          "background_cover"
+        ])
+      ).optional().describe("Checks to run. Default: all checks."),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    withTool(async ({ slideIndex, checks, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const enabledChecks = checks ?? [
+        "overlap",
+        "bounds",
+        "empty_text",
+        "tiny_shapes",
+        "unused_placeholder",
+        "layout_drift",
+        "background_cover"
+      ];
+      const checkLayoutDrift = enabledChecks.includes("layout_drift");
+      const code = `
+          var slides = context.presentation.slides;
+          slides.load("items");
+          await context.sync();
+          if (${slideIndex} >= slides.items.length) {
+            throw new Error("Slide index " + ${slideIndex} + " out of range (presentation has " + slides.items.length + " slides)");
+          }
+          var slide = slides.items[${slideIndex}];
+          slide.shapes.load("items");
+          await context.sync();
+          var shapes = [];
+          var placeholderTypes = [];
+          for (var i = 0; i < slide.shapes.items.length; i++) {
+            var s = slide.shapes.items[i];
+            var info = {
+              name: s.name,
+              id: s.id,
+              left: s.left,
+              top: s.top,
+              width: s.width,
+              height: s.height
+            };
+            try {
+              var tf = s.getTextFrameOrNullObject();
+              tf.load(["hasText", "textRange"]);
+              await context.sync();
+              if (!tf.isNullObject) {
+                info.text = tf.hasText ? tf.textRange.text : "";
+                info.hasText = tf.hasText;
+              }
+            } catch (e) {}
+            if (s.type === "Placeholder") {
+              try {
+                var pf = s.placeholderFormat;
+                pf.load("type");
+                await context.sync();
+                info.isPlaceholder = true;
+                info.placeholderType = pf.type;
+                placeholderTypes.push({ shapeIndex: i, type: pf.type });
+              } catch (e) {}
+            }
+            shapes.push(info);
+          }
+
+          // Conditionally load layout placeholder positions for drift check
+          var layoutMap = {};
+          if (${checkLayoutDrift} && placeholderTypes.length > 0) {
+            try {
+              var layout = slide.layout;
+              layout.load("name");
+              var layoutShapes = layout.shapes;
+              layoutShapes.load("items");
+              await context.sync();
+              for (var li = 0; li < layoutShapes.items.length; li++) {
+                var ls = layoutShapes.items[li];
+                if (ls.type !== "Placeholder") continue;
+                try {
+                  var lph = ls.placeholderFormat;
+                  lph.load("type");
+                  ls.load("left,top,width,height,name");
+                  await context.sync();
+                  layoutMap[lph.type] = {
+                    name: ls.name,
+                    left: ls.left,
+                    top: ls.top,
+                    width: ls.width,
+                    height: ls.height
+                  };
+                } catch (e) {}
+              }
+            } catch (e) {}
+            // Attach layout match to shapes
+            for (var pi = 0; pi < placeholderTypes.length; pi++) {
+              var pt = placeholderTypes[pi];
+              var match = layoutMap[pt.type];
+              if (match) {
+                shapes[pt.shapeIndex].layoutMatch = match;
+              }
+            }
+          }
+
+          // Also get slide dimensions
+          var ps = context.presentation.pageSetup;
+          ps.load("slideWidth,slideHeight");
+          await context.sync();
+          return { shapes: shapes, slideWidth: ps.slideWidth, slideHeight: ps.slideHeight };
+        `;
+      const slideData = await pool2.sendCommand("executeCode", { code }, target.ws);
+      const issues = [];
+      const { shapes, slideWidth, slideHeight } = slideData;
+      if (enabledChecks.includes("overlap")) {
+        for (let i = 0; i < shapes.length; i++) {
+          for (let j = i + 1; j < shapes.length; j++) {
+            const a = shapes[i];
+            const b = shapes[j];
+            if (a.left < b.left + b.width && a.left + a.width > b.left && a.top < b.top + b.height && a.top + a.height > b.top) {
+              issues.push({
+                type: "overlap",
+                severity: "warning",
+                shapeIds: [a.id, b.id],
+                description: `"${a.name}" and "${b.name}" overlap`
+              });
+            }
+          }
+        }
+      }
+      if (enabledChecks.includes("bounds")) {
+        for (const s of shapes) {
+          const outOfBounds = [];
+          if (s.left < 0) outOfBounds.push("left of slide");
+          if (s.top < 0) outOfBounds.push("above slide");
+          if (s.left + s.width > slideWidth) outOfBounds.push("right of slide");
+          if (s.top + s.height > slideHeight) outOfBounds.push("below slide");
+          if (outOfBounds.length > 0) {
+            issues.push({
+              type: "bounds",
+              severity: "warning",
+              shapeIds: [s.id],
+              description: `"${s.name}" extends ${outOfBounds.join(", ")}`
+            });
+          }
+        }
+      }
+      if (enabledChecks.includes("empty_text")) {
+        for (const s of shapes) {
+          if (s.text !== void 0 && s.text.trim() === "") {
+            issues.push({
+              type: "empty_text",
+              severity: "warning",
+              shapeIds: [s.id],
+              description: `"${s.name}" has an empty text frame`
+            });
+          }
+        }
+      }
+      if (enabledChecks.includes("tiny_shapes")) {
+        for (const s of shapes) {
+          if (s.width < 10 || s.height < 10) {
+            issues.push({
+              type: "tiny_shapes",
+              severity: "warning",
+              shapeIds: [s.id],
+              description: `"${s.name}" is very small (${s.width.toFixed(1)} x ${s.height.toFixed(1)} pt)`
+            });
+          }
+        }
+      }
+      if (enabledChecks.includes("unused_placeholder")) {
+        for (const s of shapes) {
+          if (s.isPlaceholder && !s.hasText) {
+            issues.push({
+              type: "unused_placeholder",
+              severity: "warning",
+              shapeIds: [s.id],
+              description: `"${s.name}" is an unused placeholder \u2014 delete it or fill it with content`
+            });
+          }
+        }
+      }
+      if (checkLayoutDrift) {
+        const DRIFT_THRESHOLD = 2;
+        for (const s of shapes) {
+          if (!s.isPlaceholder || !s.layoutMatch) continue;
+          const lm = s.layoutMatch;
+          const drifts = [];
+          if (Math.abs(s.left - lm.left) > DRIFT_THRESHOLD) drifts.push(`left: ${s.left} vs layout ${lm.left}`);
+          if (Math.abs(s.top - lm.top) > DRIFT_THRESHOLD) drifts.push(`top: ${s.top} vs layout ${lm.top}`);
+          if (Math.abs(s.width - lm.width) > DRIFT_THRESHOLD) drifts.push(`width: ${s.width} vs layout ${lm.width}`);
+          if (Math.abs(s.height - lm.height) > DRIFT_THRESHOLD)
+            drifts.push(`height: ${s.height} vs layout ${lm.height}`);
+          if (drifts.length > 0) {
+            issues.push({
+              type: "layout_drift",
+              severity: "warning",
+              shapeIds: [s.id],
+              description: `"${s.name}" drifted from layout: ${drifts.join(", ")}`
+            });
+          }
+        }
+      }
+      if (enabledChecks.includes("background_cover")) {
+        const dimThreshold = 0.85;
+        const areaThreshold = 0.9;
+        const slideArea = slideWidth * slideHeight;
+        for (const s of shapes) {
+          if (s.isPlaceholder) continue;
+          const widthRatio = s.width / slideWidth;
+          const heightRatio = s.height / slideHeight;
+          if (widthRatio >= dimThreshold && heightRatio >= dimThreshold && s.width * s.height >= slideArea * areaThreshold) {
+            issues.push({
+              type: "background_cover",
+              severity: "error",
+              shapeIds: [s.id],
+              description: `"${s.name}" covers ${(widthRatio * 100).toFixed(0)}% x ${(heightRatio * 100).toFixed(0)}% of the slide \u2014 this destroys the layout background, logo, and design system. Delete this shape and use the layout's background instead.`
+            });
+          }
+        }
+      }
+      const result = { slideIndex, shapeCount: shapes.length, issueCount: issues.length, issues };
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    })
+  );
+}
+
+// server/tools/inspect.ts
+var import_node_fs2 = require("node:fs");
+var import_jszip2 = __toESM(require_lib4(), 1);
+function registerInspectTools(server, pool2, getSessionId, getActiveSessionCount) {
+  server.tool(
+    "list_presentations",
+    "Lists all PowerPoint presentations currently connected to the bridge server. Shows presentation IDs (file paths for saved files, generated IDs for unsaved) and connection status. Use this to find the presentationId to pass to other tools when multiple presentations are open.",
+    withTool(async () => {
+      const presentations = [];
+      for (const [id, conn] of pool2.entries()) {
+        presentations.push({
+          presentationId: id,
+          filePath: conn.filePath,
+          ready: conn.ready
+        });
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: presentations.length === 0 ? "No presentations connected. Open a PowerPoint file with the bridge add-in loaded." : JSON.stringify(presentations, null, 2)
+          }
+        ]
+      };
+    })
+  );
+  server.tool(
+    "inspect_deck",
+    "Deck overview: slide dimensions, theme (colors + fonts), and all slides with index, ID, and shape count. Use as the first call to understand deck structure. Theme is cached after the first call. For shape details, follow up with scan_slide or inspect_slide on specific slides. For available layouts, use inspect_layouts.",
+    {
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    withTool(async ({ presentationId }) => {
+      const code = `
+          var p = context.presentation;
+          var slides = p.slides;
+          var ps = p.pageSetup;
+          slides.load("items");
+          ps.load("slideWidth,slideHeight");
+          await context.sync();
+          var output = [];
+          for (var i = 0; i < slides.items.length; i++) {
+            var slide = slides.items[i];
+            slide.shapes.load("items");
+            slide.layout.load("name");
+          }
+          await context.sync();
+          for (var i = 0; i < slides.items.length; i++) {
+            var slide = slides.items[i];
+            output.push({ index: i, id: slide.id, layout: slide.layout.name, shapeCount: slide.shapes.items.length });
+          }
+          return { slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
+        `;
+      const target = pool2.resolveTarget(presentationId);
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      let theme = themeCache.get(target.presentationId);
+      if (!theme) {
+        try {
+          const exported = await exportSlide(pool2, 0, target.ws);
+          theme = await extractThemeFromZip(exported.base64);
+          themeCache.set(target.presentationId, theme);
+        } catch {
+        }
+      }
+      const output = { ...result, ...theme ? { theme } : {} };
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(output) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
+  );
+  server.tool(
+    "inspect_layouts",
+    "Returns slide layouts with names, OOXML type (e.g. blank, twoObj, secHead), indices (for slides.add({ layoutIndex })), and detailed placeholders. Use `fields` to control which data is returned. By default reads all layouts from OOXML (complete list, requires file access \u2014 may take a moment on first call for cloud files). Set usedOnly to return only layouts assigned to existing slides (fast, Office.js only, no file access).",
+    {
+      fields: external_exports3.string().optional().describe(
+        'Comma-separated layout fields to include. Placeholders sub-fields in parens. Default: "index,name,type,usedBySlides,placeholders(type,idx,name)". All placeholder fields: type,idx,name,description,sz,left,top,width,height.'
+      ),
+      usedOnly: external_exports3.boolean().optional().describe(
+        "If true, return only layouts currently assigned to slides (fast, Office.js only). Default: false (all layouts from OOXML)."
+      ),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    withTool(async ({ fields, usedOnly, presentationId }) => {
+      const DEFAULT_FIELDS = "index,name,type,usedBySlides,placeholders(type,idx,name)";
+      const fieldSpec = fields ?? DEFAULT_FIELDS;
+      const phMatch = fieldSpec.match(/placeholders\(([^)]+)\)/);
+      const phFields = phMatch ? new Set(phMatch[1].split(",").map((f) => f.trim())) : null;
+      const layoutFields = new Set(
+        fieldSpec.replace(/placeholders\([^)]*\)/, "placeholders").split(",").map((f) => f.trim())
+      );
+      function filterLayout(layout) {
+        const out = {};
+        for (const key of layoutFields) {
+          if (key === "placeholders" && phFields && Array.isArray(layout.placeholders)) {
+            out.placeholders = layout.placeholders.map((ph) => {
+              const filtered2 = {};
+              for (const f of phFields) {
+                if (ph[f] !== void 0) filtered2[f] = ph[f];
+              }
+              return filtered2;
+            });
+          } else if (key === "usedBySlides" && Array.isArray(layout[key]) && layout[key].length === 0) {
+          } else if (layout[key] !== void 0) {
+            out[key] = layout[key];
+          }
+        }
+        return out;
+      }
+      const target = pool2.resolveTarget(presentationId);
+      if (usedOnly) {
+        const layouts2 = await getLayoutUsage(pool2, target.ws);
+        return { content: [{ type: "text", text: JSON.stringify({ layouts: layouts2, usedOnly: true }) }] };
+      }
+      const localPath = await getLocalCopyPath(pool2, target);
+      const fileData = (0, import_node_fs2.readFileSync)(localPath);
+      const zip = await import_jszip2.default.loadAsync(fileData);
+      const layouts = await extractLayoutsFromZip(zip);
+      try {
+        const usage = await getLayoutUsage(pool2, target.ws);
+        const usageByName = new Map(usage.map((u) => [u.name, u.usedBySlides]));
+        for (const layout of layouts) {
+          layout.usedBySlides = usageByName.get(layout.name) ?? [];
+        }
+      } catch {
+      }
+      const filtered = layouts.map((l) => filterLayout(l));
+      return { content: [{ type: "text", text: JSON.stringify({ layouts: filtered }) }] };
+    })
+  );
+  server.tool(
+    "inspect_slide",
+    "Detailed slide inspector (~80 tokens/shape): returns every shape with text content, positions, sizes, and fill colors, plus slide dimensions. Supports slideRange for multiple slides. For just positions without text/fills, use scan_slide instead.",
+    {
+      slideRange: external_exports3.string().describe('Slide indices to inspect, e.g. "0", "0-5", "2,4,7". Single index or range.'),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    withTool(async ({ slideRange, presentationId }) => {
+      const indices = parseSlideRange(slideRange) ?? [];
+      if (indices.length === 0) throw new Error("slideRange is required");
+      const indicesJs = JSON.stringify(indices);
+      const code = `
+          var p = context.presentation;
+          var slides = p.slides;
+          var ps = p.pageSetup;
+          slides.load("items");
+          ps.load("slideWidth,slideHeight");
+          await context.sync();
+          var requestedIndices = ${indicesJs};
+          for (var i = 0; i < requestedIndices.length; i++) {
+            if (requestedIndices[i] >= slides.items.length) {
+              throw new Error("Slide index " + requestedIndices[i] + " out of range (presentation has " + slides.items.length + " slides)");
+            }
+          }
+          for (var i = 0; i < requestedIndices.length; i++) {
+            slides.items[requestedIndices[i]].shapes.load("items");
+          }
+          await context.sync();
+          var output = [];
+          for (var i = 0; i < requestedIndices.length; i++) {
+            var idx = requestedIndices[i];
+            var slide = slides.items[idx];
+            var shapes = [];
+            for (var j = 0; j < slide.shapes.items.length; j++) {
+              var s = slide.shapes.items[j];
+              var info = {
+                name: s.name,
+                type: s.type,
+                id: s.id,
+                left: s.left,
+                top: s.top,
+                width: s.width,
+                height: s.height
+              };
+              try {
+                s.textFrame.load("textRange");
+                await context.sync();
+                info.text = s.textFrame.textRange.text;
+              } catch (e) {
+                // Shape has no text frame (e.g., images, connectors)
+              }
+              try {
+                s.fill.load("foregroundColor,type");
+                await context.sync();
+                info.fill = { type: s.fill.type, color: s.fill.foregroundColor };
+              } catch (e) {
+                // Shape has no fill or fill not accessible
+              }
+              shapes.push(info);
+            }
+            output.push({ slideIndex: idx, slideId: slide.id, shapes: shapes });
+          }
+          return { slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
+        `;
+      const target = pool2.resolveTarget(presentationId);
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
+  );
+  server.tool(
+    "scan_slide",
+    "Lightweight shape scanner (~40 tokens/shape): lists shape IDs, types, and positions on slides, plus slide dimensions. Supports slideRange for multiple slides. For text content and fills, use inspect_slide instead.",
+    {
+      slideRange: external_exports3.string().describe('Slide indices to scan, e.g. "0", "0-5", "2,4,7". Single index or range.'),
+      namePattern: external_exports3.string().optional().describe('Glob-style filter on shape name, e.g. "Title*", "*_source", "Card*_bg". Case-insensitive.'),
+      shapeType: external_exports3.string().optional().describe('Filter by shape type: "Placeholder", "TextBox", "GeometricShape", "Graphic", "Picture", etc.'),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    withTool(async ({ slideRange, namePattern, shapeType, presentationId }) => {
+      const indices = parseSlideRange(slideRange) ?? [];
+      if (indices.length === 0) throw new Error("slideRange is required");
+      const indicesJs = JSON.stringify(indices);
+      const code = `
+          var p = context.presentation;
+          var slides = p.slides;
+          var ps = p.pageSetup;
+          slides.load("items");
+          ps.load("slideWidth,slideHeight");
+          await context.sync();
+          var requestedIndices = ${indicesJs};
+          for (var i = 0; i < requestedIndices.length; i++) {
+            if (requestedIndices[i] >= slides.items.length) {
+              throw new Error("Slide index " + requestedIndices[i] + " out of range (presentation has " + slides.items.length + " slides)");
+            }
+          }
+          for (var i = 0; i < requestedIndices.length; i++) {
+            slides.items[requestedIndices[i]].shapes.load("items");
+          }
+          await context.sync();
+          var output = [];
+          for (var i = 0; i < requestedIndices.length; i++) {
+            var idx = requestedIndices[i];
+            var slide = slides.items[idx];
+            var shapes = [];
+            for (var j = 0; j < slide.shapes.items.length; j++) {
+              var s = slide.shapes.items[j];
+              shapes.push({
+                id: s.id,
+                name: s.name,
+                type: s.type,
+                left: s.left,
+                top: s.top,
+                width: s.width,
+                height: s.height
+              });
+            }
+            output.push({ slideIndex: idx, slideId: slide.id, shapes: shapes });
+          }
+          return { slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
+        `;
+      const target = pool2.resolveTarget(presentationId);
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      if (namePattern || shapeType) {
+        const nameRegex = namePattern ? globToRegExp(namePattern) : null;
+        const typeLower = shapeType?.toLowerCase();
+        for (const slide of result.slides) {
+          slide.shapes = slide.shapes.filter((s) => {
+            if (nameRegex && !nameRegex.test(s.name)) return false;
+            if (typeLower && s.type.toLowerCase() !== typeLower) return false;
+            return true;
+          });
+        }
+      }
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
+  );
+  server.tool(
+    "screenshot_slide",
+    "Slide screenshot (~1000 tokens): captures one slide as PNG image. Use to visually verify layout after changes. Do NOT loop over all slides \u2014 use preview_deck instead.",
+    {
+      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from scan_slide results"),
+      width: external_exports3.number().int().min(1).max(4096).optional().describe(
+        "Image width in pixels. Default: 720. Height auto-calculated to preserve aspect ratio unless also specified."
+      ),
+      height: external_exports3.number().int().min(1).max(4096).optional().describe("Image height in pixels. If omitted, auto-calculated from width to preserve aspect ratio."),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    withTool(async ({ slideIndex, width, height, presentationId }) => {
+      const imgWidth = width ?? 720;
+      const optionsParts = [`width: ${imgWidth}`];
+      if (height !== void 0) {
+        optionsParts.push(`height: ${height}`);
+      }
+      const optionsStr = `{ ${optionsParts.join(", ")} }`;
+      const code = `
+          var slides = context.presentation.slides;
+          slides.load("items");
+          await context.sync();
+          if (${slideIndex} >= slides.items.length) {
+            throw new Error("Slide index " + ${slideIndex} + " out of range (presentation has " + slides.items.length + " slides)");
+          }
+          var slide = slides.items[${slideIndex}];
+          var result = slide.getImageAsBase64(${optionsStr});
+          await context.sync();
+          return { base64: result.value, slideIndex: ${slideIndex}, slideId: slide.id };
+        `;
+      try {
+        const target = pool2.resolveTarget(presentationId);
+        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+        const description = `Slide ${result.slideIndex} (ID: ${result.slideId})${warning ?? ""}`;
+        return {
+          content: [
+            {
+              type: "image",
+              data: result.base64,
+              mimeType: "image/png"
+            },
+            {
+              type: "text",
+              text: description
+            }
+          ]
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("getImageAsBase64") || message.includes("not a function")) {
+          throw new Error(`${message} (This API requires PowerPoint 16.96+ with PowerPointApi 1.8 support)`);
+        }
+        throw err;
+      }
+    })
+  );
+  server.tool(
+    "preview_deck",
+    "Deck preview: batch overview of all/selected slides with optional thumbnails + text. With images: ~900 tokens/slide; text-only (includeImages=false): ~35 tokens/slide. Use for visual review or content audit. Do NOT use to inspect one slide \u2014 use inspect_slide or screenshot_slide instead.",
+    {
+      slideRange: external_exports3.string().optional().describe('Slide indices to include, e.g. "0-5", "2,4,7", "0-2,5,8-10". Omit for all slides.'),
+      imageWidth: external_exports3.number().int().min(120).max(1920).optional().describe("Thumbnail width in pixels. Default: 480. Height auto-calculated to preserve aspect ratio."),
+      includeImages: external_exports3.boolean().optional().describe("Include slide thumbnails. Default: true. Set false for text-only overview (faster)."),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    withTool(async ({ slideRange, imageWidth, includeImages, presentationId }) => {
+      const indices = parseSlideRange(slideRange);
+      const width = imageWidth ?? 480;
+      const withImages = includeImages !== false;
+      const indicesJs = indices ? JSON.stringify(indices) : "null";
+      const code = `
+          var p = context.presentation;
+          var slides = p.slides;
+          var ps = p.pageSetup;
+          slides.load("items");
+          ps.load("slideWidth,slideHeight");
+          await context.sync();
+          var requestedIndices = ${indicesJs};
+          var indicesToProcess = requestedIndices || [];
+          if (!requestedIndices) {
+            for (var i = 0; i < slides.items.length; i++) indicesToProcess.push(i);
+          }
+          // Validate indices
+          for (var i = 0; i < indicesToProcess.length; i++) {
+            if (indicesToProcess[i] >= slides.items.length) {
+              throw new Error("Slide index " + indicesToProcess[i] + " out of range (presentation has " + slides.items.length + " slides)");
+            }
+          }
+          // Load shapes for all requested slides
+          for (var i = 0; i < indicesToProcess.length; i++) {
+            slides.items[indicesToProcess[i]].shapes.load("items");
+          }
+          await context.sync();
+          var output = [];
+          for (var i = 0; i < indicesToProcess.length; i++) {
+            var idx = indicesToProcess[i];
+            var slide = slides.items[idx];
+            var shapes = [];
+            for (var j = 0; j < slide.shapes.items.length; j++) {
+              var s = slide.shapes.items[j];
+              var info = { name: s.name, type: s.type, id: s.id };
+              try {
+                s.textFrame.load("textRange");
+                await context.sync();
+                info.text = s.textFrame.textRange.text;
+              } catch (e) {}
+              shapes.push(info);
+            }
+            var slideData = { index: idx, id: slide.id, shapeCount: shapes.length, shapes: shapes };
+            ${withImages ? `var img = slide.getImageAsBase64({ width: ${width} });
+            await context.sync();
+            slideData.imageBase64 = img.value;` : ""}
+            output.push(slideData);
+          }
+          return { slideCount: slides.items.length, slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
+        `;
+      const target = pool2.resolveTarget(presentationId);
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws, 12e4);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const content = [];
+      const showing = result.slides.length;
+      const header = `Deck overview: ${result.slideCount} total slides (${result.slideWidth} x ${result.slideHeight} pt), showing ${showing}${warning ?? ""}`;
+      content.push({ type: "text", text: header });
+      for (const slide of result.slides) {
+        if (slide.imageBase64) {
+          content.push({ type: "image", data: slide.imageBase64, mimeType: "image/png" });
+        }
+        const textParts = slide.shapes.filter((s) => s.text).map((s) => s.text);
+        const shapeText = textParts.length > 0 ? `
+${textParts.join("\n")}` : "\n(no text content)";
+        content.push({
+          type: "text",
+          text: `--- Slide ${slide.index} | ${slide.shapeCount} shapes ---${shapeText}`
+        });
+      }
+      return { content };
+    })
+  );
+}
+
+// server/tools/media.ts
+var import_node_fs4 = require("node:fs");
+
+// server/icons.ts
+var import_node_fs3 = require("node:fs");
+var import_node_path2 = require("node:path");
+var import_node_url = require("node:url");
+var import_meta = {};
+var MANIFEST_URL = "https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/fonts/FluentSystemIcons-Regular.json";
+var CDN_BASE = "https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/assets";
+var DEFAULT_SIZE = 24;
+var cachedIndex = null;
+function snakeToTitle(s) {
+  return s.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+function titleToSnake(s) {
+  return s.replace(/\s+/g, "_").toLowerCase();
+}
+function nameToId(name, mono) {
+  const base = `Icons_${name.replace(/\s+/g, "_")}`;
+  return mono ? `${base}_M` : base;
+}
+function buildIndexFromManifest(manifest) {
+  const seen = /* @__PURE__ */ new Set();
+  const entries = [];
+  for (const key of Object.keys(manifest)) {
+    const match = key.match(/^ic_fluent_(.+)_(\d+)_regular$/);
+    if (!match) continue;
+    const snakeName = match[1];
+    if (seen.has(snakeName)) continue;
+    seen.add(snakeName);
+    const name = snakeToTitle(snakeName);
+    entries.push({
+      name,
+      snakeName,
+      keywords: snakeName.split("_")
+    });
+  }
+  return entries.sort((a, b) => a.name.localeCompare(b.name));
+}
+function loadStaticIndex() {
+  try {
+    const dir = (0, import_node_path2.dirname)((0, import_node_url.fileURLToPath)(import_meta.url));
+    const raw = (0, import_node_fs3.readFileSync)((0, import_node_path2.join)(dir, "icon-index.json"), "utf-8");
+    const data = JSON.parse(raw);
+    return data.map((e) => ({
+      name: e.n,
+      snakeName: titleToSnake(e.n),
+      keywords: e.k.split(" ")
+    }));
+  } catch {
+    return null;
+  }
+}
+async function loadIndex() {
+  if (cachedIndex) return cachedIndex;
+  const staticIndex = loadStaticIndex();
+  if (staticIndex && staticIndex.length > 0) {
+    cachedIndex = staticIndex;
+    return cachedIndex;
+  }
+  const resp = await fetch(MANIFEST_URL);
+  if (!resp.ok) {
+    throw new Error(`Failed to fetch icon manifest: ${resp.status} ${resp.statusText}`);
+  }
+  const manifest = await resp.json();
+  cachedIndex = buildIndexFromManifest(manifest);
+  return cachedIndex;
+}
+function scoreMatch(entry, queryWords) {
+  let score = 0;
+  const nameLower = entry.name.toLowerCase();
+  const allWords = [nameLower, ...entry.keywords];
+  for (const qw of queryWords) {
+    if (entry.keywords.includes(qw)) {
+      score += 10;
+      continue;
+    }
+    if (nameLower.includes(qw)) {
+      score += 8;
+      continue;
+    }
+    if (entry.keywords.some((kw) => kw.startsWith(qw))) {
+      score += 5;
+      continue;
+    }
+    if (allWords.some((w) => w.includes(qw))) {
+      score += 3;
+      continue;
+    }
+    score -= 2;
+  }
+  const queryJoined = queryWords.join(" ");
+  if (nameLower === queryJoined) {
+    score += 20;
+  }
+  return score;
+}
+async function searchIcons(query, top = 10, style) {
+  const index = await loadIndex();
+  const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 0);
+  if (queryWords.length === 0) return [];
+  const scored = index.map((entry) => ({ entry, score: scoreMatch(entry, queryWords) })).filter((x) => x.score > 0).sort((a, b) => b.score - a.score).slice(0, top);
+  const isMono = style === "regular";
+  const isFilled = style === "filled";
+  if (!isMono && !isFilled) {
+    const results = [];
+    for (const { entry, score } of scored) {
+      results.push({
+        id: nameToId(entry.name, true),
+        description: `${entry.name} (mono/outline)`,
+        isMono: true,
+        contentTier: "free",
+        searchScore: score,
+        svgUrl: buildSvgUrl(entry.snakeName, true)
+      });
+      results.push({
+        id: nameToId(entry.name, false),
+        description: `${entry.name} (filled)`,
+        isMono: false,
+        contentTier: "free",
+        searchScore: score,
+        svgUrl: buildSvgUrl(entry.snakeName, false)
+      });
+    }
+    return results.slice(0, top);
+  }
+  return scored.map(({ entry, score }) => ({
+    id: nameToId(entry.name, isMono),
+    description: `${entry.name} (${isMono ? "mono/outline" : "filled"})`,
+    isMono,
+    contentTier: "free",
+    searchScore: score,
+    svgUrl: buildSvgUrl(entry.snakeName, isMono)
+  }));
+}
+function buildSvgUrl(snakeName, isMono) {
+  const dirName = snakeToTitle(snakeName);
+  const style = isMono ? "regular" : "filled";
+  const fileName = `ic_fluent_${snakeName}_${DEFAULT_SIZE}_${style}.svg`;
+  return `${CDN_BASE}/${encodeURIComponent(dirName)}/SVG/${fileName}`;
+}
+function recolorSvg(svg, color) {
+  const styleTag = `<style>.icon-color{fill:${color}}</style>`;
+  let result = svg.replace(/(<svg[^>]*>)/, `$1${styleTag}`);
+  result = result.replace(/(<(?:path|circle|rect|polygon|ellipse)[^>]*?)fill="[^"]*"/g, '$1class="icon-color"');
+  result = result.replace(
+    /(<(?:path|circle|rect|polygon|ellipse)(?![^>]*class=)[^>]*?)(\/?>)/g,
+    '$1 class="icon-color"$2'
+  );
+  return result;
+}
+
+// server/tools/media.ts
+function registerMediaTools(server, pool2, getSessionId, getActiveSessionCount) {
+  server.tool(
+    "insert_image",
+    "Inserts an image onto a slide using Office.js setSelectedDataAsync with CoercionType.Image. Accepts a file path, URL, or raw base64 data. Optionally navigate to a specific slide first and control position/size in points.",
+    {
+      source: external_exports3.string().describe("File path, URL, or base64 image data depending on sourceType"),
+      sourceType: external_exports3.enum(["file", "url", "base64"]).describe(
+        'How to interpret source: "file" reads from disk, "url" fetches from network, "base64" uses data directly'
+      ),
+      slideIndex: external_exports3.number().int().min(0).optional().describe(
+        "Zero-based slide index to navigate to before inserting. If omitted, inserts on the currently active slide."
+      ),
+      left: external_exports3.number().optional().describe("Horizontal position in points (1 point = 1/72 inch)"),
+      top: external_exports3.number().optional().describe("Vertical position in points"),
+      width: external_exports3.number().optional().describe("Image width in points"),
+      height: external_exports3.number().optional().describe("Image height in points"),
+      color: external_exports3.string().optional().describe(
+        'Hex color to tint SVG images (e.g. "#FF5733"). Only applies to SVG sources. Works best with mono/outline icons.'
+      ),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    withTool(async ({ source, sourceType, slideIndex, left, top, width, height, color, presentationId }) => {
+      let base64Data;
+      if (sourceType === "file") {
+        base64Data = (0, import_node_fs4.readFileSync)(source).toString("base64");
+      } else if (sourceType === "url") {
+        const resp = await fetch(source);
+        if (!resp.ok) {
+          throw new Error(`Failed to fetch image from URL: ${resp.status} ${resp.statusText}`);
+        }
+        const buf = await resp.arrayBuffer();
+        base64Data = Buffer.from(buf).toString("base64");
+      } else {
+        base64Data = source;
+      }
+      if (color) {
+        const svg = Buffer.from(base64Data, "base64").toString("utf-8");
+        if (svg.trimStart().startsWith("<svg") || svg.trimStart().startsWith("<?xml")) {
+          base64Data = Buffer.from(recolorSvg(svg, color)).toString("base64");
+        } else {
+          throw new Error("color parameter only works with SVG images, but the source is not SVG");
+        }
+      }
+      const optionsParts = ["coercionType: Office.CoercionType.Image"];
+      if (left !== void 0) optionsParts.push(`imageLeft: ${left}`);
+      if (top !== void 0) optionsParts.push(`imageTop: ${top}`);
+      if (width !== void 0) optionsParts.push(`imageWidth: ${width}`);
+      if (height !== void 0) optionsParts.push(`imageHeight: ${height}`);
+      const optionsStr = `{ ${optionsParts.join(", ")} }`;
+      const insertCall = `Office.context.document.setSelectedDataAsync("${base64Data}", ${optionsStr}, function(result) {
+        if (result.status === Office.AsyncResultStatus.Succeeded) {
+          resolve({ success: true });
+        } else {
+          reject(new Error(result.error.message));
+        }
+      });`;
+      let code;
+      if (slideIndex !== void 0) {
+        code = `return new Promise(function(resolve, reject) {
+      Office.context.document.goToByIdAsync(${slideIndex + 1}, Office.GoToType.Index, function(navResult) {
+        if (navResult.status !== Office.AsyncResultStatus.Succeeded) {
+          reject(new Error("Navigation failed: " + navResult.error.message));
+          return;
+        }
+        ${insertCall}
+      });
+    });`;
+      } else {
+        code = `return new Promise(function(resolve, reject) {
+      ${insertCall}
+    });`;
+      }
+      const target = pool2.resolveTarget(presentationId);
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
+  );
+  server.tool(
+    "get_local_copy",
+    "Returns a local file path for the presentation. For local files, returns the existing path. For SharePoint/cloud files, exports server-side and saves to a temp .pptx. Caches by revision number \u2014 re-exports only when the presentation has been saved since last export.",
+    {
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    withTool(async ({ presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const cachedBefore = localCopyCache.get(target.presentationId)?.localPath;
+      const localPath = await getLocalCopyPath(pool2, target);
+      const isLocal = target.filePath && !target.filePath.startsWith("http");
+      const cached2 = localCopyCache.get(target.presentationId);
+      const source = isLocal ? "local" : cachedBefore === localPath ? "cached" : "exported";
+      const result = { localPath, source };
+      if (cached2) result.revision = cached2.revision;
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    })
+  );
+  server.tool(
+    "search_fluent_icons",
+    'Search Microsoft Fluent UI icon library. Returns matching icons with SVG URLs for use with insert_image. Prefer mono (_M) variants for professional decks. Retry with synonyms if no good matches (e.g. "innovation" \u2192 "lightbulb", "security" \u2192 "shield").',
+    {
+      query: external_exports3.string().describe('Search query (e.g. "warning", "arrow down", "lightbulb")'),
+      top: external_exports3.number().int().min(1).max(50).optional().describe("Max results to return (default 10)"),
+      style: external_exports3.enum(["regular", "filled"]).optional().describe('Filter by style: "regular" for mono/outline icons, "filled" for solid icons. Omit for both.')
+    },
+    withTool(async ({ query, top, style }) => {
+      const results = await searchIcons(query, top ?? 10, style);
+      return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
+    })
+  );
+}
+
+// server/tools/notes.ts
+var import_node_fs5 = require("node:fs");
+var import_jszip3 = __toESM(require_lib4(), 1);
+
 // server/notes-helpers.ts
+var import_xmldom2 = __toESM(require_lib(), 1);
 var NS_A2 = "http://schemas.openxmlformats.org/drawingml/2006/main";
 var NS_P2 = "http://schemas.openxmlformats.org/presentationml/2006/main";
 var NS_R2 = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -52117,28 +53196,8 @@ function buildNotesSlideRels(slideFileName) {
 }
 async function resolveSlideToNotesMapping(zip) {
   const mapping = /* @__PURE__ */ new Map();
-  const presFile = zip.file("ppt/presentation.xml");
-  if (!presFile) return mapping;
-  const presXml = await presFile.async("string");
-  const presDoc = new import_xmldom2.DOMParser().parseFromString(presXml, "text/xml");
-  const presRelsFile = zip.file("ppt/_rels/presentation.xml.rels");
-  if (!presRelsFile) return mapping;
-  const presRelsXml = await presRelsFile.async("string");
-  const presRelsDoc = new import_xmldom2.DOMParser().parseFromString(presRelsXml, "text/xml");
-  const rIdToTarget = /* @__PURE__ */ new Map();
-  const rels = presRelsDoc.getElementsByTagNameNS(NS_RELS2, "Relationship");
-  for (let i = 0; i < rels.length; i++) {
-    const id = rels[i].getAttribute("Id");
-    const target = rels[i].getAttribute("Target");
-    if (id && target) rIdToTarget.set(id, target);
-  }
-  const sldIdLst = presDoc.getElementsByTagNameNS(NS_P2, "sldId");
-  for (let idx = 0; idx < sldIdLst.length; idx++) {
-    const rId = sldIdLst[idx].getAttributeNS(NS_R2, "id");
-    if (!rId) continue;
-    const target = rIdToTarget.get(rId);
-    if (!target) continue;
-    const slidePath = target.startsWith("ppt/") ? target : `ppt/${target}`;
+  const ordered = await resolveOrderedSlidePaths(zip);
+  for (const { sldIdIndex: idx, slidePath } of ordered) {
     const slideRelsPath = `${slidePath.replace("ppt/slides/", "ppt/slides/_rels/")}.rels`;
     const slideRelsFile = zip.file(slideRelsPath);
     let notesPath = null;
@@ -52199,311 +53258,71 @@ function buildNotesInjection(slideRelsXml, markdownText) {
   return files;
 }
 
-// server/tools.ts
-var localCopyCache = /* @__PURE__ */ new Map();
-var themeCache = /* @__PURE__ */ new Map();
-var sessionConcurrentWarnings = /* @__PURE__ */ new Map();
-function getConcurrentWarning(mcpSessionId, presentationId, activeSessions) {
-  if (!mcpSessionId) return null;
-  if (activeSessions <= 1) return null;
-  const warned = sessionConcurrentWarnings.get(mcpSessionId);
-  if (warned?.has(presentationId)) return null;
-  if (!warned) {
-    sessionConcurrentWarnings.set(mcpSessionId, /* @__PURE__ */ new Set([presentationId]));
-  } else {
-    warned.add(presentationId);
-  }
-  return "\n\nNote: Other MCP sessions are also connected to the bridge. If they target this presentation, changes apply immediately (last-write-wins).";
-}
-function clearSessionWarnings(sessionId) {
-  sessionConcurrentWarnings.delete(sessionId);
-}
-function parseSlideRange(range) {
-  if (!range) return null;
-  const indices = /* @__PURE__ */ new Set();
-  for (const part of range.split(",")) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-    const dashIdx = trimmed.indexOf("-", 1);
-    if (dashIdx === -1) {
-      const n = Number(trimmed);
-      if (!Number.isInteger(n) || n < 0) throw new Error(`Invalid slide index: "${trimmed}"`);
-      indices.add(n);
-    } else {
-      const start = Number(trimmed.slice(0, dashIdx));
-      const end = Number(trimmed.slice(dashIdx + 1));
-      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) {
-        throw new Error(`Invalid slide range: "${trimmed}"`);
-      }
-      for (let i = start; i <= end; i++) indices.add(i);
-    }
-  }
-  if (indices.size === 0) return null;
-  return [...indices].sort((a, b) => a - b);
-}
-function buildFormatShapeOps(shapes, slideIndex) {
-  return shapes.map((s) => {
-    const lines = [];
-    lines.push(`  var s = shapeMap[${JSON.stringify(s.id)}];`);
-    lines.push(`  if (!s) throw new Error("Shape " + ${JSON.stringify(s.id)} + " not found on slide ${slideIndex}");`);
-    if (s.fill) {
-      lines.push(`  s.fill.setSolidColor(${JSON.stringify(s.fill)});`);
-    }
-    if (s.font) {
-      lines.push(`  var tf = s.getTextFrameOrNullObject();`);
-      lines.push(`  await context.sync();`);
-      lines.push(`  if (!tf.isNullObject) {`);
-      lines.push(`    var tr = tf.textRange;`);
-      if (s.font.bold !== void 0) lines.push(`    tr.font.bold = ${s.font.bold};`);
-      if (s.font.italic !== void 0) lines.push(`    tr.font.italic = ${s.font.italic};`);
-      if (s.font.size !== void 0) lines.push(`    tr.font.size = ${s.font.size};`);
-      if (s.font.color !== void 0) lines.push(`    tr.font.color = ${JSON.stringify(s.font.color)};`);
-      if (s.font.name !== void 0) lines.push(`    tr.font.name = ${JSON.stringify(s.font.name)};`);
-      lines.push(`  }`);
-    }
-    return lines.join("\n");
-  }).join("\n");
-}
-function buildInsertOptions(formatting, targetSlideId) {
-  const optionsParts = [];
-  if (formatting) optionsParts.push(`formatting: ${JSON.stringify(formatting)}`);
-  if (targetSlideId) optionsParts.push(`targetSlideId: ${JSON.stringify(targetSlideId)}`);
-  return optionsParts.length > 0 ? `, { ${optionsParts.join(", ")} }` : "";
-}
-function globToRegExp(pattern) {
-  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
-  return new RegExp(`^${escaped}$`, "i");
-}
-function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
-  async function getLocalCopyPath(connPool, target) {
-    const filePath = target.filePath;
-    if (filePath && !filePath.startsWith("http")) {
-      if (!(0, import_node_fs2.existsSync)(filePath)) throw new Error(`Local file not found: ${filePath}`);
-      return filePath;
-    }
-    const revCode = `
-      var p = context.presentation.properties;
-      p.load("revisionNumber");
-      await context.sync();
-      return p.revisionNumber;
-    `;
-    const currentRevision = await connPool.sendCommand("executeCode", { code: revCode }, target.ws);
-    const cached2 = localCopyCache.get(target.presentationId);
-    if (cached2 && cached2.revision === currentRevision && (0, import_node_fs2.existsSync)(cached2.localPath)) {
-      return cached2.localPath;
-    }
-    const exportCode = `
-      return new Promise(function(resolve, reject) {
-        Office.context.document.getFileAsync(Office.FileType.Compressed, { sliceSize: 4194304 }, function(result) {
-          if (result.status !== Office.AsyncResultStatus.Succeeded) {
-            reject(new Error(result.error.message));
-            return;
-          }
-          var file = result.value;
-          var sliceCount = file.sliceCount;
-          var sliceData = [];
-          var totalSize = 0;
-          function getNextSlice(index) {
-            if (index >= sliceCount) {
-              file.closeAsync();
-              var combined = new Uint8Array(totalSize);
-              var offset = 0;
-              for (var i = 0; i < sliceData.length; i++) {
-                var arr = new Uint8Array(sliceData[i]);
-                combined.set(arr, offset);
-                offset += arr.length;
-              }
-              var binary = '';
-              var chunk = 8192;
-              for (var j = 0; j < combined.length; j += chunk) {
-                binary += String.fromCharCode.apply(null, combined.subarray(j, Math.min(j + chunk, combined.length)));
-              }
-              resolve(btoa(binary));
-              return;
-            }
-            file.getSliceAsync(index, function(sliceResult) {
-              if (sliceResult.status !== Office.AsyncResultStatus.Succeeded) {
-                file.closeAsync();
-                reject(new Error(sliceResult.error.message));
-                return;
-              }
-              sliceData.push(sliceResult.value.data);
-              totalSize += sliceResult.value.data.length;
-              getNextSlice(index + 1);
-            });
-          }
-          getNextSlice(0);
-        });
-      });
-    `;
-    const base643 = await connPool.sendCommand("executeCode", { code: exportCode }, target.ws, 12e4);
-    const filename = filePath ? decodeURIComponent(filePath.split("/").pop() || "presentation.pptx") : "presentation.pptx";
-    const dest = (0, import_node_path2.join)((0, import_node_os.tmpdir)(), `pptbridge-${Date.now()}-${filename}`);
-    (0, import_node_fs2.writeFileSync)(dest, Buffer.from(base643, "base64"));
-    localCopyCache.set(target.presentationId, { localPath: dest, revision: currentRevision });
-    return dest;
-  }
+// server/tools/notes.ts
+function registerNotesTools(server, pool2, getSessionId, getActiveSessionCount) {
   server.tool(
-    "list_presentations",
-    "Lists all PowerPoint presentations currently connected to the bridge server. Shows presentation IDs (file paths for saved files, generated IDs for unsaved) and connection status. Use this to find the presentationId to pass to other tools when multiple presentations are open.",
-    async () => {
-      const presentations = [];
-      for (const [id, conn] of pool2.entries()) {
-        presentations.push({
-          presentationId: id,
-          filePath: conn.filePath,
-          ready: conn.ready
-        });
-      }
-      return {
-        content: [
-          {
-            type: "text",
-            text: presentations.length === 0 ? "No presentations connected. Open a PowerPoint file with the bridge add-in loaded." : JSON.stringify(presentations, null, 2)
-          }
-        ]
-      };
-    }
-  );
-  async function getLayoutUsage(connPool, ws) {
-    const code = `
-      var slides = context.presentation.slides;
-      slides.load("items");
-      await context.sync();
-      for (var i = 0; i < slides.items.length; i++) {
-        slides.items[i].layout.load("name,id");
-      }
-      await context.sync();
-      var seen = {};
-      var layouts = [];
-      for (var i = 0; i < slides.items.length; i++) {
-        var l = slides.items[i].layout;
-        if (!seen[l.id]) {
-          seen[l.id] = true;
-          layouts.push({ name: l.name, id: l.id, usedBySlides: [i] });
-        } else {
-          for (var j = 0; j < layouts.length; j++) {
-            if (layouts[j].id === l.id) { layouts[j].usedBySlides.push(i); break; }
-          }
-        }
-      }
-      return layouts;
-    `;
-    return await connPool.sendCommand("executeCode", { code }, ws);
-  }
-  server.tool(
-    "inspect_deck",
-    "Deck overview: slide dimensions, theme (colors + fonts), and all slides with index, ID, and shape count. Use as the first call to understand deck structure. Theme is cached after the first call. For shape details, follow up with scan_slide or inspect_slide on specific slides. For available layouts, use inspect_layouts.",
+    "edit_speaker_notes",
+    "Set speaker notes on one or more slides. Accepts markdown text (paragraphs, **bold**, *italic*). Converts to OOXML server-side and injects via single-slide reimport. Replaces all existing notes on the specified slides.",
     {
+      notes: external_exports3.array(
+        external_exports3.object({
+          slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
+          text: external_exports3.string().describe(
+            'Notes content. Supports markdown: **bold**, *italic*, paragraphs separated by blank lines. Use empty string "" to clear notes.'
+          )
+        })
+      ).min(1).describe("Array of slide notes to set."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ presentationId }) => {
-      try {
-        const code = `
-          var p = context.presentation;
-          var slides = p.slides;
-          var ps = p.pageSetup;
-          slides.load("items");
-          ps.load("slideWidth,slideHeight");
-          await context.sync();
-          var output = [];
-          for (var i = 0; i < slides.items.length; i++) {
-            var slide = slides.items[i];
-            slide.shapes.load("items");
-            slide.layout.load("name");
-          }
-          await context.sync();
-          for (var i = 0; i < slides.items.length; i++) {
-            var slide = slides.items[i];
-            output.push({ index: i, id: slide.id, layout: slide.layout.name, shapeCount: slide.shapes.items.length });
-          }
-          return { slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
-        `;
-        const target = pool2.resolveTarget(presentationId);
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        let theme = themeCache.get(target.presentationId);
-        if (!theme) {
-          try {
-            const exported = await exportSlide(pool2, 0, target.ws);
-            theme = await extractThemeFromZip(exported.base64);
-            themeCache.set(target.presentationId, theme);
-          } catch {
-          }
-        }
-        const output = { ...result, ...theme ? { theme } : {} };
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(output) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
-  server.tool(
-    "inspect_layouts",
-    "Returns slide layouts with names, OOXML type (e.g. blank, twoObj, secHead), indices (for slides.add({ layoutIndex })), and detailed placeholders. Use `fields` to control which data is returned. By default reads all layouts from OOXML (complete list, requires file access \u2014 may take a moment on first call for cloud files). Set usedOnly to return only layouts assigned to existing slides (fast, Office.js only, no file access).",
-    {
-      fields: external_exports3.string().optional().describe(
-        'Comma-separated layout fields to include. Placeholders sub-fields in parens. Default: "index,name,type,usedBySlides,placeholders(type,idx,name)". All placeholder fields: type,idx,name,description,sz,left,top,width,height.'
-      ),
-      usedOnly: external_exports3.boolean().optional().describe(
-        "If true, return only layouts currently assigned to slides (fast, Office.js only). Default: false (all layouts from OOXML)."
-      ),
-      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
-    },
-    async ({ fields, usedOnly, presentationId }) => {
-      const DEFAULT_FIELDS = "index,name,type,usedBySlides,placeholders(type,idx,name)";
-      const fieldSpec = fields ?? DEFAULT_FIELDS;
-      const phMatch = fieldSpec.match(/placeholders\(([^)]+)\)/);
-      const phFields = phMatch ? new Set(phMatch[1].split(",").map((f) => f.trim())) : null;
-      const layoutFields = new Set(
-        fieldSpec.replace(/placeholders\([^)]*\)/, "placeholders").split(",").map((f) => f.trim())
-      );
-      function filterLayout(layout) {
-        const out = {};
-        for (const key of layoutFields) {
-          if (key === "placeholders" && phFields && Array.isArray(layout.placeholders)) {
-            out.placeholders = layout.placeholders.map((ph) => {
-              const filtered = {};
-              for (const f of phFields) {
-                if (ph[f] !== void 0) filtered[f] = ph[f];
-              }
-              return filtered;
-            });
-          } else if (key === "usedBySlides" && Array.isArray(layout[key]) && layout[key].length === 0) {
-          } else if (layout[key] !== void 0) {
-            out[key] = layout[key];
-          }
-        }
-        return out;
-      }
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        if (usedOnly) {
-          const layouts2 = await getLayoutUsage(pool2, target.ws);
-          return { content: [{ type: "text", text: JSON.stringify({ layouts: layouts2, usedOnly: true }) }] };
-        }
-        const localPath = await getLocalCopyPath(pool2, target);
-        const fileData = (0, import_node_fs2.readFileSync)(localPath);
-        const zip = await import_jszip2.default.loadAsync(fileData);
-        const layouts = await extractLayoutsFromZip(zip);
+    withTool(async ({ notes, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const results = [];
+      for (const entry of notes) {
         try {
-          const usage = await getLayoutUsage(pool2, target.ws);
-          const usageByName = new Map(usage.map((u) => [u.name, u.usedBySlides]));
-          for (const layout of layouts) {
-            layout.usedBySlides = usageByName.get(layout.name) ?? [];
-          }
-        } catch {
+          const exported = await exportSlide(pool2, entry.slideIndex, target.ws);
+          const { zip } = await extractZipFiles(exported.base64);
+          const slideRelsFile = zip.file("ppt/slides/_rels/slide1.xml.rels");
+          const slideRelsXml = slideRelsFile ? await slideRelsFile.async("string") : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
+          const files = buildNotesInjection(slideRelsXml, entry.text);
+          await applyZipEditAndReimport(pool2, exported, files, target.ws);
+          results.push({ slideIndex: entry.slideIndex, success: true });
+        } catch (err) {
+          results.push({ slideIndex: entry.slideIndex, success: false, error: errorMessage(err) });
         }
-        const filtered = layouts.map((l) => filterLayout(l));
-        return { content: [{ type: "text", text: JSON.stringify({ layouts: filtered }) }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
       }
-    }
+      localCopyCache.delete(target.presentationId);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify({ results }, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
+  server.tool(
+    "read_speaker_notes",
+    "Read speaker notes from slides. Uses full-deck export (cached by revision) to parse notes from OOXML \u2014 Office.js has no notes API. Returns plain text per slide.",
+    {
+      slideRange: external_exports3.string().optional().describe('Slide indices, e.g. "0", "0-5", "2,4,7". Omit to read all slides.'),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    withTool(async ({ slideRange, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const localPath = await getLocalCopyPath(pool2, target);
+      const data = (0, import_node_fs5.readFileSync)(localPath);
+      const zip = await import_jszip3.default.loadAsync(data);
+      const indices = parseSlideRange(slideRange);
+      const notesMap = await readNotesFromDeck(zip, indices);
+      const slides = [...notesMap.entries()].sort(([a], [b]) => a - b).map(([slideIndex, notes]) => ({ slideIndex, notes }));
+      return {
+        content: [{ type: "text", text: JSON.stringify({ slides }, null, 2) }]
+      };
+    })
+  );
+}
+
+// server/tools/slides.ts
+var import_node_fs6 = require("node:fs");
+var import_jszip4 = __toESM(require_lib4(), 1);
+function registerSlideTools(server, pool2, getSessionId, getActiveSessionCount) {
   server.tool(
     "add_slide",
     "Add a new slide from a layout at a specific position, with placeholder text pre-filled and shapes renamed to layout names. Use inspect_layouts to find available layout names and placeholder names. Returns the new slide index and its placeholder shapes with semantic names.",
@@ -52519,54 +53338,53 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
       ),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ layoutName, position, placeholders, presentationId }) => {
-      try {
-        if (layoutName.startsWith("_")) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error: Layout "${layoutName}" is a technical gallery separator, not a real layout. Use inspect_layouts to find available layouts.`
-              }
-            ],
-            isError: true
-          };
-        }
-        const target = pool2.resolveTarget(presentationId);
-        const localPath = await getLocalCopyPath(pool2, target);
-        const fileData = (0, import_node_fs2.readFileSync)(localPath);
-        const zip = await import_jszip2.default.loadAsync(fileData);
-        const layouts = await extractLayoutsFromZip(zip);
-        const targetLower = layoutName.toLowerCase();
-        const layoutInfo = layouts.find((l) => l.name.toLowerCase() === targetLower);
-        if (!layoutInfo) {
-          const available = layouts.filter((l) => !l.name.startsWith("_")).map((l) => l.name).join(", ");
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error: Layout "${layoutName}" not found. Available: ${available}`
-              }
-            ],
-            isError: true
-          };
-        }
-        const idxToName = /* @__PURE__ */ new Map();
-        for (const ph of layoutInfo.placeholders) {
-          if (ph.idx !== void 0 && ph.name) {
-            idxToName.set(String(ph.idx), ph.name);
-          }
-        }
-        const warnings = [];
-        if (placeholders) {
-          const layoutNames = new Set(layoutInfo.placeholders.map((ph) => ph.name).filter(Boolean));
-          for (const key of Object.keys(placeholders)) {
-            if (!layoutNames.has(key)) {
-              warnings.push(`Placeholder "${key}" not found in layout "${layoutInfo.name}"`);
+    withTool(async ({ layoutName, position, placeholders, presentationId }) => {
+      if (layoutName.startsWith("_")) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error: Layout "${layoutName}" is a technical gallery separator, not a real layout. Use inspect_layouts to find available layouts.`
             }
+          ],
+          isError: true
+        };
+      }
+      const target = pool2.resolveTarget(presentationId);
+      const localPath = await getLocalCopyPath(pool2, target);
+      const fileData = (0, import_node_fs6.readFileSync)(localPath);
+      const zip = await import_jszip4.default.loadAsync(fileData);
+      const layouts = await extractLayoutsFromZip(zip);
+      const targetLower = layoutName.toLowerCase();
+      const layoutInfo = layouts.find((l) => l.name.toLowerCase() === targetLower);
+      if (!layoutInfo) {
+        const available = layouts.filter((l) => !l.name.startsWith("_")).map((l) => l.name).join(", ");
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error: Layout "${layoutName}" not found. Available: ${available}`
+            }
+          ],
+          isError: true
+        };
+      }
+      const idxToName = /* @__PURE__ */ new Map();
+      for (const ph of layoutInfo.placeholders) {
+        if (ph.idx !== void 0 && ph.name) {
+          idxToName.set(String(ph.idx), ph.name);
+        }
+      }
+      const warnings = [];
+      if (placeholders) {
+        const layoutNames = new Set(layoutInfo.placeholders.map((ph) => ph.name).filter(Boolean));
+        for (const key of Object.keys(placeholders)) {
+          if (!layoutNames.has(key)) {
+            warnings.push(`Placeholder "${key}" not found in layout "${layoutInfo.name}"`);
           }
         }
-        const addCode = `
+      }
+      const addCode = `
           var masters = context.presentation.slideMasters;
           masters.load("items");
           await context.sync();
@@ -52604,39 +53422,39 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
           }
           return { slideIndex: finalIndex, slideId: newSlide.id, slideCount: slides.items.length, layoutName: layout.name };
         `;
-        const addResult = await pool2.sendCommand("executeCode", { code: addCode }, target.ws);
-        const exported = await exportSlide(pool2, addResult.slideIndex, target.ws);
-        const { xmlString } = await extractSlideXmlFromZip(exported.base64);
-        const doc = parseSlideXml(xmlString);
-        const shapeIdToIdx = /* @__PURE__ */ new Map();
-        const spElements = doc.getElementsByTagNameNS(NS_P, "sp");
-        for (let i = 0; i < spElements.length; i++) {
-          const sp = spElements[i];
-          const nvSpPr = sp.getElementsByTagNameNS(NS_P, "nvSpPr")[0];
-          if (!nvSpPr) continue;
-          const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P, "cNvPr")[0];
-          const nvPr = nvSpPr.getElementsByTagNameNS(NS_P, "nvPr")[0];
-          if (!cNvPr || !nvPr) continue;
-          const phEl = nvPr.getElementsByTagNameNS(NS_P, "ph")[0];
-          if (!phEl) continue;
-          const idx = phEl.getAttribute("idx");
-          const id = cNvPr.getAttribute("id");
-          if (idx && id) {
-            shapeIdToIdx.set(id, idx);
+      const addResult = await pool2.sendCommand("executeCode", { code: addCode }, target.ws);
+      const exported = await exportSlide(pool2, addResult.slideIndex, target.ws);
+      const { xmlString } = await extractSlideXmlFromZip(exported.base64);
+      const doc = parseSlideXml(xmlString);
+      const shapeIdToIdx = /* @__PURE__ */ new Map();
+      const spElements = doc.getElementsByTagNameNS(NS_P, "sp");
+      for (let i = 0; i < spElements.length; i++) {
+        const sp = spElements[i];
+        const nvSpPr = sp.getElementsByTagNameNS(NS_P, "nvSpPr")[0];
+        if (!nvSpPr) continue;
+        const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P, "cNvPr")[0];
+        const nvPr = nvSpPr.getElementsByTagNameNS(NS_P, "nvPr")[0];
+        if (!cNvPr || !nvPr) continue;
+        const phEl = nvPr.getElementsByTagNameNS(NS_P, "ph")[0];
+        if (!phEl) continue;
+        const idx = phEl.getAttribute("idx");
+        const id = cNvPr.getAttribute("id");
+        if (idx && id) {
+          shapeIdToIdx.set(id, idx);
+        }
+      }
+      const renameMap = {};
+      const textMap = {};
+      for (const [shapeId, idx] of shapeIdToIdx) {
+        const semanticName = idxToName.get(idx);
+        if (semanticName) {
+          renameMap[shapeId] = semanticName;
+          if (placeholders?.[semanticName]) {
+            textMap[shapeId] = placeholders[semanticName];
           }
         }
-        const renameMap = {};
-        const textMap = {};
-        for (const [shapeId, idx] of shapeIdToIdx) {
-          const semanticName = idxToName.get(idx);
-          if (semanticName) {
-            renameMap[shapeId] = semanticName;
-            if (placeholders?.[semanticName]) {
-              textMap[shapeId] = placeholders[semanticName];
-            }
-          }
-        }
-        const renameCode = `
+      }
+      const renameCode = `
           var slides = context.presentation.slides;
           slides.load("items");
           await context.sync();
@@ -52678,229 +53496,62 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
           }
           return placeholders;
         `;
-        const phResult = await pool2.sendCommand("executeCode", { code: renameCode }, target.ws);
-        const result = {
-          slideIndex: addResult.slideIndex,
-          slideCount: addResult.slideCount,
-          layoutName: addResult.layoutName,
-          placeholders: phResult
-        };
-        if (warnings.length > 0) {
-          result.warnings = warnings;
-        }
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+      const phResult = await pool2.sendCommand("executeCode", { code: renameCode }, target.ws);
+      const result = {
+        slideIndex: addResult.slideIndex,
+        slideCount: addResult.slideCount,
+        layoutName: addResult.layoutName,
+        placeholders: phResult
+      };
+      if (warnings.length > 0) {
+        result.warnings = warnings;
       }
-    }
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
-    "inspect_slide",
-    "Detailed slide inspector (~80 tokens/shape): returns every shape with text content, positions, sizes, and fill colors, plus slide dimensions. Supports slideRange for multiple slides. For just positions without text/fills, use scan_slide instead.",
+    "duplicate_slide",
+    "Duplicate a slide within the same presentation. Exports the slide and reimports it at the specified position. Data stays server-side.",
     {
-      slideRange: external_exports3.string().describe('Slide indices to inspect, e.g. "0", "0-5", "2,4,7". Single index or range.'),
-      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
-    },
-    async ({ slideRange, presentationId }) => {
-      try {
-        const indices = parseSlideRange(slideRange) ?? [];
-        if (indices.length === 0) throw new Error("slideRange is required");
-        const indicesJs = JSON.stringify(indices);
-        const code = `
-          var p = context.presentation;
-          var slides = p.slides;
-          var ps = p.pageSetup;
-          slides.load("items");
-          ps.load("slideWidth,slideHeight");
-          await context.sync();
-          var requestedIndices = ${indicesJs};
-          for (var i = 0; i < requestedIndices.length; i++) {
-            if (requestedIndices[i] >= slides.items.length) {
-              throw new Error("Slide index " + requestedIndices[i] + " out of range (presentation has " + slides.items.length + " slides)");
-            }
-          }
-          for (var i = 0; i < requestedIndices.length; i++) {
-            slides.items[requestedIndices[i]].shapes.load("items");
-          }
-          await context.sync();
-          var output = [];
-          for (var i = 0; i < requestedIndices.length; i++) {
-            var idx = requestedIndices[i];
-            var slide = slides.items[idx];
-            var shapes = [];
-            for (var j = 0; j < slide.shapes.items.length; j++) {
-              var s = slide.shapes.items[j];
-              var info = {
-                name: s.name,
-                type: s.type,
-                id: s.id,
-                left: s.left,
-                top: s.top,
-                width: s.width,
-                height: s.height
-              };
-              try {
-                s.textFrame.load("textRange");
-                await context.sync();
-                info.text = s.textFrame.textRange.text;
-              } catch (e) {
-                // Shape has no text frame (e.g., images, connectors)
-              }
-              try {
-                s.fill.load("foregroundColor,type");
-                await context.sync();
-                info.fill = { type: s.fill.type, color: s.fill.foregroundColor };
-              } catch (e) {
-                // Shape has no fill or fill not accessible
-              }
-              shapes.push(info);
-            }
-            output.push({ slideIndex: idx, slideId: slide.id, shapes: shapes });
-          }
-          return { slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
-        `;
-        const target = pool2.resolveTarget(presentationId);
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
-  server.tool(
-    "scan_slide",
-    "Lightweight shape scanner (~40 tokens/shape): lists shape IDs, types, and positions on slides, plus slide dimensions. Supports slideRange for multiple slides. For text content and fills, use inspect_slide instead.",
-    {
-      slideRange: external_exports3.string().describe('Slide indices to scan, e.g. "0", "0-5", "2,4,7". Single index or range.'),
-      namePattern: external_exports3.string().optional().describe('Glob-style filter on shape name, e.g. "Title*", "*_source", "Card*_bg". Case-insensitive.'),
-      shapeType: external_exports3.string().optional().describe('Filter by shape type: "Placeholder", "TextBox", "GeometricShape", "Graphic", "Picture", etc.'),
-      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
-    },
-    async ({ slideRange, namePattern, shapeType, presentationId }) => {
-      try {
-        const indices = parseSlideRange(slideRange) ?? [];
-        if (indices.length === 0) throw new Error("slideRange is required");
-        const indicesJs = JSON.stringify(indices);
-        const code = `
-          var p = context.presentation;
-          var slides = p.slides;
-          var ps = p.pageSetup;
-          slides.load("items");
-          ps.load("slideWidth,slideHeight");
-          await context.sync();
-          var requestedIndices = ${indicesJs};
-          for (var i = 0; i < requestedIndices.length; i++) {
-            if (requestedIndices[i] >= slides.items.length) {
-              throw new Error("Slide index " + requestedIndices[i] + " out of range (presentation has " + slides.items.length + " slides)");
-            }
-          }
-          for (var i = 0; i < requestedIndices.length; i++) {
-            slides.items[requestedIndices[i]].shapes.load("items");
-          }
-          await context.sync();
-          var output = [];
-          for (var i = 0; i < requestedIndices.length; i++) {
-            var idx = requestedIndices[i];
-            var slide = slides.items[idx];
-            var shapes = [];
-            for (var j = 0; j < slide.shapes.items.length; j++) {
-              var s = slide.shapes.items[j];
-              shapes.push({
-                id: s.id,
-                name: s.name,
-                type: s.type,
-                left: s.left,
-                top: s.top,
-                width: s.width,
-                height: s.height
-              });
-            }
-            output.push({ slideIndex: idx, slideId: slide.id, shapes: shapes });
-          }
-          return { slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
-        `;
-        const target = pool2.resolveTarget(presentationId);
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        if (namePattern || shapeType) {
-          const nameRegex = namePattern ? globToRegExp(namePattern) : null;
-          const typeLower = shapeType?.toLowerCase();
-          for (const slide of result.slides) {
-            slide.shapes = slide.shapes.filter((s) => {
-              if (nameRegex && !nameRegex.test(s.name)) return false;
-              if (typeLower && s.type.toLowerCase() !== typeLower) return false;
-              return true;
-            });
-          }
-        }
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
-  server.tool(
-    "screenshot_slide",
-    "Slide screenshot (~1000 tokens): captures one slide as PNG image. Use to visually verify layout after changes. Do NOT loop over all slides \u2014 use preview_deck instead.",
-    {
-      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from scan_slide results"),
-      width: external_exports3.number().int().min(1).max(4096).optional().describe(
-        "Image width in pixels. Default: 720. Height auto-calculated to preserve aspect ratio unless also specified."
+      slideIndex: external_exports3.number().int().min(0).describe("Zero-based index of the slide to duplicate"),
+      insertAfter: external_exports3.number().int().min(0).optional().describe(
+        "Zero-based slide index to insert the duplicate after. Default: same as slideIndex (duplicate appears right after the source)."
       ),
-      height: external_exports3.number().int().min(1).max(4096).optional().describe("Image height in pixels. If omitted, auto-calculated from width to preserve aspect ratio."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, width, height, presentationId }) => {
-      try {
-        const imgWidth = width ?? 720;
-        const optionsParts = [`width: ${imgWidth}`];
-        if (height !== void 0) {
-          optionsParts.push(`height: ${height}`);
-        }
-        const optionsStr = `{ ${optionsParts.join(", ")} }`;
-        const code = `
+    withTool(async ({ slideIndex, insertAfter, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const insertPos = insertAfter ?? slideIndex;
+      const code = `
           var slides = context.presentation.slides;
           slides.load("items");
           await context.sync();
           if (${slideIndex} >= slides.items.length) {
             throw new Error("Slide index " + ${slideIndex} + " out of range (presentation has " + slides.items.length + " slides)");
           }
+          if (${insertPos} >= slides.items.length) {
+            throw new Error("insertAfter index " + ${insertPos} + " out of range (presentation has " + slides.items.length + " slides)");
+          }
           var slide = slides.items[${slideIndex}];
-          var result = slide.getImageAsBase64(${optionsStr});
+          var result = slide.exportAsBase64();
           await context.sync();
-          return { base64: result.value, slideIndex: ${slideIndex}, slideId: slide.id };
+          var targetId = slides.items[${insertPos}].id;
+          context.presentation.insertSlidesFromBase64(result.value, {
+            formatting: "KeepSourceFormatting",
+            targetSlideId: targetId
+          });
+          await context.sync();
+          slides.load("items");
+          await context.sync();
+          return { duplicatedSlideIndex: ${slideIndex}, insertedAfter: ${insertPos}, slideCount: slides.items.length };
         `;
-        const target = pool2.resolveTarget(presentationId);
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const description = `Slide ${result.slideIndex} (ID: ${result.slideId})${warning ?? ""}`;
-        return {
-          content: [
-            {
-              type: "image",
-              data: result.base64,
-              mimeType: "image/png"
-            },
-            {
-              type: "text",
-              text: description
-            }
-          ]
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        const hint = message.includes("getImageAsBase64") || message.includes("not a function") ? " (This API requires PowerPoint 16.96+ with PowerPointApi 1.8 support)" : "";
-        return { content: [{ type: "text", text: `Error: ${message}${hint}` }], isError: true };
-      }
-    }
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "copy_slides",
@@ -52914,8 +53565,8 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
       ),
       formatting: external_exports3.enum(["KeepSourceFormatting", "UseDestinationTheme"]).optional().describe("Formatting mode. Default: KeepSourceFormatting.")
     },
-    async ({ sourceSlideIndex, sourcePresentationId, destinationPresentationId, targetSlideId, formatting }) => {
-      try {
+    withTool(
+      async ({ sourceSlideIndex, sourcePresentationId, destinationPresentationId, targetSlideId, formatting }) => {
         const source = pool2.resolveTarget(sourcePresentationId);
         const exportCode = `
           var slides = context.presentation.slides;
@@ -52951,255 +53602,14 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
           2
         ) + (warning ?? "");
         return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
       }
-    }
+    )
   );
-  server.tool(
-    "insert_image",
-    "Inserts an image onto a slide using Office.js setSelectedDataAsync with CoercionType.Image. Accepts a file path, URL, or raw base64 data. Optionally navigate to a specific slide first and control position/size in points.",
-    {
-      source: external_exports3.string().describe("File path, URL, or base64 image data depending on sourceType"),
-      sourceType: external_exports3.enum(["file", "url", "base64"]).describe(
-        'How to interpret source: "file" reads from disk, "url" fetches from network, "base64" uses data directly'
-      ),
-      slideIndex: external_exports3.number().int().min(0).optional().describe(
-        "Zero-based slide index to navigate to before inserting. If omitted, inserts on the currently active slide."
-      ),
-      left: external_exports3.number().optional().describe("Horizontal position in points (1 point = 1/72 inch)"),
-      top: external_exports3.number().optional().describe("Vertical position in points"),
-      width: external_exports3.number().optional().describe("Image width in points"),
-      height: external_exports3.number().optional().describe("Image height in points"),
-      color: external_exports3.string().optional().describe(
-        'Hex color to tint SVG images (e.g. "#FF5733"). Only applies to SVG sources. Works best with mono/outline icons.'
-      ),
-      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
-    },
-    async ({ source, sourceType, slideIndex, left, top, width, height, color, presentationId }) => {
-      try {
-        let base64Data;
-        if (sourceType === "file") {
-          base64Data = (0, import_node_fs2.readFileSync)(source).toString("base64");
-        } else if (sourceType === "url") {
-          const resp = await fetch(source);
-          if (!resp.ok) {
-            throw new Error(`Failed to fetch image from URL: ${resp.status} ${resp.statusText}`);
-          }
-          const buf = await resp.arrayBuffer();
-          base64Data = Buffer.from(buf).toString("base64");
-        } else {
-          base64Data = source;
-        }
-        if (color) {
-          const svg = Buffer.from(base64Data, "base64").toString("utf-8");
-          if (svg.trimStart().startsWith("<svg") || svg.trimStart().startsWith("<?xml")) {
-            base64Data = Buffer.from(recolorSvg(svg, color)).toString("base64");
-          } else {
-            throw new Error("color parameter only works with SVG images, but the source is not SVG");
-          }
-        }
-        const optionsParts = ["coercionType: Office.CoercionType.Image"];
-        if (left !== void 0) optionsParts.push(`imageLeft: ${left}`);
-        if (top !== void 0) optionsParts.push(`imageTop: ${top}`);
-        if (width !== void 0) optionsParts.push(`imageWidth: ${width}`);
-        if (height !== void 0) optionsParts.push(`imageHeight: ${height}`);
-        const optionsStr = `{ ${optionsParts.join(", ")} }`;
-        const insertCall = `Office.context.document.setSelectedDataAsync("${base64Data}", ${optionsStr}, function(result) {
-        if (result.status === Office.AsyncResultStatus.Succeeded) {
-          resolve({ success: true });
-        } else {
-          reject(new Error(result.error.message));
-        }
-      });`;
-        let code;
-        if (slideIndex !== void 0) {
-          code = `return new Promise(function(resolve, reject) {
-      Office.context.document.goToByIdAsync(${slideIndex + 1}, Office.GoToType.Index, function(navResult) {
-        if (navResult.status !== Office.AsyncResultStatus.Succeeded) {
-          reject(new Error("Navigation failed: " + navResult.error.message));
-          return;
-        }
-        ${insertCall}
-      });
-    });`;
-        } else {
-          code = `return new Promise(function(resolve, reject) {
-      ${insertCall}
-    });`;
-        }
-        const target = pool2.resolveTarget(presentationId);
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
-  server.tool(
-    "preview_deck",
-    "Deck preview: batch overview of all/selected slides with optional thumbnails + text. With images: ~900 tokens/slide; text-only (includeImages=false): ~35 tokens/slide. Use for visual review or content audit. Do NOT use to inspect one slide \u2014 use inspect_slide or screenshot_slide instead.",
-    {
-      slideRange: external_exports3.string().optional().describe('Slide indices to include, e.g. "0-5", "2,4,7", "0-2,5,8-10". Omit for all slides.'),
-      imageWidth: external_exports3.number().int().min(120).max(1920).optional().describe("Thumbnail width in pixels. Default: 480. Height auto-calculated to preserve aspect ratio."),
-      includeImages: external_exports3.boolean().optional().describe("Include slide thumbnails. Default: true. Set false for text-only overview (faster)."),
-      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
-    },
-    async ({ slideRange, imageWidth, includeImages, presentationId }) => {
-      try {
-        const indices = parseSlideRange(slideRange);
-        const width = imageWidth ?? 480;
-        const withImages = includeImages !== false;
-        const indicesJs = indices ? JSON.stringify(indices) : "null";
-        const code = `
-          var p = context.presentation;
-          var slides = p.slides;
-          var ps = p.pageSetup;
-          slides.load("items");
-          ps.load("slideWidth,slideHeight");
-          await context.sync();
-          var requestedIndices = ${indicesJs};
-          var indicesToProcess = requestedIndices || [];
-          if (!requestedIndices) {
-            for (var i = 0; i < slides.items.length; i++) indicesToProcess.push(i);
-          }
-          // Validate indices
-          for (var i = 0; i < indicesToProcess.length; i++) {
-            if (indicesToProcess[i] >= slides.items.length) {
-              throw new Error("Slide index " + indicesToProcess[i] + " out of range (presentation has " + slides.items.length + " slides)");
-            }
-          }
-          // Load shapes for all requested slides
-          for (var i = 0; i < indicesToProcess.length; i++) {
-            slides.items[indicesToProcess[i]].shapes.load("items");
-          }
-          await context.sync();
-          var output = [];
-          for (var i = 0; i < indicesToProcess.length; i++) {
-            var idx = indicesToProcess[i];
-            var slide = slides.items[idx];
-            var shapes = [];
-            for (var j = 0; j < slide.shapes.items.length; j++) {
-              var s = slide.shapes.items[j];
-              var info = { name: s.name, type: s.type, id: s.id };
-              try {
-                s.textFrame.load("textRange");
-                await context.sync();
-                info.text = s.textFrame.textRange.text;
-              } catch (e) {}
-              shapes.push(info);
-            }
-            var slideData = { index: idx, id: slide.id, shapeCount: shapes.length, shapes: shapes };
-            ${withImages ? `var img = slide.getImageAsBase64({ width: ${width} });
-            await context.sync();
-            slideData.imageBase64 = img.value;` : ""}
-            output.push(slideData);
-          }
-          return { slideCount: slides.items.length, slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
-        `;
-        const target = pool2.resolveTarget(presentationId);
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws, 12e4);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const content = [];
-        const showing = result.slides.length;
-        const header = `Deck overview: ${result.slideCount} total slides (${result.slideWidth} x ${result.slideHeight} pt), showing ${showing}${warning ?? ""}`;
-        content.push({ type: "text", text: header });
-        for (const slide of result.slides) {
-          if (slide.imageBase64) {
-            content.push({ type: "image", data: slide.imageBase64, mimeType: "image/png" });
-          }
-          const textParts = slide.shapes.filter((s) => s.text).map((s) => s.text);
-          const shapeText = textParts.length > 0 ? `
-${textParts.join("\n")}` : "\n(no text content)";
-          content.push({
-            type: "text",
-            text: `--- Slide ${slide.index} | ${slide.shapeCount} shapes ---${shapeText}`
-          });
-        }
-        return { content };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
-  server.tool(
-    "get_local_copy",
-    "Returns a local file path for the presentation. For local files, returns the existing path. For SharePoint/cloud files, exports server-side and saves to a temp .pptx. Caches by revision number \u2014 re-exports only when the presentation has been saved since last export.",
-    {
-      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
-    },
-    async ({ presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const cachedBefore = localCopyCache.get(target.presentationId)?.localPath;
-        const localPath = await getLocalCopyPath(pool2, target);
-        const isLocal = target.filePath && !target.filePath.startsWith("http");
-        const cached2 = localCopyCache.get(target.presentationId);
-        const source = isLocal ? "local" : cachedBefore === localPath ? "cached" : "exported";
-        const result = { localPath, source };
-        if (cached2) result.revision = cached2.revision;
-        return { content: [{ type: "text", text: JSON.stringify(result) }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
-  server.tool(
-    "read_shape_paragraphs",
-    "Read raw OOXML <a:p> paragraphs from a shape's text body. Returns the paragraph XML as a string \u2014 preserves all formatting (bold, colors, bullets, etc.) that textRange.text strips. Use with the /pptx skill's OOXML knowledge to understand and modify the XML.",
-    {
-      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from scan_slide results"),
-      shapeId: external_exports3.string().describe('Shape ID from inspect_slide results (e.g. "5")'),
-      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
-    },
-    async ({ slideIndex, shapeId, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const exported = await exportSlide(pool2, slideIndex, target.ws);
-        const { xmlString } = await extractSlideXmlFromZip(exported.base64);
-        const doc = parseSlideXml(xmlString);
-        const shape = findShapeById(doc, shapeId);
-        if (!shape) {
-          throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
-        }
-        const paragraphXml = extractParagraphs(shape);
-        return { content: [{ type: "text", text: paragraphXml }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
-  server.tool(
-    "read_deck_text",
-    "Lightweight text extractor: returns slide titles and body text as plain strings (~20x smaller than inspect_slide). Use for content review, narrative analysis, or any read-only text task. Supports slideRange and optional speaker notes.",
-    {
-      slideRange: external_exports3.string().optional().describe('Slide range, e.g. "0-5", "2,4,7". Zero-based. Omit for all slides.'),
-      includeNotes: external_exports3.boolean().optional().describe("Include speaker notes. Default: false."),
-      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
-    },
-    async ({ slideRange, includeNotes, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const localPath = await getLocalCopyPath(pool2, target);
-        const zipBuffer = (0, import_node_fs2.readFileSync)(localPath);
-        const indices = slideRange ? parseSlideRange(slideRange) : null;
-        const result = await extractDeckText(zipBuffer, indices, includeNotes === true);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
+}
+
+// server/tools/text.ts
+var import_node_fs7 = require("node:fs");
+function registerTextTools(server, pool2, getSessionId, getActiveSessionCount) {
   server.tool(
     "edit_shape_paragraphs",
     "Replace paragraph content of a shape with raw OOXML <a:p> XML. Preserves <a:bodyPr> and <a:lstStyle>. Use read_shape_paragraphs first to get the current XML, modify it (using /pptx skill knowledge), then write it back. The slide is exported, modified server-side, and reimported \u2014 data never enters Claude's context.",
@@ -53209,567 +53619,62 @@ ${textParts.join("\n")}` : "\n(no text content)";
       xml: external_exports3.string().describe("The <a:p> paragraph XML to replace the current text body content with"),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, shapeId, xml, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const exported = await exportSlide(pool2, slideIndex, target.ws);
-        const { zip, xmlString } = await extractSlideXmlFromZip(exported.base64);
-        const doc = parseSlideXml(xmlString);
-        const shape = findShapeById(doc, shapeId);
-        if (!shape) {
-          throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
-        }
-        replaceParagraphs(doc, shape, xml);
-        const modifiedBase64 = await updateSlideXmlInZip(zip, serializeXml(doc));
-        await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify({ success: true }, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+    withTool(async ({ slideIndex, shapeId, xml, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const exported = await exportSlide(pool2, slideIndex, target.ws);
+      const { zip, xmlString } = await extractSlideXmlFromZip(exported.base64);
+      const doc = parseSlideXml(xmlString);
+      const shape = findShapeById(doc, shapeId);
+      if (!shape) {
+        throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
       }
-    }
+      replaceParagraphs(doc, shape, xml);
+      const modifiedBase64 = await updateSlideXmlInZip(zip, serializeXml(doc));
+      await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify({ success: true }, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
-    "read_slide_xml",
-    "Read the full raw OOXML of a slide, or filter to a specific shape. Returns the slide's ppt/slides/slide1.xml content. Use with the /pptx skill's OOXML knowledge to understand the XML structure.",
+    "read_shape_paragraphs",
+    "Read raw OOXML <a:p> paragraphs from a shape's text body. Returns the paragraph XML as a string \u2014 preserves all formatting (bold, colors, bullets, etc.) that textRange.text strips. Use with the /pptx skill's OOXML knowledge to understand and modify the XML.",
     {
       slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from scan_slide results"),
-      shapeId: external_exports3.string().optional().describe("Optional shape ID to filter to. If provided, returns only that shape's <p:sp> element."),
+      shapeId: external_exports3.string().describe('Shape ID from inspect_slide results (e.g. "5")'),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, shapeId, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const exported = await exportSlide(pool2, slideIndex, target.ws);
-        const { xmlString } = await extractSlideXmlFromZip(exported.base64);
-        if (shapeId) {
-          const doc = parseSlideXml(xmlString);
-          const shape = findShapeById(doc, shapeId);
-          if (!shape) {
-            throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
-          }
-          return { content: [{ type: "text", text: serializeXml(shape) }] };
-        }
-        return { content: [{ type: "text", text: xmlString }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+    withTool(async ({ slideIndex, shapeId, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const exported = await exportSlide(pool2, slideIndex, target.ws);
+      const { xmlString } = await extractSlideXmlFromZip(exported.base64);
+      const doc = parseSlideXml(xmlString);
+      const shape = findShapeById(doc, shapeId);
+      if (!shape) {
+        throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
       }
-    }
+      const paragraphXml = extractParagraphs(shape);
+      return { content: [{ type: "text", text: paragraphXml }] };
+    })
   );
   server.tool(
-    "edit_slide_xml",
-    "Edit slide XML and reimport. Two modes: (1) xml mode \u2014 provide finished XML string (use read_slide_xml first to get current XML), (2) code mode \u2014 provide JS code that manipulates the pre-parsed DOM (receives: doc, findShapeById, NS_P, NS_A, escapeXml, serializeXml, DOMParser). Code mode preserves untouched attributes. The slide is exported, modified server-side, and reimported \u2014 data never enters Claude's context.",
+    "read_deck_text",
+    "Lightweight text extractor: returns slide titles and body text as plain strings (~20x smaller than inspect_slide). Use for content review, narrative analysis, or any read-only text task. Supports slideRange and optional speaker notes.",
     {
-      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
-      xml: external_exports3.string().optional().describe(
-        "Modified XML \u2014 full slide XML or a single shape's <p:sp> element (when shapeId is provided). Mutually exclusive with 'code'."
-      ),
-      code: external_exports3.string().optional().describe(
-        "JS code that manipulates the pre-parsed slide DOM. Receives: doc (Document), findShapeById(id) \u2192 Element|null, NS_P, NS_A (namespace strings), escapeXml(text), serializeXml(node), DOMParser. Mutually exclusive with 'xml'."
-      ),
-      explanation: external_exports3.string().optional().describe("Brief description of what the code does (for logging, max 50 chars). Only used with code mode."),
-      shapeId: external_exports3.string().optional().describe(
-        "Optional shape ID (xml mode only). If provided, replaces only that shape's <p:sp> element instead of the full slide XML."
-      ),
+      slideRange: external_exports3.string().optional().describe('Slide range, e.g. "0-5", "2,4,7". Zero-based. Omit for all slides.'),
+      includeNotes: external_exports3.boolean().optional().describe("Include speaker notes. Default: false."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, xml, code, shapeId, presentationId }) => {
-      if (!xml && !code || xml && code) {
-        return {
-          content: [
-            { type: "text", text: "Error: Provide either 'xml' or 'code', not both and not neither." }
-          ],
-          isError: true
-        };
-      }
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const exported = await exportSlide(pool2, slideIndex, target.ws);
-        const { zip, xmlString } = await extractSlideXmlFromZip(exported.base64);
-        let finalXml;
-        if (code) {
-          const doc = parseSlideXml(xmlString);
-          const sandbox = {
-            doc,
-            findShapeById: (id) => findShapeById(doc, id),
-            NS_P,
-            NS_A,
-            escapeXml,
-            serializeXml,
-            DOMParser: import_xmldom3.DOMParser
-          };
-          try {
-            const keys = Object.keys(sandbox);
-            const values = Object.values(sandbox);
-            const fn = new Function(...keys, code);
-            fn(...values);
-          } catch (codeErr) {
-            const msg = codeErr instanceof Error ? codeErr.message : String(codeErr);
-            throw new Error(`Code execution error: ${msg}`);
-          }
-          finalXml = serializeXml(doc);
-        } else if (shapeId) {
-          const doc = parseSlideXml(xmlString);
-          const shape = findShapeById(doc, shapeId);
-          if (!shape) {
-            throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
-          }
-          replaceShape(doc, shape, xml);
-          finalXml = serializeXml(doc);
-        } else {
-          finalXml = xml;
-        }
-        const modifiedBase64 = await updateSlideXmlInZip(zip, finalXml);
-        await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify({ success: true }, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
-  server.tool(
-    "duplicate_slide",
-    "Duplicate a slide within the same presentation. Exports the slide and reimports it at the specified position. Data stays server-side.",
-    {
-      slideIndex: external_exports3.number().int().min(0).describe("Zero-based index of the slide to duplicate"),
-      insertAfter: external_exports3.number().int().min(0).optional().describe(
-        "Zero-based slide index to insert the duplicate after. Default: same as slideIndex (duplicate appears right after the source)."
-      ),
-      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
-    },
-    async ({ slideIndex, insertAfter, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const insertPos = insertAfter ?? slideIndex;
-        const code = `
-          var slides = context.presentation.slides;
-          slides.load("items");
-          await context.sync();
-          if (${slideIndex} >= slides.items.length) {
-            throw new Error("Slide index " + ${slideIndex} + " out of range (presentation has " + slides.items.length + " slides)");
-          }
-          if (${insertPos} >= slides.items.length) {
-            throw new Error("insertAfter index " + ${insertPos} + " out of range (presentation has " + slides.items.length + " slides)");
-          }
-          var slide = slides.items[${slideIndex}];
-          var result = slide.exportAsBase64();
-          await context.sync();
-          var targetId = slides.items[${insertPos}].id;
-          context.presentation.insertSlidesFromBase64(result.value, {
-            formatting: "KeepSourceFormatting",
-            targetSlideId: targetId
-          });
-          await context.sync();
-          slides.load("items");
-          await context.sync();
-          return { duplicatedSlideIndex: ${slideIndex}, insertedAfter: ${insertPos}, slideCount: slides.items.length };
-        `;
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
-  server.tool(
-    "verify_slides",
-    "Run programmatic checks on a slide: detect overlapping shapes, out-of-bounds shapes, empty text, tiny shapes, unused placeholders, placeholder drift from layout defaults, and full-bleed background covers. Returns a list of issues found. Uses the same shape data as inspect_slide \u2014 no OOXML needed.",
-    {
-      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
-      checks: external_exports3.array(
-        external_exports3.enum([
-          "overlap",
-          "bounds",
-          "empty_text",
-          "tiny_shapes",
-          "unused_placeholder",
-          "layout_drift",
-          "background_cover"
-        ])
-      ).optional().describe("Checks to run. Default: all checks."),
-      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
-    },
-    async ({ slideIndex, checks, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const enabledChecks = checks ?? [
-          "overlap",
-          "bounds",
-          "empty_text",
-          "tiny_shapes",
-          "unused_placeholder",
-          "layout_drift",
-          "background_cover"
-        ];
-        const checkLayoutDrift = enabledChecks.includes("layout_drift");
-        const code = `
-          var slides = context.presentation.slides;
-          slides.load("items");
-          await context.sync();
-          if (${slideIndex} >= slides.items.length) {
-            throw new Error("Slide index " + ${slideIndex} + " out of range (presentation has " + slides.items.length + " slides)");
-          }
-          var slide = slides.items[${slideIndex}];
-          slide.shapes.load("items");
-          await context.sync();
-          var shapes = [];
-          var placeholderTypes = [];
-          for (var i = 0; i < slide.shapes.items.length; i++) {
-            var s = slide.shapes.items[i];
-            var info = {
-              name: s.name,
-              id: s.id,
-              left: s.left,
-              top: s.top,
-              width: s.width,
-              height: s.height
-            };
-            try {
-              var tf = s.getTextFrameOrNullObject();
-              tf.load(["hasText", "textRange"]);
-              await context.sync();
-              if (!tf.isNullObject) {
-                info.text = tf.hasText ? tf.textRange.text : "";
-                info.hasText = tf.hasText;
-              }
-            } catch (e) {}
-            if (s.type === "Placeholder") {
-              try {
-                var pf = s.placeholderFormat;
-                pf.load("type");
-                await context.sync();
-                info.isPlaceholder = true;
-                info.placeholderType = pf.type;
-                placeholderTypes.push({ shapeIndex: i, type: pf.type });
-              } catch (e) {}
-            }
-            shapes.push(info);
-          }
-
-          // Conditionally load layout placeholder positions for drift check
-          var layoutMap = {};
-          if (${checkLayoutDrift} && placeholderTypes.length > 0) {
-            try {
-              var layout = slide.layout;
-              layout.load("name");
-              var layoutShapes = layout.shapes;
-              layoutShapes.load("items");
-              await context.sync();
-              for (var li = 0; li < layoutShapes.items.length; li++) {
-                var ls = layoutShapes.items[li];
-                if (ls.type !== "Placeholder") continue;
-                try {
-                  var lph = ls.placeholderFormat;
-                  lph.load("type");
-                  ls.load("left,top,width,height,name");
-                  await context.sync();
-                  layoutMap[lph.type] = {
-                    name: ls.name,
-                    left: ls.left,
-                    top: ls.top,
-                    width: ls.width,
-                    height: ls.height
-                  };
-                } catch (e) {}
-              }
-            } catch (e) {}
-            // Attach layout match to shapes
-            for (var pi = 0; pi < placeholderTypes.length; pi++) {
-              var pt = placeholderTypes[pi];
-              var match = layoutMap[pt.type];
-              if (match) {
-                shapes[pt.shapeIndex].layoutMatch = match;
-              }
-            }
-          }
-
-          // Also get slide dimensions
-          var ps = context.presentation.pageSetup;
-          ps.load("slideWidth,slideHeight");
-          await context.sync();
-          return { shapes: shapes, slideWidth: ps.slideWidth, slideHeight: ps.slideHeight };
-        `;
-        const slideData = await pool2.sendCommand("executeCode", { code }, target.ws);
-        const issues = [];
-        const { shapes, slideWidth, slideHeight } = slideData;
-        if (enabledChecks.includes("overlap")) {
-          for (let i = 0; i < shapes.length; i++) {
-            for (let j = i + 1; j < shapes.length; j++) {
-              const a = shapes[i];
-              const b = shapes[j];
-              if (a.left < b.left + b.width && a.left + a.width > b.left && a.top < b.top + b.height && a.top + a.height > b.top) {
-                issues.push({
-                  type: "overlap",
-                  severity: "warning",
-                  shapeIds: [a.id, b.id],
-                  description: `"${a.name}" and "${b.name}" overlap`
-                });
-              }
-            }
-          }
-        }
-        if (enabledChecks.includes("bounds")) {
-          for (const s of shapes) {
-            const outOfBounds = [];
-            if (s.left < 0) outOfBounds.push("left of slide");
-            if (s.top < 0) outOfBounds.push("above slide");
-            if (s.left + s.width > slideWidth) outOfBounds.push("right of slide");
-            if (s.top + s.height > slideHeight) outOfBounds.push("below slide");
-            if (outOfBounds.length > 0) {
-              issues.push({
-                type: "bounds",
-                severity: "warning",
-                shapeIds: [s.id],
-                description: `"${s.name}" extends ${outOfBounds.join(", ")}`
-              });
-            }
-          }
-        }
-        if (enabledChecks.includes("empty_text")) {
-          for (const s of shapes) {
-            if (s.text !== void 0 && s.text.trim() === "") {
-              issues.push({
-                type: "empty_text",
-                severity: "warning",
-                shapeIds: [s.id],
-                description: `"${s.name}" has an empty text frame`
-              });
-            }
-          }
-        }
-        if (enabledChecks.includes("tiny_shapes")) {
-          for (const s of shapes) {
-            if (s.width < 10 || s.height < 10) {
-              issues.push({
-                type: "tiny_shapes",
-                severity: "warning",
-                shapeIds: [s.id],
-                description: `"${s.name}" is very small (${s.width.toFixed(1)} x ${s.height.toFixed(1)} pt)`
-              });
-            }
-          }
-        }
-        if (enabledChecks.includes("unused_placeholder")) {
-          for (const s of shapes) {
-            if (s.isPlaceholder && !s.hasText) {
-              issues.push({
-                type: "unused_placeholder",
-                severity: "warning",
-                shapeIds: [s.id],
-                description: `"${s.name}" is an unused placeholder \u2014 delete it or fill it with content`
-              });
-            }
-          }
-        }
-        if (checkLayoutDrift) {
-          const DRIFT_THRESHOLD = 2;
-          for (const s of shapes) {
-            if (!s.isPlaceholder || !s.layoutMatch) continue;
-            const lm = s.layoutMatch;
-            const drifts = [];
-            if (Math.abs(s.left - lm.left) > DRIFT_THRESHOLD) drifts.push(`left: ${s.left} vs layout ${lm.left}`);
-            if (Math.abs(s.top - lm.top) > DRIFT_THRESHOLD) drifts.push(`top: ${s.top} vs layout ${lm.top}`);
-            if (Math.abs(s.width - lm.width) > DRIFT_THRESHOLD) drifts.push(`width: ${s.width} vs layout ${lm.width}`);
-            if (Math.abs(s.height - lm.height) > DRIFT_THRESHOLD)
-              drifts.push(`height: ${s.height} vs layout ${lm.height}`);
-            if (drifts.length > 0) {
-              issues.push({
-                type: "layout_drift",
-                severity: "warning",
-                shapeIds: [s.id],
-                description: `"${s.name}" drifted from layout: ${drifts.join(", ")}`
-              });
-            }
-          }
-        }
-        if (enabledChecks.includes("background_cover")) {
-          const dimThreshold = 0.85;
-          const areaThreshold = 0.9;
-          const slideArea = slideWidth * slideHeight;
-          for (const s of shapes) {
-            if (s.isPlaceholder) continue;
-            const widthRatio = s.width / slideWidth;
-            const heightRatio = s.height / slideHeight;
-            if (widthRatio >= dimThreshold && heightRatio >= dimThreshold && s.width * s.height >= slideArea * areaThreshold) {
-              issues.push({
-                type: "background_cover",
-                severity: "error",
-                shapeIds: [s.id],
-                description: `"${s.name}" covers ${(widthRatio * 100).toFixed(0)}% x ${(heightRatio * 100).toFixed(0)}% of the slide \u2014 this destroys the layout background, logo, and design system. Delete this shape and use the layout's background instead.`
-              });
-            }
-          }
-        }
-        const result = { slideIndex, shapeCount: shapes.length, issueCount: issues.length, issues };
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
-  server.tool(
-    "read_slide_zip",
-    "Read multiple files from the exported slide zip. Returns slide XML, relationships, chart XMLs, and Content_Types. Use this to inspect chart data, rels, or other zip contents beyond what read_slide_xml provides. When no paths specified, auto-discovers all text/XML files in the zip.",
-    {
-      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
-      paths: external_exports3.array(external_exports3.string()).optional().describe(
-        'Specific zip paths to read (e.g. ["ppt/slides/slide1.xml", "ppt/charts/chart1.xml"]). If omitted, auto-discovers all text/XML files.'
-      ),
-      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
-    },
-    async ({ slideIndex, paths, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const exported = await exportSlide(pool2, slideIndex, target.ws);
-        const { zip, files } = await extractZipFiles(exported.base64, paths);
-        const allPaths = listZipPaths(zip);
-        const result = { zipContents: files, allPaths };
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
-  server.tool(
-    "edit_slide_zip",
-    "Update multiple files in the slide zip and reimport in a single operation. Accepts a map of { path: content } \u2014 can modify existing files or add new ones (e.g. chart XML + rels). Auto-registers Content_Types for new chart files. Use read_slide_zip first to get the current content.",
-    {
-      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
-      files: external_exports3.record(external_exports3.string(), external_exports3.string()).describe(
-        'Map of { zipPath: newContent }. Can include existing paths (to modify) or new paths (to add). Example: { "ppt/slides/slide1.xml": "<p:sld>...</p:sld>", "ppt/charts/chart1.xml": "<c:chartSpace>...</c:chartSpace>" }'
-      ),
-      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
-    },
-    async ({ slideIndex, files, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const exported = await exportSlide(pool2, slideIndex, target.ws);
-        const { zip } = await extractZipFiles(exported.base64);
-        const existingPaths = new Set(listZipPaths(zip));
-        const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p));
-        const modifiedBase64 = await updateZipFiles(zip, files);
-        if (newPaths.length > 0 && !files["[Content_Types].xml"]) {
-          const { zip: updatedZip } = await extractZipFiles(modifiedBase64);
-          await autoRegisterContentTypes(updatedZip, newPaths);
-          const finalBase64 = await updatedZip.generateAsync({ type: "base64" });
-          await reimportSlide(pool2, finalBase64, exported.slideId, exported.prevSlideId, target.ws);
-        } else {
-          await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
-        }
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify({ success: true, filesUpdated: Object.keys(files).length, newFiles: newPaths }, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
-  server.tool(
-    "edit_slide_chart",
-    "Create a chart on a slide from structured data. Generates all OOXML automatically (chart XML, rels, graphic frame, Content_Types). Supports column, bar, line, pie, doughnut, and area charts with multiple series.",
-    {
-      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
-      chartType: external_exports3.enum(["column", "bar", "line", "pie", "doughnut", "area"]).describe("Chart type"),
-      title: external_exports3.string().describe("Chart title"),
-      categories: external_exports3.array(external_exports3.string()).describe("Category labels (x-axis or pie slices)"),
-      series: external_exports3.array(
-        external_exports3.object({
-          name: external_exports3.string().describe("Series name"),
-          values: external_exports3.array(external_exports3.number()).describe("Data values (one per category)")
-        })
-      ).min(1).describe("Data series"),
-      position: external_exports3.object({
-        left: external_exports3.number().optional().describe("Left position in points"),
-        top: external_exports3.number().optional().describe("Top position in points"),
-        width: external_exports3.number().optional().describe("Width in points"),
-        height: external_exports3.number().optional().describe("Height in points")
-      }).optional().describe("Chart position in points. Defaults to centered on slide."),
-      options: external_exports3.object({
-        stacked: external_exports3.boolean().optional().describe("Use stacked grouping (bar/column/line/area)"),
-        showDataLabels: external_exports3.boolean().optional().describe("Show data labels (default true)"),
-        showLegend: external_exports3.boolean().optional().describe("Show legend (default true)"),
-        legendPosition: external_exports3.enum(["t", "b", "l", "r"]).optional().describe("Legend position: t=top, b=bottom, l=left, r=right")
-      }).optional().describe("Chart options"),
-      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
-    },
-    async ({ slideIndex, chartType, title, categories, series, position, options, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const exported = await exportSlide(pool2, slideIndex, target.ws);
-        const { zip } = await extractZipFiles(exported.base64);
-        const existingPaths = listZipPaths(zip);
-        const chartPaths = existingPaths.filter((p) => p.startsWith("ppt/charts/chart") && p.endsWith(".xml"));
-        const chartNums = chartPaths.map((p) => {
-          const m = p.match(/chart(\d+)\.xml$/);
-          return m ? Number(m[1]) : 0;
-        });
-        const nextChartNum = chartNums.length > 0 ? Math.max(...chartNums) + 1 : 1;
-        const chartFileName = `chart${nextChartNum}.xml`;
-        const chartZipPath = `ppt/charts/${chartFileName}`;
-        const relsPath = "ppt/slides/_rels/slide1.xml.rels";
-        const relsContent = zip.file(relsPath) ? await zip.file(relsPath).async("string") : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
-        const rIdMatches = [...relsContent.matchAll(/Id="rId(\d+)"/g)];
-        const rIdNums = rIdMatches.map((m) => Number(m[1]));
-        const nextRIdNum = rIdNums.length > 0 ? Math.max(...rIdNums) + 1 : 1;
-        const rId = `rId${nextRIdNum}`;
-        const chartXml = buildChartXml(chartType, title, categories, series, options);
-        const slideXmlPath = "ppt/slides/slide1.xml";
-        const slideXml = await zip.file(slideXmlPath).async("string");
-        const emuPos = resolveChartPosition(position);
-        const shapeIdMatches = [...slideXml.matchAll(/id="(\d+)"/g)];
-        const shapeIds = shapeIdMatches.map((m) => Number(m[1]));
-        const nextShapeId = shapeIds.length > 0 ? Math.max(...shapeIds) + 1 : 100;
-        const chartName = `Chart ${nextChartNum}`;
-        const graphicFrame = buildGraphicFrame(rId, emuPos, chartName, nextShapeId);
-        const modifiedSlideXml = slideXml.replace("</p:spTree>", `${graphicFrame}</p:spTree>`);
-        const relEntry = buildChartRelationship(rId, `../charts/${chartFileName}`);
-        const modifiedRels = relsContent.replace("</Relationships>", `${relEntry}</Relationships>`);
-        const files = {
-          [slideXmlPath]: modifiedSlideXml,
-          [chartZipPath]: chartXml,
-          [relsPath]: modifiedRels
-        };
-        const newPaths = Object.keys(files).filter((p) => !new Set(existingPaths).has(p));
-        const modifiedBase64 = await updateZipFiles(zip, files);
-        if (newPaths.length > 0) {
-          const { zip: updatedZip } = await extractZipFiles(modifiedBase64);
-          await autoRegisterContentTypes(updatedZip, newPaths);
-          const finalBase64 = await updatedZip.generateAsync({ type: "base64" });
-          await reimportSlide(pool2, finalBase64, exported.slideId, exported.prevSlideId, target.ws);
-        } else {
-          await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
-        }
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(
-          {
-            success: true,
-            chartType,
-            title,
-            seriesCount: series.length,
-            categoryCount: categories.length,
-            chartFile: chartZipPath
-          },
-          null,
-          2
-        ) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
+    withTool(async ({ slideRange, includeNotes, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const localPath = await getLocalCopyPath(pool2, target);
+      const zipBuffer = (0, import_node_fs7.readFileSync)(localPath);
+      const indices = slideRange ? parseSlideRange(slideRange) : null;
+      const result = await extractDeckText(zipBuffer, indices, includeNotes === true);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "search_text",
@@ -53785,8 +53690,8 @@ ${textParts.join("\n")}` : "\n(no text content)";
       includeNotes: external_exports3.boolean().optional().describe("Search speaker notes in addition to slide content. Default: true."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ query, slideRange, caseSensitive, regex, context: contextLevel, includeNotes, presentationId }) => {
-      try {
+    withTool(
+      async ({ query, slideRange, caseSensitive, regex, context: contextLevel, includeNotes, presentationId }) => {
         const cs = caseSensitive === true;
         const useRegex = regex === true;
         const ctxLevel = contextLevel ?? "shape";
@@ -53982,11 +53887,8 @@ ${textParts.join("\n")}` : "\n(no text content)";
         const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
         const text = JSON.stringify(result, null, 2) + (warning ?? "");
         return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
       }
-    }
+    )
   );
   server.tool(
     "format_shapes",
@@ -54008,11 +53910,10 @@ ${textParts.join("\n")}` : "\n(no text content)";
       ).min(1).describe("Shapes to format with their properties"),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, shapes, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const shapeOps = buildFormatShapeOps(shapes, slideIndex);
-        const code = `
+    withTool(async ({ slideIndex, shapes, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const shapeOps = buildFormatShapeOps(shapes, slideIndex);
+      const code = `
 var slides = context.presentation.slides;
 slides.load("items");
 await context.sync();
@@ -54026,134 +53927,159 @@ for (var i = 0; i < slide.shapes.items.length; i++) {
 ${shapeOps}
 await context.sync();
 return { success: true, shapesFormatted: ${shapes.length} };`;
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
+}
+
+// server/tools/xml.ts
+var import_xmldom3 = __toESM(require_lib(), 1);
+function registerXmlTools(server, pool2, getSessionId, getActiveSessionCount) {
   server.tool(
-    "execute_officejs",
-    "Execute arbitrary Office.js code inside the live PowerPoint presentation. The code runs inside PowerPoint.run(async (context) => { ... }) with 'context' available as a variable. Use 'await context.sync()' after loading properties. Return a value to get it back as the tool result. For positioning, all values are in points (1 point = 1/72 inch). Common operations: add shapes, set text, change colors, add/delete slides.",
+    "edit_slide_xml",
+    "Edit slide XML and reimport. Two modes: (1) xml mode \u2014 provide finished XML string (use read_slide_xml first to get current XML), (2) code mode \u2014 provide JS code that manipulates the pre-parsed DOM (receives: doc, findShapeById, NS_P, NS_A, escapeXml, serializeXml, DOMParser). Code mode preserves untouched attributes. The slide is exported, modified server-side, and reimported \u2014 data never enters Claude's context.",
     {
-      code: external_exports3.string().describe(
-        "Office.js code to execute. Runs inside PowerPoint.run() with 'context' available. Use 'return' to send back a result."
+      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
+      xml: external_exports3.string().optional().describe(
+        "Modified XML \u2014 full slide XML or a single shape's <p:sp> element (when shapeId is provided). Mutually exclusive with 'code'."
+      ),
+      code: external_exports3.string().optional().describe(
+        "JS code that manipulates the pre-parsed slide DOM. Receives: doc (Document), findShapeById(id) \u2192 Element|null, NS_P, NS_A (namespace strings), escapeXml(text), serializeXml(node), DOMParser. Mutually exclusive with 'xml'."
+      ),
+      explanation: external_exports3.string().optional().describe("Brief description of what the code does (for logging, max 50 chars). Only used with code mode."),
+      shapeId: external_exports3.string().optional().describe(
+        "Optional shape ID (xml mode only). If provided, replaces only that shape's <p:sp> element instead of the full slide XML."
       ),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ code, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
-  server.tool(
-    "search_fluent_icons",
-    'Search Microsoft Fluent UI icon library. Returns matching icons with SVG URLs for use with insert_image. Prefer mono (_M) variants for professional decks. Retry with synonyms if no good matches (e.g. "innovation" \u2192 "lightbulb", "security" \u2192 "shield").',
-    {
-      query: external_exports3.string().describe('Search query (e.g. "warning", "arrow down", "lightbulb")'),
-      top: external_exports3.number().int().min(1).max(50).optional().describe("Max results to return (default 10)"),
-      style: external_exports3.enum(["regular", "filled"]).optional().describe('Filter by style: "regular" for mono/outline icons, "filled" for solid icons. Omit for both.')
-    },
-    async ({ query, top, style }) => {
-      try {
-        const results = await searchIcons(query, top ?? 10, style);
-        return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
-  );
-  server.tool(
-    "read_speaker_notes",
-    "Read speaker notes from slides. Uses full-deck export (cached by revision) to parse notes from OOXML \u2014 Office.js has no notes API. Returns plain text per slide.",
-    {
-      slideRange: external_exports3.string().optional().describe('Slide indices, e.g. "0", "0-5", "2,4,7". Omit to read all slides.'),
-      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
-    },
-    async ({ slideRange, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const localPath = await getLocalCopyPath(pool2, target);
-        const data = (0, import_node_fs2.readFileSync)(localPath);
-        const zip = await import_jszip2.default.loadAsync(data);
-        const indices = parseSlideRange(slideRange);
-        const notesMap = await readNotesFromDeck(zip, indices);
-        const slides = [...notesMap.entries()].sort(([a], [b]) => a - b).map(([slideIndex, notes]) => ({ slideIndex, notes }));
+    withTool(async ({ slideIndex, xml, code, shapeId, presentationId }) => {
+      if (!xml && !code || xml && code) {
         return {
-          content: [{ type: "text", text: JSON.stringify({ slides }, null, 2) }]
+          content: [
+            { type: "text", text: "Error: Provide either 'xml' or 'code', not both and not neither." }
+          ],
+          isError: true
         };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
       }
-    }
+      const target = pool2.resolveTarget(presentationId);
+      const exported = await exportSlide(pool2, slideIndex, target.ws);
+      const { zip, xmlString } = await extractSlideXmlFromZip(exported.base64);
+      let finalXml;
+      if (code) {
+        const doc = parseSlideXml(xmlString);
+        const sandbox = {
+          doc,
+          findShapeById: (id) => findShapeById(doc, id),
+          NS_P,
+          NS_A,
+          escapeXml,
+          serializeXml,
+          DOMParser: import_xmldom3.DOMParser
+        };
+        try {
+          const keys = Object.keys(sandbox);
+          const values = Object.values(sandbox);
+          const fn = new Function(...keys, code);
+          fn(...values);
+        } catch (codeErr) {
+          const msg = codeErr instanceof Error ? codeErr.message : String(codeErr);
+          throw new Error(`Code execution error: ${msg}`);
+        }
+        finalXml = serializeXml(doc);
+      } else if (shapeId) {
+        const doc = parseSlideXml(xmlString);
+        const shape = findShapeById(doc, shapeId);
+        if (!shape) {
+          throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
+        }
+        replaceShape(doc, shape, xml);
+        finalXml = serializeXml(doc);
+      } else {
+        finalXml = xml;
+      }
+      const modifiedBase64 = await updateSlideXmlInZip(zip, finalXml);
+      await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify({ success: true }, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
-    "edit_speaker_notes",
-    "Set speaker notes on one or more slides. Accepts markdown text (paragraphs, **bold**, *italic*). Converts to OOXML server-side and injects via single-slide reimport. Replaces all existing notes on the specified slides.",
+    "edit_slide_zip",
+    "Update multiple files in the slide zip and reimport in a single operation. Accepts a map of { path: content } \u2014 can modify existing files or add new ones (e.g. chart XML + rels). Auto-registers Content_Types for new chart files. Use read_slide_zip first to get the current content.",
     {
-      notes: external_exports3.array(
-        external_exports3.object({
-          slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
-          text: external_exports3.string().describe(
-            'Notes content. Supports markdown: **bold**, *italic*, paragraphs separated by blank lines. Use empty string "" to clear notes.'
-          )
-        })
-      ).min(1).describe("Array of slide notes to set."),
+      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
+      files: external_exports3.record(external_exports3.string(), external_exports3.string()).describe(
+        'Map of { zipPath: newContent }. Can include existing paths (to modify) or new paths (to add). Example: { "ppt/slides/slide1.xml": "<p:sld>...</p:sld>", "ppt/charts/chart1.xml": "<c:chartSpace>...</c:chartSpace>" }'
+      ),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ notes, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const results = [];
-        for (const entry of notes) {
-          try {
-            const exported = await exportSlide(pool2, entry.slideIndex, target.ws);
-            const { zip } = await extractZipFiles(exported.base64);
-            const slideRelsFile = zip.file("ppt/slides/_rels/slide1.xml.rels");
-            const slideRelsXml = slideRelsFile ? await slideRelsFile.async("string") : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
-            const files = buildNotesInjection(slideRelsXml, entry.text);
-            const existingPaths = new Set(listZipPaths(zip));
-            const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p));
-            const modifiedBase64 = await updateZipFiles(zip, files);
-            if (newPaths.length > 0 && !files["[Content_Types].xml"]) {
-              const { zip: updatedZip } = await extractZipFiles(modifiedBase64);
-              await autoRegisterContentTypes(updatedZip, newPaths);
-              const finalBase64 = await updatedZip.generateAsync({ type: "base64" });
-              await reimportSlide(pool2, finalBase64, exported.slideId, exported.prevSlideId, target.ws);
-            } else {
-              await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
-            }
-            results.push({ slideIndex: entry.slideIndex, success: true });
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            results.push({ slideIndex: entry.slideIndex, success: false, error: message });
-          }
-        }
-        localCopyCache.delete(target.presentationId);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify({ results }, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
+    withTool(async ({ slideIndex, files, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const exported = await exportSlide(pool2, slideIndex, target.ws);
+      const newPaths = await applyZipEditAndReimport(pool2, exported, files, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify({ success: true, filesUpdated: Object.keys(files).length, newFiles: newPaths }, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
+  server.tool(
+    "read_slide_xml",
+    "Read the full raw OOXML of a slide, or filter to a specific shape. Returns the slide's ppt/slides/slide1.xml content. Use with the /pptx skill's OOXML knowledge to understand the XML structure.",
+    {
+      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from scan_slide results"),
+      shapeId: external_exports3.string().optional().describe("Optional shape ID to filter to. If provided, returns only that shape's <p:sp> element."),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    withTool(async ({ slideIndex, shapeId, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const exported = await exportSlide(pool2, slideIndex, target.ws);
+      const { xmlString } = await extractSlideXmlFromZip(exported.base64);
+      if (shapeId) {
+        const doc = parseSlideXml(xmlString);
+        const shape = findShapeById(doc, shapeId);
+        if (!shape) {
+          throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
+        }
+        return { content: [{ type: "text", text: serializeXml(shape) }] };
+      }
+      return { content: [{ type: "text", text: xmlString }] };
+    })
+  );
+  server.tool(
+    "read_slide_zip",
+    "Read multiple files from the exported slide zip. Returns slide XML, relationships, chart XMLs, and Content_Types. Use this to inspect chart data, rels, or other zip contents beyond what read_slide_xml provides. When no paths specified, auto-discovers all text/XML files in the zip.",
+    {
+      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
+      paths: external_exports3.array(external_exports3.string()).optional().describe(
+        'Specific zip paths to read (e.g. ["ppt/slides/slide1.xml", "ppt/charts/chart1.xml"]). If omitted, auto-discovers all text/XML files.'
+      ),
+      presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
+    },
+    withTool(async ({ slideIndex, paths, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const exported = await exportSlide(pool2, slideIndex, target.ws);
+      const { zip, files } = await extractZipFiles(exported.base64, paths);
+      const allPaths = listZipPaths(zip);
+      const result = { zipContents: files, allPaths };
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    })
+  );
+}
+
+// server/tools.ts
+function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
+  registerInspectTools(server, pool2, getSessionId, getActiveSessionCount);
+  registerSlideTools(server, pool2, getSessionId, getActiveSessionCount);
+  registerTextTools(server, pool2, getSessionId, getActiveSessionCount);
+  registerXmlTools(server, pool2, getSessionId, getActiveSessionCount);
+  registerNotesTools(server, pool2, getSessionId, getActiveSessionCount);
+  registerChartTools(server, pool2, getSessionId, getActiveSessionCount);
+  registerMediaTools(server, pool2, getSessionId, getActiveSessionCount);
+  registerExecTools(server, pool2, getSessionId, getActiveSessionCount);
 }
 
 // server/version-check.ts
@@ -54220,7 +54146,7 @@ var BRIDGE_KEY_PATH = (0, import_node_path3.resolve)(PROJECT_ROOT, "certs", "loc
 var ADDIN_STATIC_DIR = (0, import_node_path3.resolve)(PROJECT_ROOT, "addin");
 var PKG_VERSION = (() => {
   try {
-    return JSON.parse((0, import_node_fs3.readFileSync)((0, import_node_path3.resolve)(PROJECT_ROOT, "package.json"), "utf8")).version;
+    return JSON.parse((0, import_node_fs8.readFileSync)((0, import_node_path3.resolve)(PROJECT_ROOT, "package.json"), "utf8")).version;
   } catch {
     return "0.0.0";
   }
@@ -54259,7 +54185,7 @@ Flags (composable):
   process.exit(1);
 }
 var bridgeTls = process.env.BRIDGE_TLS === "1";
-if (bridgeActive && bridgeTls && (!(0, import_node_fs3.existsSync)(BRIDGE_CERT_PATH) || !(0, import_node_fs3.existsSync)(BRIDGE_KEY_PATH))) {
+if (bridgeActive && bridgeTls && (!(0, import_node_fs8.existsSync)(BRIDGE_CERT_PATH) || !(0, import_node_fs8.existsSync)(BRIDGE_KEY_PATH))) {
   console.error(
     `Error: BRIDGE_TLS=1 but TLS certificate files not found.
   Expected: ${BRIDGE_CERT_PATH} and ${BRIDGE_KEY_PATH}
@@ -54273,13 +54199,13 @@ function autoSideloadManifest(tls, port) {
   const pkgPath = (0, import_node_path3.resolve)(PROJECT_ROOT, "package.json");
   let currentVersion = "unknown";
   try {
-    const pkg = JSON.parse((0, import_node_fs3.readFileSync)(pkgPath, "utf8"));
+    const pkg = JSON.parse((0, import_node_fs8.readFileSync)(pkgPath, "utf8"));
     currentVersion = pkg.version;
   } catch {
   }
   const markerValue = `${currentVersion}:${port}`;
   try {
-    const existing = (0, import_node_fs3.readFileSync)(markerFile, "utf8").trim();
+    const existing = (0, import_node_fs8.readFileSync)(markerFile, "utf8").trim();
     if (existing === markerValue) {
       console.error("[sideload] Add-in already installed (use `npm run sideload` to update)");
       return;
@@ -54293,12 +54219,12 @@ function autoSideloadManifest(tls, port) {
   const src = (0, import_node_path3.resolve)(ADDIN_STATIC_DIR, manifestName);
   const dest = (0, import_node_path3.join)(wefDir, "manifest.xml");
   try {
-    if (!(0, import_node_fs3.existsSync)(src)) return;
-    const template = (0, import_node_fs3.readFileSync)(src, "utf8");
+    if (!(0, import_node_fs8.existsSync)(src)) return;
+    const template = (0, import_node_fs8.readFileSync)(src, "utf8");
     const content = substituteManifestPort(template, defaultPort, port);
-    (0, import_node_fs3.mkdirSync)(wefDir, { recursive: true });
-    (0, import_node_fs3.writeFileSync)(dest, content);
-    (0, import_node_fs3.writeFileSync)(markerFile, markerValue);
+    (0, import_node_fs8.mkdirSync)(wefDir, { recursive: true });
+    (0, import_node_fs8.writeFileSync)(dest, content);
+    (0, import_node_fs8.writeFileSync)(markerFile, markerValue);
     console.error("[sideload] Add-in manifest installed for PowerPoint");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -54462,12 +54388,12 @@ function serveStatic(req, res) {
     res.end("403 Forbidden");
     return;
   }
-  if (!(0, import_node_fs3.existsSync)(filePath)) {
+  if (!(0, import_node_fs8.existsSync)(filePath)) {
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("404 Not Found");
     return;
   }
-  const raw = (0, import_node_fs3.readFileSync)(filePath);
+  const raw = (0, import_node_fs8.readFileSync)(filePath);
   const mimeType = getMimeType(filePath);
   const content = (0, import_node_path3.extname)(filePath) === ".xml" ? substituteManifestPort(
     raw.toString(),
@@ -54483,7 +54409,7 @@ function serveStatic(req, res) {
 }
 if (bridgeActive) {
   autoSideloadManifest(bridgeTls, BRIDGE_PORT);
-  const bridgeServer = bridgeTls ? (0, import_node_https.createServer)({ cert: (0, import_node_fs3.readFileSync)(BRIDGE_CERT_PATH), key: (0, import_node_fs3.readFileSync)(BRIDGE_KEY_PATH) }, serveStatic) : (0, import_node_http.createServer)(serveStatic);
+  const bridgeServer = bridgeTls ? (0, import_node_https.createServer)({ cert: (0, import_node_fs8.readFileSync)(BRIDGE_CERT_PATH), key: (0, import_node_fs8.readFileSync)(BRIDGE_KEY_PATH) }, serveStatic) : (0, import_node_http.createServer)(serveStatic);
   const wss = new import_websocket_server.default({ server: bridgeServer });
   wss.on("connection", (ws) => {
     console.error(`[${(/* @__PURE__ */ new Date()).toISOString()}] Add-in WebSocket connected`);
