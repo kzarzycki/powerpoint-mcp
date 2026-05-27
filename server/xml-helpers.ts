@@ -1,4 +1,4 @@
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
+import { DOMParser, type Document, type Element, XMLSerializer } from '@xmldom/xmldom'
 import JSZip from 'jszip'
 import type { WebSocket } from 'ws'
 import type { ConnectionPool } from './bridge.ts'
@@ -173,6 +173,7 @@ export function replaceParagraphs(doc: Document, shape: Element, paragraphXml: s
   // Parse and import new paragraphs
   const wrapper = `<wrapper xmlns:a="${NS_A}">${paragraphXml}</wrapper>`
   const fragDoc = new DOMParser().parseFromString(wrapper, 'text/xml')
+  if (!fragDoc.documentElement) throw new Error('Failed to parse paragraph XML')
   const newParagraphs = fragDoc.documentElement.childNodes
   for (let i = 0; i < newParagraphs.length; i++) {
     const imported = doc.importNode(newParagraphs[i]!, true)
@@ -185,6 +186,7 @@ export function replaceParagraphs(doc: Document, shape: Element, paragraphXml: s
  */
 export function replaceShape(doc: Document, oldShape: Element, newShapeXml: string): void {
   const fragDoc = new DOMParser().parseFromString(newShapeXml, 'text/xml')
+  if (!fragDoc.documentElement) throw new Error('Failed to parse shape XML')
   const imported = doc.importNode(fragDoc.documentElement, true)
   oldShape.parentNode!.replaceChild(imported, oldShape)
 }
@@ -313,6 +315,7 @@ export async function extractThemeFromZip(base64: string): Promise<ThemeInfo> {
       const node = clrScheme.childNodes[i] as Element
       if (node.nodeType !== 1) continue // skip text nodes
       const tag = node.localName
+      if (!tag) continue
       // Color value is in the first child element's val attribute (srgbClr or sysClr)
       const valElem = node.getElementsByTagNameNS(NS_A, 'srgbClr')[0] ?? node.getElementsByTagNameNS(NS_A, 'sysClr')[0]
       if (valElem) {
