@@ -137,7 +137,9 @@ PowerPoint MCP assumes a single-user, locally-trusted machine. Both network serv
 - The bridge server (HTTP + WebSocket) binds to `127.0.0.1:8080` (or `127.0.0.1:8443` with `BRIDGE_TLS=1`)
 - The MCP HTTP transport binds to `127.0.0.1:3001`; the default STDIO transport opens no network port
 - The MCP HTTP transport enables DNS-rebinding protection (rejects requests whose `Host` header is not `127.0.0.1:3001` / `localhost:3001`)
-- No data leaves your machine
+- On startup the server makes one outbound `GET https://registry.npmjs.org/powerpoint-mcp/latest` to check for a newer version. Nothing is sent beyond the request itself; no presentation data, telemetry, or identifiers. Disable it with `BRIDGE_NO_UPDATE_CHECK=1` or the `--no-update-check` flag.
+
+**Local file and URL access.** The `insert_image` tool reads arbitrary local file paths (`sourceType: 'file'`) and fetches arbitrary URLs (`sourceType: 'url'`) with the full privileges of the server process. A URL fetch can reach internal/loopback addresses (SSRF), and a file read can pull in any file the user can read. Only run the bridge on a trusted, single-user machine.
 
 **Local-trust posture.** The add-in executes whatever JavaScript the bridge sends it over the local WebSocket, so any local process that can reach the loopback port can drive the open presentation. There is currently **no WebSocket authentication and no Origin allowlist** — loopback binding is the only access control. Do not run PowerPoint MCP on a shared or multi-user host.
 

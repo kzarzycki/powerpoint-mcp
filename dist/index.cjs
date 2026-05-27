@@ -54348,6 +54348,11 @@ async function handleMcpDelete(req, res) {
 }
 function serveStatic(req, res) {
   const rawUrl = (req.url ?? "/").split("?")[0];
+  if (rawUrl === "/health" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok", connections: pool.size }));
+    return;
+  }
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
@@ -54356,36 +54361,6 @@ function serveStatic(req, res) {
       "Access-Control-Allow-Private-Network": "true"
     });
     res.end();
-    return;
-  }
-  if (rawUrl === "/health" && req.method === "GET") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok", connections: pool.size }));
-    return;
-  }
-  if (rawUrl === "/api/test") {
-    let target;
-    try {
-      target = pool.resolveTarget();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: message }));
-      return;
-    }
-    pool.sendCommand(
-      "executeCode",
-      {
-        code: "var c = context.presentation.slides.getCount(); await context.sync(); return c.value;"
-      },
-      target.ws
-    ).then((result) => {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ slideCount: result }));
-    }).catch((err) => {
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: err.message }));
-    });
     return;
   }
   const urlPath = rawUrl === "/" ? "/index.html" : rawUrl;
