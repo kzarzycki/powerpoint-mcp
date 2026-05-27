@@ -4,14 +4,17 @@
 
 Install as a Claude Code plugin — this is the simplest way to get started:
 
-```bash
-claude plugin add kzarzycki/powerpoint-mcp
+```
+/plugin marketplace add kzarzycki/powerpoint-mcp
+/plugin install powerpoint-mcp@powerpoint-mcp
 ```
 
 This gives you:
-- MCP server starts via stdio when Claude Code launches
-- Bridge server starts in the same process (add-in connection on port 8080)
+- A SessionStart hook auto-starts the bundled server in HTTP mode (`node dist/index.cjs --http --bridge`), which also runs the add-in bridge (port 8080)
+- The plugin's `.mcp.json` connects Claude Code to that server over HTTP on port 3001
 - Skills auto-discovered by the plugin system
+
+(STDIO is only the manual alternative documented under "Standalone setup" below — the shipped plugin uses HTTP.)
 
 ### Sideload the PowerPoint add-in
 
