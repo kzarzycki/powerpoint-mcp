@@ -1,6 +1,6 @@
 ---
 name: powerpoint-mcp
-version: 0.5.0
+version: 0.6.0
 description: "Manipulate live, open PowerPoint presentations on macOS via Office.js MCP server. Use when Claude needs to: (1) create, edit, or inspect slides in a running PowerPoint instance, (2) add shapes, text, tables, or formatting to live presentations, (3) capture visual slide screenshots, (4) enable/configure the PowerPoint MCP server in a project, (5) execute Office.js code against open presentations. Distinct from the pptx file-editing skill — this works on presentations currently open in PowerPoint."
 ---
 
