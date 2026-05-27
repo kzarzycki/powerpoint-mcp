@@ -50735,7 +50735,7 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
     "screenshot_slide",
     "Slide screenshot (~1000 tokens): captures one slide as PNG image. Use to visually verify layout after changes. Do NOT loop over all slides \u2014 use preview_deck instead.",
     {
-      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from list_slides results"),
+      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from scan_slide results"),
       width: external_exports3.number().int().min(1).max(4096).optional().describe(
         "Image width in pixels. Default: 720. Height auto-calculated to preserve aspect ratio unless also specified."
       ),
@@ -51045,7 +51045,7 @@ ${textParts.join("\n")}` : "\n(no text content)";
     "read_shape_paragraphs",
     "Read raw OOXML <a:p> paragraphs from a shape's text body. Returns the paragraph XML as a string \u2014 preserves all formatting (bold, colors, bullets, etc.) that textRange.text strips. Use with the /pptx skill's OOXML knowledge to understand and modify the XML.",
     {
-      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from list_slides results"),
+      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from scan_slide results"),
       shapeId: external_exports3.string().describe('Shape ID from inspect_slide results (e.g. "5")'),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
@@ -51126,7 +51126,7 @@ ${textParts.join("\n")}` : "\n(no text content)";
     "read_slide_xml",
     "Read the full raw OOXML of a slide, or filter to a specific shape. Returns the slide's ppt/slides/slide1.xml content. Use with the /pptx skill's OOXML knowledge to understand the XML structure.",
     {
-      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from list_slides results"),
+      slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index from scan_slide results"),
       shapeId: external_exports3.string().optional().describe("Optional shape ID to filter to. If provided, returns only that shape's <p:sp> element."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },

@@ -21,7 +21,7 @@ npm run sideload    # Sideload the add-in manifest
 server/
   index.ts      # Entrypoint: HTTP(S) + WS(S) + MCP servers, wiring
   bridge.ts     # ConnectionPool class — manages add-in WebSocket connections
-  tools.ts      # MCP tool definitions (list_presentations, list_slides, inspect_slide, etc.)
+  tools.ts      # MCP tool definitions (list_presentations, inspect_deck, inspect_slide, etc.)
   bridge.test.ts
   tools.test.ts
 addin/
@@ -77,6 +77,6 @@ npm run test:coverage # With coverage
 
 ## What's Out of Scope
 
-- Features requiring Office.js APIs not available on Mac (e.g., images, charts)
+- Features requiring Office.js APIs unavailable on Mac at the shape level. (Note: images and charts ARE supported — images via the Common API `setSelectedDataAsync`, charts via OOXML injection.)
 - Windows/Linux platform support (PRs welcome, but we can't test)
 - Non-PowerPoint Office apps
