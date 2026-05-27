@@ -341,6 +341,7 @@ export async function extractThemeFromZip(base64: string): Promise<ThemeInfo> {
 // ---------------------------------------------------------------------------
 
 const NS_RELS = 'http://schemas.openxmlformats.org/package/2006/relationships'
+const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 const LAYOUT_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout'
 
 // TODO: consider reading <p:tag> elements for agent-specific metadata (agent:* prefix)
@@ -480,6 +481,51 @@ export interface SlideText {
   notes?: string
 }
 
+/** Find all slide XML files in a zip, sorted by their filename number (fallback ordering). */
+function filenameSortedSlideFiles(zip: JSZip): string[] {
+  return Object.keys(zip.files)
+    .filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p))
+    .sort((a, b) => {
+      const na = parseInt(a.match(/slide(\d+)/)![1]!, 10)
+      const nb = parseInt(b.match(/slide(\d+)/)![1]!, 10)
+      return na - nb
+    })
+}
+
+/**
+ * Resolve slide file paths in presentation display order via <p:sldIdLst> +
+ * presentation.xml.rels. Falls back to filename order when presentation.xml or
+ * its rels are absent. Mirrors resolveSlideToNotesMapping in notes-helpers.ts.
+ */
+async function orderedSlideFiles(zip: JSZip, parser: DOMParser): Promise<string[]> {
+  const presFile = zip.file('ppt/presentation.xml')
+  const presRelsFile = zip.file('ppt/_rels/presentation.xml.rels')
+  if (!presFile || !presRelsFile) return filenameSortedSlideFiles(zip)
+
+  const presDoc = parser.parseFromString(await presFile.async('string'), 'text/xml')
+  const presRelsDoc = parser.parseFromString(await presRelsFile.async('string'), 'text/xml')
+
+  // Build rId → slide path map
+  const rIdToTarget = new Map<string, string>()
+  const rels = presRelsDoc.getElementsByTagNameNS(NS_RELS, 'Relationship')
+  for (let i = 0; i < rels.length; i++) {
+    const id = rels[i]!.getAttribute('Id')
+    const target = rels[i]!.getAttribute('Target')
+    if (id && target) rIdToTarget.set(id, target.startsWith('ppt/') ? target : `ppt/${target}`)
+  }
+
+  const ordered: string[] = []
+  const sldIds = presDoc.getElementsByTagNameNS(NS_P, 'sldId')
+  for (let idx = 0; idx < sldIds.length; idx++) {
+    const rId = sldIds[idx]!.getAttributeNS(NS_R, 'id')
+    if (!rId) continue
+    const target = rIdToTarget.get(rId)
+    if (target) ordered.push(target)
+  }
+
+  return ordered.length > 0 ? ordered : filenameSortedSlideFiles(zip)
+}
+
 /**
  * Extract plain text from all slides in a PPTX buffer.
  * Returns structured text with title/body classification and optional speaker notes.
@@ -490,25 +536,19 @@ export async function extractDeckText(
   includeNotes?: boolean,
 ): Promise<SlideText[]> {
   const zip = await JSZip.loadAsync(zipBuffer)
+  const parser = new DOMParser()
 
-  // Find all slide XML files and sort by slide number
-  const slideFiles = Object.keys(zip.files)
-    .filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p))
-    .sort((a, b) => {
-      const na = parseInt(a.match(/slide(\d+)/)![1]!, 10)
-      const nb = parseInt(b.match(/slide(\d+)/)![1]!, 10)
-      return na - nb
-    })
+  // Resolve slides in presentation display order (<p:sldIdLst>), not filename order.
+  const slideFiles = await orderedSlideFiles(zip, parser)
 
   const results: SlideText[] = []
-  const parser = new DOMParser()
   const allowed = slideIndices ? new Set(slideIndices) : null
 
   for (let i = 0; i < slideFiles.length; i++) {
     if (allowed && !allowed.has(i)) continue
 
     const slideFile = slideFiles[i]!
-    const slideNum = parseInt(slideFile.match(/slide(\d+)/)![1]!, 10)
+    const slideNum = parseInt(slideFile.match(/slide(\d+)\.xml$/)![1]!, 10)
     const xmlStr = await zip.file(slideFile)!.async('string')
     const doc = parser.parseFromString(xmlStr, 'text/xml')
 

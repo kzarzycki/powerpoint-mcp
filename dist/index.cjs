@@ -49718,6 +49718,7 @@ async function extractThemeFromZip(base643) {
   };
 }
 var NS_RELS = "http://schemas.openxmlformats.org/package/2006/relationships";
+var NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 var LAYOUT_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout";
 var EMU_PER_PT = 12700;
 function emuToPoints(emu) {
@@ -49797,20 +49798,46 @@ async function extractLayoutsFromZip(zip) {
   }
   return layouts;
 }
-async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
-  const zip = await import_jszip.default.loadAsync(zipBuffer);
-  const slideFiles = Object.keys(zip.files).filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p)).sort((a, b) => {
+function filenameSortedSlideFiles(zip) {
+  return Object.keys(zip.files).filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p)).sort((a, b) => {
     const na = parseInt(a.match(/slide(\d+)/)[1], 10);
     const nb = parseInt(b.match(/slide(\d+)/)[1], 10);
     return na - nb;
   });
-  const results = [];
+}
+async function orderedSlideFiles(zip, parser) {
+  const presFile = zip.file("ppt/presentation.xml");
+  const presRelsFile = zip.file("ppt/_rels/presentation.xml.rels");
+  if (!presFile || !presRelsFile) return filenameSortedSlideFiles(zip);
+  const presDoc = parser.parseFromString(await presFile.async("string"), "text/xml");
+  const presRelsDoc = parser.parseFromString(await presRelsFile.async("string"), "text/xml");
+  const rIdToTarget = /* @__PURE__ */ new Map();
+  const rels = presRelsDoc.getElementsByTagNameNS(NS_RELS, "Relationship");
+  for (let i = 0; i < rels.length; i++) {
+    const id = rels[i].getAttribute("Id");
+    const target = rels[i].getAttribute("Target");
+    if (id && target) rIdToTarget.set(id, target.startsWith("ppt/") ? target : `ppt/${target}`);
+  }
+  const ordered = [];
+  const sldIds = presDoc.getElementsByTagNameNS(NS_P, "sldId");
+  for (let idx = 0; idx < sldIds.length; idx++) {
+    const rId = sldIds[idx].getAttributeNS(NS_R, "id");
+    if (!rId) continue;
+    const target = rIdToTarget.get(rId);
+    if (target) ordered.push(target);
+  }
+  return ordered.length > 0 ? ordered : filenameSortedSlideFiles(zip);
+}
+async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
+  const zip = await import_jszip.default.loadAsync(zipBuffer);
   const parser = new import_xmldom.DOMParser();
+  const slideFiles = await orderedSlideFiles(zip, parser);
+  const results = [];
   const allowed = slideIndices ? new Set(slideIndices) : null;
   for (let i = 0; i < slideFiles.length; i++) {
     if (allowed && !allowed.has(i)) continue;
     const slideFile = slideFiles[i];
-    const slideNum = parseInt(slideFile.match(/slide(\d+)/)[1], 10);
+    const slideNum = parseInt(slideFile.match(/slide(\d+)\.xml$/)[1], 10);
     const xmlStr = await zip.file(slideFile).async("string");
     const doc = parser.parseFromString(xmlStr, "text/xml");
     let title = "";
@@ -49926,7 +49953,7 @@ async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
 // server/notes-helpers.ts
 var NS_A2 = "http://schemas.openxmlformats.org/drawingml/2006/main";
 var NS_P2 = "http://schemas.openxmlformats.org/presentationml/2006/main";
-var NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+var NS_R2 = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 var NS_RELS2 = "http://schemas.openxmlformats.org/package/2006/relationships";
 var REL_TYPE_NOTES_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide";
 var REL_TYPE_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide";
@@ -50019,7 +50046,7 @@ function extractNotesText(notesXml) {
 }
 function buildNotesSlideXml(paragraphXml) {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<p:notes xmlns:a="${NS_A2}" xmlns:r="${NS_R}" xmlns:p="${NS_P2}"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="Slide Image Placeholder 1"/><p:cNvSpPr><a:spLocks noGrp="1" noRot="1" noChangeAspect="1"/></p:cNvSpPr><p:nvPr><p:ph type="sldImg"/></p:nvPr></p:nvSpPr><p:spPr/></p:sp><p:sp><p:nvSpPr><p:cNvPr id="3" name="Notes Placeholder 2"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>${paragraphXml}</p:txBody></p:sp><p:sp><p:nvSpPr><p:cNvPr id="4" name="Slide Number Placeholder 3"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="sldNum" sz="quarter" idx="5"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:notes>`;
+<p:notes xmlns:a="${NS_A2}" xmlns:r="${NS_R2}" xmlns:p="${NS_P2}"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="Slide Image Placeholder 1"/><p:cNvSpPr><a:spLocks noGrp="1" noRot="1" noChangeAspect="1"/></p:cNvSpPr><p:nvPr><p:ph type="sldImg"/></p:nvPr></p:nvSpPr><p:spPr/></p:sp><p:sp><p:nvSpPr><p:cNvPr id="3" name="Notes Placeholder 2"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>${paragraphXml}</p:txBody></p:sp><p:sp><p:nvSpPr><p:cNvPr id="4" name="Slide Number Placeholder 3"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="sldNum" sz="quarter" idx="5"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:notes>`;
 }
 function buildNotesSlideRels(slideFileName) {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -50044,7 +50071,7 @@ async function resolveSlideToNotesMapping(zip) {
   }
   const sldIdLst = presDoc.getElementsByTagNameNS(NS_P2, "sldId");
   for (let idx = 0; idx < sldIdLst.length; idx++) {
-    const rId = sldIdLst[idx].getAttributeNS(NS_R, "id");
+    const rId = sldIdLst[idx].getAttributeNS(NS_R2, "id");
     if (!rId) continue;
     const target = rIdToTarget.get(rId);
     if (!target) continue;
@@ -50150,6 +50177,39 @@ function parseSlideRange(range) {
   }
   if (indices.size === 0) return null;
   return [...indices].sort((a, b) => a - b);
+}
+function buildFormatShapeOps(shapes, slideIndex) {
+  return shapes.map((s) => {
+    const lines = [];
+    lines.push(`  var s = shapeMap[${JSON.stringify(s.id)}];`);
+    lines.push(`  if (!s) throw new Error("Shape " + ${JSON.stringify(s.id)} + " not found on slide ${slideIndex}");`);
+    if (s.fill) {
+      lines.push(`  s.fill.setSolidColor(${JSON.stringify(s.fill)});`);
+    }
+    if (s.font) {
+      lines.push(`  var tf = s.getTextFrameOrNullObject();`);
+      lines.push(`  await context.sync();`);
+      lines.push(`  if (!tf.isNullObject) {`);
+      lines.push(`    var tr = tf.textRange;`);
+      if (s.font.bold !== void 0) lines.push(`    tr.font.bold = ${s.font.bold};`);
+      if (s.font.italic !== void 0) lines.push(`    tr.font.italic = ${s.font.italic};`);
+      if (s.font.size !== void 0) lines.push(`    tr.font.size = ${s.font.size};`);
+      if (s.font.color !== void 0) lines.push(`    tr.font.color = ${JSON.stringify(s.font.color)};`);
+      if (s.font.name !== void 0) lines.push(`    tr.font.name = ${JSON.stringify(s.font.name)};`);
+      lines.push(`  }`);
+    }
+    return lines.join("\n");
+  }).join("\n");
+}
+function buildInsertOptions(formatting, targetSlideId) {
+  const optionsParts = [];
+  if (formatting) optionsParts.push(`formatting: ${JSON.stringify(formatting)}`);
+  if (targetSlideId) optionsParts.push(`targetSlideId: ${JSON.stringify(targetSlideId)}`);
+  return optionsParts.length > 0 ? `, { ${optionsParts.join(", ")} }` : "";
+}
+function globToRegExp(pattern) {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`, "i");
 }
 function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
   async function getLocalCopyPath(connPool, target) {
@@ -50705,7 +50765,7 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
         const target = pool2.resolveTarget(presentationId);
         const result = await pool2.sendCommand("executeCode", { code }, target.ws);
         if (namePattern || shapeType) {
-          const nameRegex = namePattern ? new RegExp(`^${namePattern.replace(/\*/g, ".*")}$`, "i") : null;
+          const nameRegex = namePattern ? globToRegExp(namePattern) : null;
           const typeLower = shapeType?.toLowerCase();
           for (const slide of result.slides) {
             slide.shapes = slide.shapes.filter((s) => {
@@ -50808,14 +50868,7 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
         `;
         const exported = await pool2.sendCommand("executeCode", { code: exportCode }, source.ws);
         const dest = pool2.resolveTarget(destinationPresentationId);
-        const optionsParts = [];
-        if (formatting) {
-          optionsParts.push(`formatting: "${formatting}"`);
-        }
-        if (targetSlideId) {
-          optionsParts.push(`targetSlideId: "${targetSlideId}"`);
-        }
-        const optionsArg = optionsParts.length > 0 ? `, { ${optionsParts.join(", ")} }` : "";
+        const optionsArg = buildInsertOptions(formatting, targetSlideId);
         const insertCode = `
           context.presentation.insertSlidesFromBase64("${exported.base64}"${optionsArg});
           await context.sync();
@@ -51895,29 +51948,7 @@ ${textParts.join("\n")}` : "\n(no text content)";
     async ({ slideIndex, shapes, presentationId }) => {
       try {
         const target = pool2.resolveTarget(presentationId);
-        const shapeOps = shapes.map((s) => {
-          const lines = [];
-          lines.push(`  var s = shapeMap["${s.id}"];`);
-          lines.push(
-            `  if (!s) throw new Error("Shape " + ${JSON.stringify(s.id)} + " not found on slide ${slideIndex}");`
-          );
-          if (s.fill) {
-            lines.push(`  s.fill.setSolidColor("${s.fill}");`);
-          }
-          if (s.font) {
-            lines.push(`  var tf = s.getTextFrameOrNullObject();`);
-            lines.push(`  await context.sync();`);
-            lines.push(`  if (!tf.isNullObject) {`);
-            lines.push(`    var tr = tf.textRange;`);
-            if (s.font.bold !== void 0) lines.push(`    tr.font.bold = ${s.font.bold};`);
-            if (s.font.italic !== void 0) lines.push(`    tr.font.italic = ${s.font.italic};`);
-            if (s.font.size !== void 0) lines.push(`    tr.font.size = ${s.font.size};`);
-            if (s.font.color !== void 0) lines.push(`    tr.font.color = "${s.font.color}";`);
-            if (s.font.name !== void 0) lines.push(`    tr.font.name = "${s.font.name}";`);
-            lines.push(`  }`);
-          }
-          return lines.join("\n");
-        }).join("\n");
+        const shapeOps = buildFormatShapeOps(shapes, slideIndex);
         const code = `
 var slides = context.presentation.slides;
 slides.load("items");
