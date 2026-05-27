@@ -12,7 +12,7 @@ Mistakes that would damage the project's reputation or create real security/lega
 
 ### Pitfall 1: Personal Information Baked Into Git History
 
-**What goes wrong:** The repo goes public with the author's home directory paths, email, and internal workflow tooling references preserved in every commit. Even if cleaned from current files, `git log -p` exposes them all. Someone runs `git log --all -p | grep /Users/` and finds full paths like `/Users/zarz/.claude/get-shit-done/workflows/...` and personal email `k.zarzycki@gmail.com` in every commit.
+**What goes wrong:** The repo goes public with the author's home directory paths, email, and internal workflow tooling references preserved in every commit. Even if cleaned from current files, `git log -p` exposes them all. Someone runs `git log --all -p | grep /Users/` and finds full paths like `/Users/<you>/.claude/get-shit-done/workflows/...` and personal email `k.zarzycki@gmail.com` in every commit.
 
 **Why it happens:** During personal development, hardcoded paths are convenient. Nobody thinks about git history until publish time.
 
@@ -22,14 +22,14 @@ Mistakes that would damage the project's reputation or create real security/lega
 - Email in commits is expected (and fine), but hardcoded paths in documentation/code commits look unprofessional
 
 **Specific instances found in this project:**
-- `CLAUDE.md` line 114: `"cwd": "/Users/zarz/dev/powerpoint-bridge"` (committed)
-- `.planning/` files: 20+ references to `/Users/zarz/` paths across planning documents
-- `.planning/phases/05-multi-session-support/05-RESEARCH.md`: contains `/Users/zarz/Library/Application Support/mkcert/rootCA.pem`
+- `CLAUDE.md` line 114: `"cwd": "/Users/<you>/dev/powerpoint-bridge"` (committed)
+- `.planning/` files: 20+ references to `/Users/<you>/` paths across planning documents
+- `.planning/phases/05-multi-session-support/05-RESEARCH.md`: contains `/Users/<you>/Library/Application Support/mkcert/rootCA.pem`
 - Git author in all commits: `Krzysztof Zarzycki <k.zarzycki@gmail.com>` (this is normal and fine for open source)
 
 **Prevention:**
 - **Decision: fresh repo vs. history rewrite.** For a ~30 commit project, starting a fresh repo with a single "initial commit" is simpler and cleaner than using `git-filter-repo`. The planning history has no value to external contributors.
-- If keeping history: use `git-filter-repo` to replace all `/Users/zarz/` with generic placeholders
+- If keeping history: use `git-filter-repo` to replace all `/Users/<you>/` with generic placeholders
 - Before publishing, grep the entire repo (including `.planning/` if kept) for personal paths
 - Replace hardcoded paths with `$PROJECT_ROOT` or relative paths in all docs
 
@@ -43,7 +43,7 @@ Mistakes that would damage the project's reputation or create real security/lega
 
 ### Pitfall 2: Exposing Internal Planning Artifacts
 
-**What goes wrong:** The `.planning/` directory (35+ files of GSD workflow artifacts -- milestone audits, phase research, plan documents, verification checklists, agent history) gets published. These are internal development scaffolding, not documentation. External users see agent configuration, execution plans with `@/Users/zarz/.claude/get-shit-done/` references, and "yolo mode" config -- none of which helps them use the tool.
+**What goes wrong:** The `.planning/` directory (35+ files of GSD workflow artifacts -- milestone audits, phase research, plan documents, verification checklists, agent history) gets published. These are internal development scaffolding, not documentation. External users see agent configuration, execution plans with `@/Users/<you>/.claude/get-shit-done/` references, and "yolo mode" config -- none of which helps them use the tool.
 
 **Why it happens:** The planning system is part of the working directory and tracked by git. It feels like "documentation" but is actually process artifacts.
 
