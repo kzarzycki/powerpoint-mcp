@@ -53,7 +53,7 @@ Then restart PowerPoint, open a presentation, and click the bridge add-in in the
 
 This project was inspired by the [Claude in PowerPoint](https://support.anthropic.com/en/articles/11360939-using-claude-in-powerpoint) add-in. The first time I tried it, I was amazed — it edits live, open decks via Office.js, and the results are far better than file-based pptx tools. But it only works inside the add-in, which means no access to CLAUDE.md, skills, or any other Claude Code features. PowerPoint MCP brings those same Office.js capabilities to Claude Code (and any MCP client) so you get live editing with the full power of your coding environment.
 
-> The project was originally named **powerpoint-bridge** and renamed to **powerpoint-mcp** in v0.5.0. Older planning docs under `.planning/` still use the former name. The "bridge server" component keeps its name — it bridges MCP and the Office.js add-in over WebSocket.
+> The project was originally named **powerpoint-bridge** and renamed to **powerpoint-mcp** in v0.5.0. The "bridge server" component keeps its name — it bridges MCP and the Office.js add-in over WebSocket.
 
 ## Architecture
 
@@ -143,7 +143,7 @@ PowerPoint MCP assumes a single-user, locally-trusted machine. Both network serv
 
 **`execute_officejs` runs arbitrary code** inside PowerPoint's Office.js runtime. This is by design — it gives the AI full access to the Office.js API. Only use this with MCP clients you trust.
 
-**Planned hardening.** Before binding to any non-loopback interface or shipping a remote-MCP deployment, the bridge needs a per-session handshake token, a WebSocket Origin allowlist, and an authenticated transport. See [`.planning/ROADMAP.md`](.planning/ROADMAP.md).
+**Planned hardening.** Before binding to any non-loopback interface or shipping a remote-MCP deployment, the bridge needs a per-session handshake token, a WebSocket Origin allowlist, and an authenticated transport.
 
 ## Troubleshooting
 
