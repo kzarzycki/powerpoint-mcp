@@ -1447,7 +1447,7 @@ export function registerTools(
             NS_P,
             NS_A,
             escapeXml,
-            serializeXml: (node: Document | Element) => serializeXml(node),
+            serializeXml,
             DOMParser,
           }
           try {
