@@ -51886,12 +51886,13 @@ function filenameSortedSlideFiles(zip) {
     return na - nb;
   });
 }
-async function orderedSlideFiles(zip, parser) {
+async function resolveOrderedSlidePaths(zip, parser) {
+  const p = parser ?? new import_xmldom.DOMParser();
   const presFile = zip.file("ppt/presentation.xml");
   const presRelsFile = zip.file("ppt/_rels/presentation.xml.rels");
-  if (!presFile || !presRelsFile) return filenameSortedSlideFiles(zip);
-  const presDoc = parser.parseFromString(await presFile.async("string"), "text/xml");
-  const presRelsDoc = parser.parseFromString(await presRelsFile.async("string"), "text/xml");
+  if (!presFile || !presRelsFile) return [];
+  const presDoc = p.parseFromString(await presFile.async("string"), "text/xml");
+  const presRelsDoc = p.parseFromString(await presRelsFile.async("string"), "text/xml");
   const rIdToTarget = /* @__PURE__ */ new Map();
   const rels = presRelsDoc.getElementsByTagNameNS(NS_RELS, "Relationship");
   for (let i = 0; i < rels.length; i++) {
@@ -51905,9 +51906,13 @@ async function orderedSlideFiles(zip, parser) {
     const rId = sldIds[idx].getAttributeNS(NS_R, "id");
     if (!rId) continue;
     const target = rIdToTarget.get(rId);
-    if (target) ordered.push(target);
+    if (target) ordered.push({ sldIdIndex: idx, slidePath: target });
   }
-  return ordered.length > 0 ? ordered : filenameSortedSlideFiles(zip);
+  return ordered;
+}
+async function orderedSlideFiles(zip, parser) {
+  const ordered = await resolveOrderedSlidePaths(zip, parser);
+  return ordered.length > 0 ? ordered.map((o) => o.slidePath) : filenameSortedSlideFiles(zip);
 }
 async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
   const zip = await import_jszip.default.loadAsync(zipBuffer);
@@ -52135,28 +52140,8 @@ function buildNotesSlideRels(slideFileName) {
 }
 async function resolveSlideToNotesMapping(zip) {
   const mapping = /* @__PURE__ */ new Map();
-  const presFile = zip.file("ppt/presentation.xml");
-  if (!presFile) return mapping;
-  const presXml = await presFile.async("string");
-  const presDoc = new import_xmldom2.DOMParser().parseFromString(presXml, "text/xml");
-  const presRelsFile = zip.file("ppt/_rels/presentation.xml.rels");
-  if (!presRelsFile) return mapping;
-  const presRelsXml = await presRelsFile.async("string");
-  const presRelsDoc = new import_xmldom2.DOMParser().parseFromString(presRelsXml, "text/xml");
-  const rIdToTarget = /* @__PURE__ */ new Map();
-  const rels = presRelsDoc.getElementsByTagNameNS(NS_RELS2, "Relationship");
-  for (let i = 0; i < rels.length; i++) {
-    const id = rels[i].getAttribute("Id");
-    const target = rels[i].getAttribute("Target");
-    if (id && target) rIdToTarget.set(id, target);
-  }
-  const sldIdLst = presDoc.getElementsByTagNameNS(NS_P2, "sldId");
-  for (let idx = 0; idx < sldIdLst.length; idx++) {
-    const rId = sldIdLst[idx].getAttributeNS(NS_R2, "id");
-    if (!rId) continue;
-    const target = rIdToTarget.get(rId);
-    if (!target) continue;
-    const slidePath = target.startsWith("ppt/") ? target : `ppt/${target}`;
+  const ordered = await resolveOrderedSlidePaths(zip);
+  for (const { sldIdIndex: idx, slidePath } of ordered) {
     const slideRelsPath = `${slidePath.replace("ppt/slides/", "ppt/slides/_rels/")}.rels`;
     const slideRelsFile = zip.file(slideRelsPath);
     let notesPath = null;

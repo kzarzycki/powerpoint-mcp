@@ -9,7 +9,7 @@
 
 import { DOMParser } from '@xmldom/xmldom'
 import type JSZip from 'jszip'
-import { escapeXml } from './xml-helpers.ts'
+import { escapeXml, resolveOrderedSlidePaths } from './xml-helpers.ts'
 
 export { escapeXml } from './xml-helpers.ts'
 
@@ -174,37 +174,10 @@ interface SlideNotesMapping {
 export async function resolveSlideToNotesMapping(zip: JSZip): Promise<Map<number, SlideNotesMapping>> {
   const mapping = new Map<number, SlideNotesMapping>()
 
-  // Parse presentation.xml to get slide ordering
-  const presFile = zip.file('ppt/presentation.xml')
-  if (!presFile) return mapping
-  const presXml = await presFile.async('string')
-  const presDoc = new DOMParser().parseFromString(presXml, 'text/xml')
+  // Slide ordering (sldIdLst + presentation rels) is resolved by the shared helper.
+  const ordered = await resolveOrderedSlidePaths(zip)
 
-  // Parse presentation.xml.rels to resolve rIds to slide file paths
-  const presRelsFile = zip.file('ppt/_rels/presentation.xml.rels')
-  if (!presRelsFile) return mapping
-  const presRelsXml = await presRelsFile.async('string')
-  const presRelsDoc = new DOMParser().parseFromString(presRelsXml, 'text/xml')
-
-  // Build rId → target map
-  const rIdToTarget = new Map<string, string>()
-  const rels = presRelsDoc.getElementsByTagNameNS(NS_RELS, 'Relationship')
-  for (let i = 0; i < rels.length; i++) {
-    const id = rels[i].getAttribute('Id')
-    const target = rels[i].getAttribute('Target')
-    if (id && target) rIdToTarget.set(id, target)
-  }
-
-  // Get ordered slide list from <p:sldIdLst>
-  const sldIdLst = presDoc.getElementsByTagNameNS(NS_P, 'sldId')
-  for (let idx = 0; idx < sldIdLst.length; idx++) {
-    const rId = sldIdLst[idx].getAttributeNS(NS_R, 'id')
-    if (!rId) continue
-    const target = rIdToTarget.get(rId)
-    if (!target) continue
-
-    const slidePath = target.startsWith('ppt/') ? target : `ppt/${target}`
-
+  for (const { sldIdIndex: idx, slidePath } of ordered) {
     // Check slide's rels for a notesSlide relationship
     const slideRelsPath = `${slidePath.replace('ppt/slides/', 'ppt/slides/_rels/')}.rels`
     const slideRelsFile = zip.file(slideRelsPath)

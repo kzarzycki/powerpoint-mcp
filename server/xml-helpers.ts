@@ -541,20 +541,33 @@ function filenameSortedSlideFiles(zip: JSZip): string[] {
     })
 }
 
+/** One slide in presentation display order, with its sldIdLst position. */
+export interface OrderedSlide {
+  /** Zero-based position within <p:sldIdLst>. */
+  sldIdIndex: number
+  /** Slide part path, always normalized to a `ppt/`-prefixed path. */
+  slidePath: string
+}
+
 /**
- * Resolve slide file paths in presentation display order via <p:sldIdLst> +
- * presentation.xml.rels. Falls back to filename order when presentation.xml or
- * its rels are absent. Mirrors resolveSlideToNotesMapping in notes-helpers.ts.
+ * Resolve slides in presentation display order via <p:sldIdLst> +
+ * presentation.xml.rels. Returns entries (with their sldIdLst position) only
+ * for rIds that resolve to a target. Empty when presentation.xml or its rels
+ * are absent — callers decide how to fall back.
+ *
+ * Shared by orderedSlideFiles (text extraction) and resolveSlideToNotesMapping
+ * (notes reads); both rely on identical slide ordering.
  */
-async function orderedSlideFiles(zip: JSZip, parser: DOMParser): Promise<string[]> {
+export async function resolveOrderedSlidePaths(zip: JSZip, parser?: DOMParser): Promise<OrderedSlide[]> {
+  const p = parser ?? new DOMParser()
   const presFile = zip.file('ppt/presentation.xml')
   const presRelsFile = zip.file('ppt/_rels/presentation.xml.rels')
-  if (!presFile || !presRelsFile) return filenameSortedSlideFiles(zip)
+  if (!presFile || !presRelsFile) return []
 
-  const presDoc = parser.parseFromString(await presFile.async('string'), 'text/xml')
-  const presRelsDoc = parser.parseFromString(await presRelsFile.async('string'), 'text/xml')
+  const presDoc = p.parseFromString(await presFile.async('string'), 'text/xml')
+  const presRelsDoc = p.parseFromString(await presRelsFile.async('string'), 'text/xml')
 
-  // Build rId → slide path map
+  // Build rId → slide path map (normalized to ppt/-prefixed)
   const rIdToTarget = new Map<string, string>()
   const rels = presRelsDoc.getElementsByTagNameNS(NS_RELS, 'Relationship')
   for (let i = 0; i < rels.length; i++) {
@@ -563,16 +576,24 @@ async function orderedSlideFiles(zip: JSZip, parser: DOMParser): Promise<string[
     if (id && target) rIdToTarget.set(id, target.startsWith('ppt/') ? target : `ppt/${target}`)
   }
 
-  const ordered: string[] = []
+  const ordered: OrderedSlide[] = []
   const sldIds = presDoc.getElementsByTagNameNS(NS_P, 'sldId')
   for (let idx = 0; idx < sldIds.length; idx++) {
     const rId = sldIds[idx]!.getAttributeNS(NS_R, 'id')
     if (!rId) continue
     const target = rIdToTarget.get(rId)
-    if (target) ordered.push(target)
+    if (target) ordered.push({ sldIdIndex: idx, slidePath: target })
   }
+  return ordered
+}
 
-  return ordered.length > 0 ? ordered : filenameSortedSlideFiles(zip)
+/**
+ * Resolve slide file paths in presentation display order. Falls back to
+ * filename order when presentation.xml / its rels are absent or yield nothing.
+ */
+async function orderedSlideFiles(zip: JSZip, parser: DOMParser): Promise<string[]> {
+  const ordered = await resolveOrderedSlidePaths(zip, parser)
+  return ordered.length > 0 ? ordered.map((o) => o.slidePath) : filenameSortedSlideFiles(zip)
 }
 
 /**
