@@ -29,6 +29,11 @@ describe('isNewer', () => {
   it('ignores pre-release tags', () => {
     expect(isNewer('1.0.1-beta.1', '1.0.0')).toBe(true)
   })
+
+  it('ignores build metadata when comparing', () => {
+    expect(isNewer('1.2.4+build', '1.2.3')).toBe(true)
+    expect(isNewer('1.2.3+build', '1.2.3')).toBe(false)
+  })
 })
 
 describe('checkForUpdate', () => {

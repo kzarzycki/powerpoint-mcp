@@ -80,7 +80,7 @@ export function registerMediaTools(
       const optionsStr = `{ ${optionsParts.join(', ')} }`
 
       // Step 3: Build the setSelectedDataAsync call
-      const insertCall = `Office.context.document.setSelectedDataAsync("${base64Data}", ${optionsStr}, function(result) {
+      const insertCall = `Office.context.document.setSelectedDataAsync(${JSON.stringify(base64Data)}, ${optionsStr}, function(result) {
         if (result.status === Office.AsyncResultStatus.Succeeded) {
           resolve({ success: true });
         } else {

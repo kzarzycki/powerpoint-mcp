@@ -52946,7 +52946,7 @@ async function searchIcons(query, top = 10, style) {
         svgUrl: buildSvgUrl(entry.snakeName, false)
       });
     }
-    return results.slice(0, top);
+    return results;
   }
   return scored.map(({ entry, score }) => ({
     id: nameToId(entry.name, isMono),
@@ -52966,7 +52966,16 @@ function buildSvgUrl(snakeName, isMono) {
 function recolorSvg(svg, color) {
   const styleTag = `<style>.icon-color{fill:${color}}</style>`;
   let result = svg.replace(/(<svg[^>]*>)/, `$1${styleTag}`);
-  result = result.replace(/(<(?:path|circle|rect|polygon|ellipse)[^>]*?)fill="[^"]*"/g, '$1class="icon-color"');
+  const SHAPE = "(?:path|circle|rect|polygon|ellipse)";
+  result = result.replace(
+    new RegExp(`(<${SHAPE}[^>]*?)class="([^"]*)"([^>]*?)\\s*fill="[^"]*"`, "g"),
+    '$1class="$2 icon-color"$3'
+  );
+  result = result.replace(
+    new RegExp(`(<${SHAPE}[^>]*?)fill="[^"]*"([^>]*?)\\s*class="([^"]*)"`, "g"),
+    '$1$2class="$3 icon-color"'
+  );
+  result = result.replace(new RegExp(`(<${SHAPE}(?![^>]*class=)[^>]*?)fill="[^"]*"`, "g"), '$1class="icon-color"');
   result = result.replace(
     /(<(?:path|circle|rect|polygon|ellipse)(?![^>]*class=)[^>]*?)(\/?>)/g,
     '$1 class="icon-color"$2'
@@ -53024,7 +53033,7 @@ function registerMediaTools(server, pool2, getSessionId, getActiveSessionCount) 
       if (width !== void 0) optionsParts.push(`imageWidth: ${width}`);
       if (height !== void 0) optionsParts.push(`imageHeight: ${height}`);
       const optionsStr = `{ ${optionsParts.join(", ")} }`;
-      const insertCall = `Office.context.document.setSelectedDataAsync("${base64Data}", ${optionsStr}, function(result) {
+      const insertCall = `Office.context.document.setSelectedDataAsync(${JSON.stringify(base64Data)}, ${optionsStr}, function(result) {
         if (result.status === Office.AsyncResultStatus.Succeeded) {
           resolve({ success: true });
         } else {
@@ -53101,7 +53110,7 @@ var REL_TYPE_NOTES_SLIDE = "http://schemas.openxmlformats.org/officeDocument/200
 var REL_TYPE_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide";
 function parseInlineFormatting(line) {
   const runs = [];
-  const pattern = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|([^*]+))/g;
+  const pattern = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|([^*]+|\*))/g;
   for (const match of line.matchAll(pattern)) {
     if (match[2]) {
       runs.push({ text: match[2], bold: true, italic: true });
@@ -54112,7 +54121,7 @@ async function checkForUpdate(options) {
   }
 }
 function isNewer(latest, current) {
-  const parse3 = (v) => v.replace(/^v/, "").split("-")[0].split(".").map(Number);
+  const parse3 = (v) => v.replace(/^v/, "").split(/[-+]/)[0].split(".").map(Number);
   const [lMajor = 0, lMinor = 0, lPatch = 0] = parse3(latest);
   const [cMajor = 0, cMinor = 0, cPatch = 0] = parse3(current);
   if (lMajor !== cMajor) return lMajor > cMajor;

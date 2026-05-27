@@ -33,7 +33,7 @@ interface TextRun {
 function parseInlineFormatting(line: string): TextRun[] {
   const runs: TextRun[] = []
   // Match bold+italic, bold, italic, or plain text
-  const pattern = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|([^*]+))/g
+  const pattern = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|([^*]+|\*))/g
   for (const match of line.matchAll(pattern)) {
     if (match[2]) {
       runs.push({ text: match[2], bold: true, italic: true })

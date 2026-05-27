@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildIndexFromManifest, nameToId, parseIconId, resetIndex, searchIcons } from './icons.ts'
+import { buildIndexFromManifest, nameToId, parseIconId, recolorSvg, resetIndex, searchIcons } from './icons.ts'
+
+function distinctIconIds(results: Array<{ id: string }>): Set<string> {
+  // Strip the trailing style suffix (_M for mono) so mono+filled of the same icon collapse.
+  return new Set(results.map((r) => r.id.replace(/_M$/, '')))
+}
 
 // Mock fs so loadStaticIndex() fails and we control the index via buildIndexFromManifest
 vi.mock('node:fs', () => ({
@@ -171,10 +176,11 @@ describe('icons', () => {
       }
     })
 
-    it('respects top limit', async () => {
+    it('respects top limit (distinct icons; up to 2 variant rows each in no-style search)', async () => {
       setupManifestFetch()
       const results = await searchIcons('a', 3)
-      expect(results.length).toBeLessThanOrEqual(3)
+      expect(distinctIconIds(results).size).toBeLessThanOrEqual(3)
+      expect(results.length).toBeLessThanOrEqual(6)
     })
 
     it('returns empty for no match', async () => {
@@ -204,6 +210,37 @@ describe('icons', () => {
       const results = await searchIcons('star', 1)
       expect(results.length).toBeGreaterThan(0)
       expect(mockFetch).toHaveBeenCalledTimes(1)
+    })
+
+    it('no-style search covers `top` distinct icons, not top/2', async () => {
+      setupManifestFetch()
+      // SAMPLE_MANIFEST has 10 distinct icons; "a" matches many of them.
+      const results = await searchIcons('a', 3)
+      expect(distinctIconIds(results).size).toBe(3)
+    })
+  })
+
+  describe('recolorSvg', () => {
+    it('merges icon-color into an existing class instead of duplicating', () => {
+      const svg = '<svg viewBox="0 0 24 24"><path class="foo" fill="#000"/></svg>'
+      const result = recolorSvg(svg, '#FF0000')
+      const classCount = (result.match(/\bclass=/g) || []).length
+      expect(classCount).toBe(1)
+      expect(result).toMatch(/class="foo icon-color"/)
+    })
+
+    it('replaces a bare fill attribute with the icon-color class', () => {
+      const svg = '<svg viewBox="0 0 24 24"><path fill="#000" d="M0 0"/></svg>'
+      const result = recolorSvg(svg, '#FF0000')
+      expect(result).toContain('class="icon-color"')
+      expect(result).not.toContain('fill="#000"')
+      expect(result).toContain('.icon-color{fill:#FF0000}')
+    })
+
+    it('adds the class to elements without a fill attribute', () => {
+      const svg = '<svg viewBox="0 0 24 24"><path d="M0 0"/></svg>'
+      const result = recolorSvg(svg, '#00FF00')
+      expect(result).toContain('class="icon-color"')
     })
   })
 })
