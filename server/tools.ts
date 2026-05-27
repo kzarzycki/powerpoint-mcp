@@ -9,6 +9,7 @@ import type { ConnectionPool } from './bridge.ts'
 import { buildChartRelationship, buildChartXml, buildGraphicFrame, resolveChartPosition } from './chart-builder.ts'
 import { recolorSvg, searchIcons } from './icons.ts'
 import { buildNotesInjection, readNotesFromDeck } from './notes-helpers.ts'
+import { errorMessage, withTool } from './tool-helpers.ts'
 import type { ThemeInfo } from './xml-helpers.ts'
 import {
   autoRegisterContentTypes,
@@ -274,7 +275,7 @@ export function registerTools(
   server.tool(
     'list_presentations',
     'Lists all PowerPoint presentations currently connected to the bridge server. Shows presentation IDs (file paths for saved files, generated IDs for unsaved) and connection status. Use this to find the presentationId to pass to other tools when multiple presentations are open.',
-    async () => {
+    withTool(async () => {
       const presentations = []
       for (const [id, conn] of pool.entries()) {
         presentations.push({
@@ -294,7 +295,7 @@ export function registerTools(
           },
         ],
       }
-    },
+    }),
   )
 
   // Helper: enumerate layout usage from existing slides via Office.js
@@ -340,9 +341,8 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ presentationId }) => {
-      try {
-        const code = `
+    withTool(async ({ presentationId }) => {
+      const code = `
           var p = context.presentation;
           var slides = p.slides;
           var ps = p.pageSetup;
@@ -362,30 +362,26 @@ export function registerTools(
           }
           return { slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
         `
-        const target = pool.resolveTarget(presentationId)
-        const result = await pool.sendCommand('executeCode', { code }, target.ws)
+      const target = pool.resolveTarget(presentationId)
+      const result = await pool.sendCommand('executeCode', { code }, target.ws)
 
-        // Extract theme (cached per presentation)
-        let theme = themeCache.get(target.presentationId)
-        if (!theme) {
-          try {
-            const exported = await exportSlide(pool, 0, target.ws)
-            theme = await extractThemeFromZip(exported.base64)
-            themeCache.set(target.presentationId, theme)
-          } catch {
-            // Theme extraction is best-effort — don't fail the whole call
-          }
+      // Extract theme (cached per presentation)
+      let theme = themeCache.get(target.presentationId)
+      if (!theme) {
+        try {
+          const exported = await exportSlide(pool, 0, target.ws)
+          theme = await extractThemeFromZip(exported.base64)
+          themeCache.set(target.presentationId, theme)
+        } catch {
+          // Theme extraction is best-effort — don't fail the whole call
         }
-
-        const output = { ...(result as Record<string, unknown>), ...(theme ? { theme } : {}) }
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const text = JSON.stringify(output) + (warning ?? '')
-        return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
       }
-    },
+
+      const output = { ...(result as Record<string, unknown>), ...(theme ? { theme } : {}) }
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const text = JSON.stringify(output) + (warning ?? '')
+      return { content: [{ type: 'text' as const, text }] }
+    }),
   )
 
   // --- Tool: inspect_layouts ---
@@ -410,7 +406,7 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ fields, usedOnly, presentationId }) => {
+    withTool(async ({ fields, usedOnly, presentationId }) => {
       // Parse fields spec: "index,name,placeholders(type,idx,name)" → { layout: Set, placeholder: Set }
       const DEFAULT_FIELDS = 'index,name,type,usedBySlides,placeholders(type,idx,name)'
       const fieldSpec = fields ?? DEFAULT_FIELDS
@@ -443,39 +439,34 @@ export function registerTools(
         return out
       }
 
-      try {
-        const target = pool.resolveTarget(presentationId)
+      const target = pool.resolveTarget(presentationId)
 
-        if (usedOnly) {
-          // Fast path: just Office.js enumeration
-          const layouts = await getLayoutUsage(pool, target.ws)
-          return { content: [{ type: 'text' as const, text: JSON.stringify({ layouts, usedOnly: true }) }] }
-        }
-
-        // Full path: read all layouts from OOXML via local file
-        const localPath = await getLocalCopyPath(pool, target)
-        const fileData = readFileSync(localPath)
-        const zip = await JSZip.loadAsync(fileData)
-        const layouts = await extractLayoutsFromZip(zip)
-
-        // Enrich with usedBySlides from Office.js (best-effort)
-        try {
-          const usage = await getLayoutUsage(pool, target.ws)
-          const usageByName = new Map(usage.map((u) => [u.name, u.usedBySlides]))
-          for (const layout of layouts) {
-            layout.usedBySlides = usageByName.get(layout.name) ?? []
-          }
-        } catch {
-          // If Office.js enumeration fails, return layouts without usage info
-        }
-
-        const filtered = layouts.map((l) => filterLayout(l as unknown as Record<string, unknown>))
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ layouts: filtered }) }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
+      if (usedOnly) {
+        // Fast path: just Office.js enumeration
+        const layouts = await getLayoutUsage(pool, target.ws)
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ layouts, usedOnly: true }) }] }
       }
-    },
+
+      // Full path: read all layouts from OOXML via local file
+      const localPath = await getLocalCopyPath(pool, target)
+      const fileData = readFileSync(localPath)
+      const zip = await JSZip.loadAsync(fileData)
+      const layouts = await extractLayoutsFromZip(zip)
+
+      // Enrich with usedBySlides from Office.js (best-effort)
+      try {
+        const usage = await getLayoutUsage(pool, target.ws)
+        const usageByName = new Map(usage.map((u) => [u.name, u.usedBySlides]))
+        for (const layout of layouts) {
+          layout.usedBySlides = usageByName.get(layout.name) ?? []
+        }
+      } catch {
+        // If Office.js enumeration fails, return layouts without usage info
+      }
+
+      const filtered = layouts.map((l) => filterLayout(l as unknown as Record<string, unknown>))
+      return { content: [{ type: 'text' as const, text: JSON.stringify({ layouts: filtered }) }] }
+    }),
   )
 
   // --- Tool: add_slide ---
@@ -507,67 +498,66 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ layoutName, position, placeholders, presentationId }) => {
-      try {
-        // Reject technical layouts
-        if (layoutName.startsWith('_')) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Error: Layout "${layoutName}" is a technical gallery separator, not a real layout. Use inspect_layouts to find available layouts.`,
-              },
-            ],
-            isError: true,
+    withTool(async ({ layoutName, position, placeholders, presentationId }) => {
+      // Reject technical layouts
+      if (layoutName.startsWith('_')) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Error: Layout "${layoutName}" is a technical gallery separator, not a real layout. Use inspect_layouts to find available layouts.`,
+            },
+          ],
+          isError: true,
+        }
+      }
+
+      const target = pool.resolveTarget(presentationId)
+
+      // Step 1: Get layout placeholder idx→name map from OOXML
+      const localPath = await getLocalCopyPath(pool, target)
+      const fileData = readFileSync(localPath)
+      const zip = await JSZip.loadAsync(fileData)
+      const layouts = await extractLayoutsFromZip(zip)
+      const targetLower = layoutName.toLowerCase()
+      const layoutInfo = layouts.find((l) => l.name.toLowerCase() === targetLower)
+      if (!layoutInfo) {
+        const available = layouts
+          .filter((l) => !l.name.startsWith('_'))
+          .map((l) => l.name)
+          .join(', ')
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Error: Layout "${layoutName}" not found. Available: ${available}`,
+            },
+          ],
+          isError: true,
+        }
+      }
+
+      // Build idx→name map from layout placeholders
+      const idxToName = new Map<string, string>()
+      for (const ph of layoutInfo.placeholders) {
+        if (ph.idx !== undefined && ph.name) {
+          idxToName.set(String(ph.idx), ph.name)
+        }
+      }
+
+      // Warn about unknown placeholder names in the input
+      const warnings: string[] = []
+      if (placeholders) {
+        const layoutNames = new Set(layoutInfo.placeholders.map((ph) => ph.name).filter(Boolean))
+        for (const key of Object.keys(placeholders)) {
+          if (!layoutNames.has(key)) {
+            warnings.push(`Placeholder "${key}" not found in layout "${layoutInfo.name}"`)
           }
         }
+      }
 
-        const target = pool.resolveTarget(presentationId)
-
-        // Step 1: Get layout placeholder idx→name map from OOXML
-        const localPath = await getLocalCopyPath(pool, target)
-        const fileData = readFileSync(localPath)
-        const zip = await JSZip.loadAsync(fileData)
-        const layouts = await extractLayoutsFromZip(zip)
-        const targetLower = layoutName.toLowerCase()
-        const layoutInfo = layouts.find((l) => l.name.toLowerCase() === targetLower)
-        if (!layoutInfo) {
-          const available = layouts
-            .filter((l) => !l.name.startsWith('_'))
-            .map((l) => l.name)
-            .join(', ')
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Error: Layout "${layoutName}" not found. Available: ${available}`,
-              },
-            ],
-            isError: true,
-          }
-        }
-
-        // Build idx→name map from layout placeholders
-        const idxToName = new Map<string, string>()
-        for (const ph of layoutInfo.placeholders) {
-          if (ph.idx !== undefined && ph.name) {
-            idxToName.set(String(ph.idx), ph.name)
-          }
-        }
-
-        // Warn about unknown placeholder names in the input
-        const warnings: string[] = []
-        if (placeholders) {
-          const layoutNames = new Set(layoutInfo.placeholders.map((ph) => ph.name).filter(Boolean))
-          for (const key of Object.keys(placeholders)) {
-            if (!layoutNames.has(key)) {
-              warnings.push(`Placeholder "${key}" not found in layout "${layoutInfo.name}"`)
-            }
-          }
-        }
-
-        // Step 2: Add slide via Office.js (find layout, add, moveTo)
-        const addCode = `
+      // Step 2: Add slide via Office.js (find layout, add, moveTo)
+      const addCode = `
           var masters = context.presentation.slideMasters;
           masters.load("items");
           await context.sync();
@@ -605,53 +595,53 @@ export function registerTools(
           }
           return { slideIndex: finalIndex, slideId: newSlide.id, slideCount: slides.items.length, layoutName: layout.name };
         `
-        const addResult = (await pool.sendCommand('executeCode', { code: addCode }, target.ws)) as {
-          slideIndex: number
-          slideId: string
-          slideCount: number
-          layoutName: string
+      const addResult = (await pool.sendCommand('executeCode', { code: addCode }, target.ws)) as {
+        slideIndex: number
+        slideId: string
+        slideCount: number
+        layoutName: string
+      }
+
+      // Step 3: Export slide XML to get shape id → ph idx mapping
+      const exported = await exportSlide(pool, addResult.slideIndex, target.ws)
+      const { xmlString } = await extractSlideXmlFromZip(exported.base64)
+      const doc = parseSlideXml(xmlString)
+
+      // Parse XML: for each shape with <p:ph idx="N">, record shape id → idx
+      const shapeIdToIdx = new Map<string, string>()
+      const spElements = doc.getElementsByTagNameNS(NS_P, 'sp')
+      for (let i = 0; i < spElements.length; i++) {
+        const sp = spElements[i]!
+        const nvSpPr = sp.getElementsByTagNameNS(NS_P, 'nvSpPr')[0]
+        if (!nvSpPr) continue
+        const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P, 'cNvPr')[0]
+        const nvPr = nvSpPr.getElementsByTagNameNS(NS_P, 'nvPr')[0]
+        if (!cNvPr || !nvPr) continue
+        const phEl = nvPr.getElementsByTagNameNS(NS_P, 'ph')[0]
+        if (!phEl) continue
+        const idx = phEl.getAttribute('idx')
+        const id = cNvPr.getAttribute('id')
+        if (idx && id) {
+          shapeIdToIdx.set(id, idx)
         }
+      }
 
-        // Step 3: Export slide XML to get shape id → ph idx mapping
-        const exported = await exportSlide(pool, addResult.slideIndex, target.ws)
-        const { xmlString } = await extractSlideXmlFromZip(exported.base64)
-        const doc = parseSlideXml(xmlString)
-
-        // Parse XML: for each shape with <p:ph idx="N">, record shape id → idx
-        const shapeIdToIdx = new Map<string, string>()
-        const spElements = doc.getElementsByTagNameNS(NS_P, 'sp')
-        for (let i = 0; i < spElements.length; i++) {
-          const sp = spElements[i]!
-          const nvSpPr = sp.getElementsByTagNameNS(NS_P, 'nvSpPr')[0]
-          if (!nvSpPr) continue
-          const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P, 'cNvPr')[0]
-          const nvPr = nvSpPr.getElementsByTagNameNS(NS_P, 'nvPr')[0]
-          if (!cNvPr || !nvPr) continue
-          const phEl = nvPr.getElementsByTagNameNS(NS_P, 'ph')[0]
-          if (!phEl) continue
-          const idx = phEl.getAttribute('idx')
-          const id = cNvPr.getAttribute('id')
-          if (idx && id) {
-            shapeIdToIdx.set(id, idx)
+      // Build rename map: Office.js shape id → layout semantic name
+      // Also build text map for placeholders to fill
+      const renameMap: Record<string, string> = {}
+      const textMap: Record<string, string> = {}
+      for (const [shapeId, idx] of shapeIdToIdx) {
+        const semanticName = idxToName.get(idx)
+        if (semanticName) {
+          renameMap[shapeId] = semanticName
+          if (placeholders?.[semanticName]) {
+            textMap[shapeId] = placeholders[semanticName]
           }
         }
+      }
 
-        // Build rename map: Office.js shape id → layout semantic name
-        // Also build text map for placeholders to fill
-        const renameMap: Record<string, string> = {}
-        const textMap: Record<string, string> = {}
-        for (const [shapeId, idx] of shapeIdToIdx) {
-          const semanticName = idxToName.get(idx)
-          if (semanticName) {
-            renameMap[shapeId] = semanticName
-            if (placeholders?.[semanticName]) {
-              textMap[shapeId] = placeholders[semanticName]
-            }
-          }
-        }
-
-        // Step 4: Rename shapes and set text via Office.js
-        const renameCode = `
+      // Step 4: Rename shapes and set text via Office.js
+      const renameCode = `
           var slides = context.presentation.slides;
           slides.load("items");
           await context.sync();
@@ -693,30 +683,26 @@ export function registerTools(
           }
           return placeholders;
         `
-        const phResult = (await pool.sendCommand('executeCode', { code: renameCode }, target.ws)) as Array<{
-          id: string
-          name: string
-          text: string
-        }>
+      const phResult = (await pool.sendCommand('executeCode', { code: renameCode }, target.ws)) as Array<{
+        id: string
+        name: string
+        text: string
+      }>
 
-        const result: Record<string, unknown> = {
-          slideIndex: addResult.slideIndex,
-          slideCount: addResult.slideCount,
-          layoutName: addResult.layoutName,
-          placeholders: phResult,
-        }
-        if (warnings.length > 0) {
-          result.warnings = warnings
-        }
-
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const text = JSON.stringify(result, null, 2) + (warning ?? '')
-        return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
+      const result: Record<string, unknown> = {
+        slideIndex: addResult.slideIndex,
+        slideCount: addResult.slideCount,
+        layoutName: addResult.layoutName,
+        placeholders: phResult,
       }
-    },
+      if (warnings.length > 0) {
+        result.warnings = warnings
+      }
+
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const text = JSON.stringify(result, null, 2) + (warning ?? '')
+      return { content: [{ type: 'text' as const, text }] }
+    }),
   )
 
   // --- Tool: inspect_slide ---
@@ -730,12 +716,11 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideRange, presentationId }) => {
-      try {
-        const indices = parseSlideRange(slideRange) ?? []
-        if (indices.length === 0) throw new Error('slideRange is required')
-        const indicesJs = JSON.stringify(indices)
-        const code = `
+    withTool(async ({ slideRange, presentationId }) => {
+      const indices = parseSlideRange(slideRange) ?? []
+      if (indices.length === 0) throw new Error('slideRange is required')
+      const indicesJs = JSON.stringify(indices)
+      const code = `
           var p = context.presentation;
           var slides = p.slides;
           var ps = p.pageSetup;
@@ -788,16 +773,12 @@ export function registerTools(
           }
           return { slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
         `
-        const target = pool.resolveTarget(presentationId)
-        const result = await pool.sendCommand('executeCode', { code }, target.ws)
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const text = JSON.stringify(result, null, 2) + (warning ?? '')
-        return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
-      }
-    },
+      const target = pool.resolveTarget(presentationId)
+      const result = await pool.sendCommand('executeCode', { code }, target.ws)
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const text = JSON.stringify(result, null, 2) + (warning ?? '')
+      return { content: [{ type: 'text' as const, text }] }
+    }),
   )
 
   // --- Tool: scan_slide ---
@@ -819,12 +800,11 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideRange, namePattern, shapeType, presentationId }) => {
-      try {
-        const indices = parseSlideRange(slideRange) ?? []
-        if (indices.length === 0) throw new Error('slideRange is required')
-        const indicesJs = JSON.stringify(indices)
-        const code = `
+    withTool(async ({ slideRange, namePattern, shapeType, presentationId }) => {
+      const indices = parseSlideRange(slideRange) ?? []
+      if (indices.length === 0) throw new Error('slideRange is required')
+      const indicesJs = JSON.stringify(indices)
+      const code = `
           var p = context.presentation;
           var slides = p.slides;
           var ps = p.pageSetup;
@@ -862,46 +842,42 @@ export function registerTools(
           }
           return { slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
         `
-        const target = pool.resolveTarget(presentationId)
-        const result = (await pool.sendCommand('executeCode', { code }, target.ws)) as {
-          slideWidth: number
-          slideHeight: number
-          slides: Array<{
-            slideIndex: number
-            slideId: string
-            shapes: Array<{
-              id: string
-              name: string
-              type: string
-              left: number
-              top: number
-              width: number
-              height: number
-            }>
+      const target = pool.resolveTarget(presentationId)
+      const result = (await pool.sendCommand('executeCode', { code }, target.ws)) as {
+        slideWidth: number
+        slideHeight: number
+        slides: Array<{
+          slideIndex: number
+          slideId: string
+          shapes: Array<{
+            id: string
+            name: string
+            type: string
+            left: number
+            top: number
+            width: number
+            height: number
           }>
-        }
-
-        // Apply optional filters (post-processing, no extra Office.js calls)
-        if (namePattern || shapeType) {
-          const nameRegex = namePattern ? globToRegExp(namePattern) : null
-          const typeLower = shapeType?.toLowerCase()
-          for (const slide of result.slides) {
-            slide.shapes = slide.shapes.filter((s) => {
-              if (nameRegex && !nameRegex.test(s.name)) return false
-              if (typeLower && s.type.toLowerCase() !== typeLower) return false
-              return true
-            })
-          }
-        }
-
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const text = JSON.stringify(result, null, 2) + (warning ?? '')
-        return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
+        }>
       }
-    },
+
+      // Apply optional filters (post-processing, no extra Office.js calls)
+      if (namePattern || shapeType) {
+        const nameRegex = namePattern ? globToRegExp(namePattern) : null
+        const typeLower = shapeType?.toLowerCase()
+        for (const slide of result.slides) {
+          slide.shapes = slide.shapes.filter((s) => {
+            if (nameRegex && !nameRegex.test(s.name)) return false
+            if (typeLower && s.type.toLowerCase() !== typeLower) return false
+            return true
+          })
+        }
+      }
+
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const text = JSON.stringify(result, null, 2) + (warning ?? '')
+      return { content: [{ type: 'text' as const, text }] }
+    }),
   )
 
   // --- Tool: screenshot_slide ---
@@ -931,16 +907,15 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideIndex, width, height, presentationId }) => {
-      try {
-        const imgWidth = width ?? 720
-        const optionsParts: string[] = [`width: ${imgWidth}`]
-        if (height !== undefined) {
-          optionsParts.push(`height: ${height}`)
-        }
-        const optionsStr = `{ ${optionsParts.join(', ')} }`
+    withTool(async ({ slideIndex, width, height, presentationId }) => {
+      const imgWidth = width ?? 720
+      const optionsParts: string[] = [`width: ${imgWidth}`]
+      if (height !== undefined) {
+        optionsParts.push(`height: ${height}`)
+      }
+      const optionsStr = `{ ${optionsParts.join(', ')} }`
 
-        const code = `
+      const code = `
           var slides = context.presentation.slides;
           slides.load("items");
           await context.sync();
@@ -952,37 +927,29 @@ export function registerTools(
           await context.sync();
           return { base64: result.value, slideIndex: ${slideIndex}, slideId: slide.id };
         `
-        const target = pool.resolveTarget(presentationId)
-        const result = (await pool.sendCommand('executeCode', { code }, target.ws)) as {
-          base64: string
-          slideIndex: number
-          slideId: string
-        }
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const description = `Slide ${result.slideIndex} (ID: ${result.slideId})${warning ?? ''}`
-
-        return {
-          content: [
-            {
-              type: 'image' as const,
-              data: result.base64,
-              mimeType: 'image/png',
-            },
-            {
-              type: 'text' as const,
-              text: description,
-            },
-          ],
-        }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        const hint =
-          message.includes('getImageAsBase64') || message.includes('not a function')
-            ? ' (This API requires PowerPoint 16.96+ with PowerPointApi 1.8 support)'
-            : ''
-        return { content: [{ type: 'text' as const, text: `Error: ${message}${hint}` }], isError: true }
+      const target = pool.resolveTarget(presentationId)
+      const result = (await pool.sendCommand('executeCode', { code }, target.ws)) as {
+        base64: string
+        slideIndex: number
+        slideId: string
       }
-    },
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const description = `Slide ${result.slideIndex} (ID: ${result.slideId})${warning ?? ''}`
+
+      return {
+        content: [
+          {
+            type: 'image' as const,
+            data: result.base64,
+            mimeType: 'image/png',
+          },
+          {
+            type: 'text' as const,
+            text: description,
+          },
+        ],
+      }
+    }),
   )
 
   // --- Tool: copy_slides ---
@@ -1004,8 +971,8 @@ export function registerTools(
         .optional()
         .describe('Formatting mode. Default: KeepSourceFormatting.'),
     },
-    async ({ sourceSlideIndex, sourcePresentationId, destinationPresentationId, targetSlideId, formatting }) => {
-      try {
+    withTool(
+      async ({ sourceSlideIndex, sourcePresentationId, destinationPresentationId, targetSlideId, formatting }) => {
         // Step 1: Export slide from source presentation
         const source = pool.resolveTarget(sourcePresentationId)
         const exportCode = `
@@ -1053,11 +1020,8 @@ export function registerTools(
             2,
           ) + (warning ?? '')
         return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
-      }
-    },
+      },
+    ),
   )
 
   // --- Tool: insert_image ---
@@ -1094,43 +1058,42 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ source, sourceType, slideIndex, left, top, width, height, color, presentationId }) => {
-      try {
-        // Step 1: Resolve image to base64
-        let base64Data: string
-        if (sourceType === 'file') {
-          base64Data = readFileSync(source).toString('base64')
-        } else if (sourceType === 'url') {
-          const resp = await fetch(source)
-          if (!resp.ok) {
-            throw new Error(`Failed to fetch image from URL: ${resp.status} ${resp.statusText}`)
-          }
-          const buf = await resp.arrayBuffer()
-          base64Data = Buffer.from(buf).toString('base64')
+    withTool(async ({ source, sourceType, slideIndex, left, top, width, height, color, presentationId }) => {
+      // Step 1: Resolve image to base64
+      let base64Data: string
+      if (sourceType === 'file') {
+        base64Data = readFileSync(source).toString('base64')
+      } else if (sourceType === 'url') {
+        const resp = await fetch(source)
+        if (!resp.ok) {
+          throw new Error(`Failed to fetch image from URL: ${resp.status} ${resp.statusText}`)
+        }
+        const buf = await resp.arrayBuffer()
+        base64Data = Buffer.from(buf).toString('base64')
+      } else {
+        base64Data = source
+      }
+
+      // Step 1b: Recolor SVG if color is provided
+      if (color) {
+        const svg = Buffer.from(base64Data, 'base64').toString('utf-8')
+        if (svg.trimStart().startsWith('<svg') || svg.trimStart().startsWith('<?xml')) {
+          base64Data = Buffer.from(recolorSvg(svg, color)).toString('base64')
         } else {
-          base64Data = source
+          throw new Error('color parameter only works with SVG images, but the source is not SVG')
         }
+      }
 
-        // Step 1b: Recolor SVG if color is provided
-        if (color) {
-          const svg = Buffer.from(base64Data, 'base64').toString('utf-8')
-          if (svg.trimStart().startsWith('<svg') || svg.trimStart().startsWith('<?xml')) {
-            base64Data = Buffer.from(recolorSvg(svg, color)).toString('base64')
-          } else {
-            throw new Error('color parameter only works with SVG images, but the source is not SVG')
-          }
-        }
+      // Step 2: Build options object string with only provided params
+      const optionsParts: string[] = ['coercionType: Office.CoercionType.Image']
+      if (left !== undefined) optionsParts.push(`imageLeft: ${left}`)
+      if (top !== undefined) optionsParts.push(`imageTop: ${top}`)
+      if (width !== undefined) optionsParts.push(`imageWidth: ${width}`)
+      if (height !== undefined) optionsParts.push(`imageHeight: ${height}`)
+      const optionsStr = `{ ${optionsParts.join(', ')} }`
 
-        // Step 2: Build options object string with only provided params
-        const optionsParts: string[] = ['coercionType: Office.CoercionType.Image']
-        if (left !== undefined) optionsParts.push(`imageLeft: ${left}`)
-        if (top !== undefined) optionsParts.push(`imageTop: ${top}`)
-        if (width !== undefined) optionsParts.push(`imageWidth: ${width}`)
-        if (height !== undefined) optionsParts.push(`imageHeight: ${height}`)
-        const optionsStr = `{ ${optionsParts.join(', ')} }`
-
-        // Step 3: Build the setSelectedDataAsync call
-        const insertCall = `Office.context.document.setSelectedDataAsync("${base64Data}", ${optionsStr}, function(result) {
+      // Step 3: Build the setSelectedDataAsync call
+      const insertCall = `Office.context.document.setSelectedDataAsync("${base64Data}", ${optionsStr}, function(result) {
         if (result.status === Office.AsyncResultStatus.Succeeded) {
           resolve({ success: true });
         } else {
@@ -1138,10 +1101,10 @@ export function registerTools(
         }
       });`
 
-        // Step 4: Wrap with goToByIdAsync if slideIndex is provided
-        let code: string
-        if (slideIndex !== undefined) {
-          code = `return new Promise(function(resolve, reject) {
+      // Step 4: Wrap with goToByIdAsync if slideIndex is provided
+      let code: string
+      if (slideIndex !== undefined) {
+        code = `return new Promise(function(resolve, reject) {
       Office.context.document.goToByIdAsync(${slideIndex + 1}, Office.GoToType.Index, function(navResult) {
         if (navResult.status !== Office.AsyncResultStatus.Succeeded) {
           reject(new Error("Navigation failed: " + navResult.error.message));
@@ -1150,22 +1113,18 @@ export function registerTools(
         ${insertCall}
       });
     });`
-        } else {
-          code = `return new Promise(function(resolve, reject) {
+      } else {
+        code = `return new Promise(function(resolve, reject) {
       ${insertCall}
     });`
-        }
-
-        const target = pool.resolveTarget(presentationId)
-        const result = await pool.sendCommand('executeCode', { code }, target.ws)
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? '')
-        return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
       }
-    },
+
+      const target = pool.resolveTarget(presentationId)
+      const result = await pool.sendCommand('executeCode', { code }, target.ws)
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? '')
+      return { content: [{ type: 'text' as const, text }] }
+    }),
   )
 
   // --- Tool: preview_deck ---
@@ -1193,16 +1152,15 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideRange, imageWidth, includeImages, presentationId }) => {
-      try {
-        const indices = parseSlideRange(slideRange)
-        const width = imageWidth ?? 480
-        const withImages = includeImages !== false
+    withTool(async ({ slideRange, imageWidth, includeImages, presentationId }) => {
+      const indices = parseSlideRange(slideRange)
+      const width = imageWidth ?? 480
+      const withImages = includeImages !== false
 
-        // Build the indices array literal for Office.js, or null for "all"
-        const indicesJs = indices ? JSON.stringify(indices) : 'null'
+      // Build the indices array literal for Office.js, or null for "all"
+      const indicesJs = indices ? JSON.stringify(indices) : 'null'
 
-        const code = `
+      const code = `
           var p = context.presentation;
           var slides = p.slides;
           var ps = p.pageSetup;
@@ -1252,45 +1210,41 @@ export function registerTools(
           }
           return { slideCount: slides.items.length, slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
         `
-        const target = pool.resolveTarget(presentationId)
-        const result = (await pool.sendCommand('executeCode', { code }, target.ws, 120_000)) as {
-          slideCount: number
-          slideWidth: number
-          slideHeight: number
-          slides: Array<{
-            index: number
-            id: string
-            shapeCount: number
-            shapes: Array<{ name: string; type: string; id: string; text?: string }>
-            imageBase64?: string
-          }>
-        }
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-
-        // Build interleaved content blocks
-        const content: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }> = []
-        const showing = result.slides.length
-        const header = `Deck overview: ${result.slideCount} total slides (${result.slideWidth} x ${result.slideHeight} pt), showing ${showing}${warning ?? ''}`
-        content.push({ type: 'text' as const, text: header })
-
-        for (const slide of result.slides) {
-          if (slide.imageBase64) {
-            content.push({ type: 'image' as const, data: slide.imageBase64, mimeType: 'image/png' })
-          }
-          const textParts = slide.shapes.filter((s) => s.text).map((s) => s.text!)
-          const shapeText = textParts.length > 0 ? `\n${textParts.join('\n')}` : '\n(no text content)'
-          content.push({
-            type: 'text' as const,
-            text: `--- Slide ${slide.index} | ${slide.shapeCount} shapes ---${shapeText}`,
-          })
-        }
-
-        return { content }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
+      const target = pool.resolveTarget(presentationId)
+      const result = (await pool.sendCommand('executeCode', { code }, target.ws, 120_000)) as {
+        slideCount: number
+        slideWidth: number
+        slideHeight: number
+        slides: Array<{
+          index: number
+          id: string
+          shapeCount: number
+          shapes: Array<{ name: string; type: string; id: string; text?: string }>
+          imageBase64?: string
+        }>
       }
-    },
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+
+      // Build interleaved content blocks
+      const content: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }> = []
+      const showing = result.slides.length
+      const header = `Deck overview: ${result.slideCount} total slides (${result.slideWidth} x ${result.slideHeight} pt), showing ${showing}${warning ?? ''}`
+      content.push({ type: 'text' as const, text: header })
+
+      for (const slide of result.slides) {
+        if (slide.imageBase64) {
+          content.push({ type: 'image' as const, data: slide.imageBase64, mimeType: 'image/png' })
+        }
+        const textParts = slide.shapes.filter((s) => s.text).map((s) => s.text!)
+        const shapeText = textParts.length > 0 ? `\n${textParts.join('\n')}` : '\n(no text content)'
+        content.push({
+          type: 'text' as const,
+          text: `--- Slide ${slide.index} | ${slide.shapeCount} shapes ---${shapeText}`,
+        })
+      }
+
+      return { content }
+    }),
   )
 
   // --- Tool: get_local_copy ---
@@ -1303,22 +1257,17 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ presentationId }) => {
-      try {
-        const target = pool.resolveTarget(presentationId)
-        const cachedBefore = localCopyCache.get(target.presentationId)?.localPath
-        const localPath = await getLocalCopyPath(pool, target)
-        const isLocal = target.filePath && !target.filePath.startsWith('http')
-        const cached = localCopyCache.get(target.presentationId)
-        const source = isLocal ? 'local' : cachedBefore === localPath ? 'cached' : 'exported'
-        const result: Record<string, unknown> = { localPath, source }
-        if (cached) result.revision = cached.revision
-        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
-      }
-    },
+    withTool(async ({ presentationId }) => {
+      const target = pool.resolveTarget(presentationId)
+      const cachedBefore = localCopyCache.get(target.presentationId)?.localPath
+      const localPath = await getLocalCopyPath(pool, target)
+      const isLocal = target.filePath && !target.filePath.startsWith('http')
+      const cached = localCopyCache.get(target.presentationId)
+      const source = isLocal ? 'local' : cachedBefore === localPath ? 'cached' : 'exported'
+      const result: Record<string, unknown> = { localPath, source }
+      if (cached) result.revision = cached.revision
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] }
+    }),
   )
 
   // --- Tool: read_shape_paragraphs ---
@@ -1333,23 +1282,18 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideIndex, shapeId, presentationId }) => {
-      try {
-        const target = pool.resolveTarget(presentationId)
-        const exported = await exportSlide(pool, slideIndex, target.ws)
-        const { xmlString } = await extractSlideXmlFromZip(exported.base64)
-        const doc = parseSlideXml(xmlString)
-        const shape = findShapeById(doc, shapeId)
-        if (!shape) {
-          throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`)
-        }
-        const paragraphXml = extractParagraphs(shape)
-        return { content: [{ type: 'text' as const, text: paragraphXml }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
+    withTool(async ({ slideIndex, shapeId, presentationId }) => {
+      const target = pool.resolveTarget(presentationId)
+      const exported = await exportSlide(pool, slideIndex, target.ws)
+      const { xmlString } = await extractSlideXmlFromZip(exported.base64)
+      const doc = parseSlideXml(xmlString)
+      const shape = findShapeById(doc, shapeId)
+      if (!shape) {
+        throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`)
       }
-    },
+      const paragraphXml = extractParagraphs(shape)
+      return { content: [{ type: 'text' as const, text: paragraphXml }] }
+    }),
   )
 
   // --- Tool: read_deck_text ---
@@ -1364,21 +1308,16 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideRange, includeNotes, presentationId }) => {
-      try {
-        const target = pool.resolveTarget(presentationId)
-        const localPath = await getLocalCopyPath(pool, target)
-        const zipBuffer = readFileSync(localPath)
-        const indices = slideRange ? parseSlideRange(slideRange) : null
-        const result = await extractDeckText(zipBuffer, indices, includeNotes === true)
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const text = JSON.stringify(result) + (warning ?? '')
-        return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
-      }
-    },
+    withTool(async ({ slideRange, includeNotes, presentationId }) => {
+      const target = pool.resolveTarget(presentationId)
+      const localPath = await getLocalCopyPath(pool, target)
+      const zipBuffer = readFileSync(localPath)
+      const indices = slideRange ? parseSlideRange(slideRange) : null
+      const result = await extractDeckText(zipBuffer, indices, includeNotes === true)
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const text = JSON.stringify(result) + (warning ?? '')
+      return { content: [{ type: 'text' as const, text }] }
+    }),
   )
 
   // --- Tool: edit_shape_paragraphs ---
@@ -1394,27 +1333,22 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideIndex, shapeId, xml, presentationId }) => {
-      try {
-        const target = pool.resolveTarget(presentationId)
-        const exported = await exportSlide(pool, slideIndex, target.ws)
-        const { zip, xmlString } = await extractSlideXmlFromZip(exported.base64)
-        const doc = parseSlideXml(xmlString)
-        const shape = findShapeById(doc, shapeId)
-        if (!shape) {
-          throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`)
-        }
-        replaceParagraphs(doc, shape, xml)
-        const modifiedBase64 = await updateSlideXmlInZip(zip, serializeXml(doc))
-        await reimportSlide(pool, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws)
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const text = JSON.stringify({ success: true }, null, 2) + (warning ?? '')
-        return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
+    withTool(async ({ slideIndex, shapeId, xml, presentationId }) => {
+      const target = pool.resolveTarget(presentationId)
+      const exported = await exportSlide(pool, slideIndex, target.ws)
+      const { zip, xmlString } = await extractSlideXmlFromZip(exported.base64)
+      const doc = parseSlideXml(xmlString)
+      const shape = findShapeById(doc, shapeId)
+      if (!shape) {
+        throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`)
       }
-    },
+      replaceParagraphs(doc, shape, xml)
+      const modifiedBase64 = await updateSlideXmlInZip(zip, serializeXml(doc))
+      await reimportSlide(pool, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws)
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const text = JSON.stringify({ success: true }, null, 2) + (warning ?? '')
+      return { content: [{ type: 'text' as const, text }] }
+    }),
   )
 
   // --- Tool: read_slide_xml ---
@@ -1432,27 +1366,22 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideIndex, shapeId, presentationId }) => {
-      try {
-        const target = pool.resolveTarget(presentationId)
-        const exported = await exportSlide(pool, slideIndex, target.ws)
-        const { xmlString } = await extractSlideXmlFromZip(exported.base64)
+    withTool(async ({ slideIndex, shapeId, presentationId }) => {
+      const target = pool.resolveTarget(presentationId)
+      const exported = await exportSlide(pool, slideIndex, target.ws)
+      const { xmlString } = await extractSlideXmlFromZip(exported.base64)
 
-        if (shapeId) {
-          const doc = parseSlideXml(xmlString)
-          const shape = findShapeById(doc, shapeId)
-          if (!shape) {
-            throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`)
-          }
-          return { content: [{ type: 'text' as const, text: serializeXml(shape) }] }
+      if (shapeId) {
+        const doc = parseSlideXml(xmlString)
+        const shape = findShapeById(doc, shapeId)
+        if (!shape) {
+          throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`)
         }
-
-        return { content: [{ type: 'text' as const, text: xmlString }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
+        return { content: [{ type: 'text' as const, text: serializeXml(shape) }] }
       }
-    },
+
+      return { content: [{ type: 'text' as const, text: xmlString }] }
+    }),
   )
 
   // --- Tool: edit_slide_xml ---
@@ -1488,7 +1417,7 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideIndex, xml, code, shapeId, presentationId }) => {
+    withTool(async ({ slideIndex, xml, code, shapeId, presentationId }) => {
       if ((!xml && !code) || (xml && code)) {
         return {
           content: [
@@ -1498,56 +1427,51 @@ export function registerTools(
         }
       }
 
-      try {
-        const target = pool.resolveTarget(presentationId)
-        const exported = await exportSlide(pool, slideIndex, target.ws)
-        const { zip, xmlString } = await extractSlideXmlFromZip(exported.base64)
+      const target = pool.resolveTarget(presentationId)
+      const exported = await exportSlide(pool, slideIndex, target.ws)
+      const { zip, xmlString } = await extractSlideXmlFromZip(exported.base64)
 
-        let finalXml: string
-        if (code) {
-          // Code mode: run agent-provided JS against the pre-parsed DOM
-          const doc = parseSlideXml(xmlString)
-          const sandbox = {
-            doc,
-            findShapeById: (id: string) => findShapeById(doc, id),
-            NS_P,
-            NS_A,
-            escapeXml,
-            serializeXml,
-            DOMParser,
-          }
-          try {
-            const keys = Object.keys(sandbox)
-            const values = Object.values(sandbox)
-            const fn = new Function(...keys, code)
-            fn(...values)
-          } catch (codeErr: unknown) {
-            const msg = codeErr instanceof Error ? codeErr.message : String(codeErr)
-            throw new Error(`Code execution error: ${msg}`)
-          }
-          finalXml = serializeXml(doc)
-        } else if (shapeId) {
-          const doc = parseSlideXml(xmlString)
-          const shape = findShapeById(doc, shapeId)
-          if (!shape) {
-            throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`)
-          }
-          replaceShape(doc, shape, xml!)
-          finalXml = serializeXml(doc)
-        } else {
-          finalXml = xml!
+      let finalXml: string
+      if (code) {
+        // Code mode: run agent-provided JS against the pre-parsed DOM
+        const doc = parseSlideXml(xmlString)
+        const sandbox = {
+          doc,
+          findShapeById: (id: string) => findShapeById(doc, id),
+          NS_P,
+          NS_A,
+          escapeXml,
+          serializeXml,
+          DOMParser,
         }
-
-        const modifiedBase64 = await updateSlideXmlInZip(zip, finalXml)
-        await reimportSlide(pool, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws)
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const text = JSON.stringify({ success: true }, null, 2) + (warning ?? '')
-        return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
+        try {
+          const keys = Object.keys(sandbox)
+          const values = Object.values(sandbox)
+          const fn = new Function(...keys, code)
+          fn(...values)
+        } catch (codeErr: unknown) {
+          const msg = codeErr instanceof Error ? codeErr.message : String(codeErr)
+          throw new Error(`Code execution error: ${msg}`)
+        }
+        finalXml = serializeXml(doc)
+      } else if (shapeId) {
+        const doc = parseSlideXml(xmlString)
+        const shape = findShapeById(doc, shapeId)
+        if (!shape) {
+          throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`)
+        }
+        replaceShape(doc, shape, xml!)
+        finalXml = serializeXml(doc)
+      } else {
+        finalXml = xml!
       }
-    },
+
+      const modifiedBase64 = await updateSlideXmlInZip(zip, finalXml)
+      await reimportSlide(pool, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws)
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const text = JSON.stringify({ success: true }, null, 2) + (warning ?? '')
+      return { content: [{ type: 'text' as const, text }] }
+    }),
   )
 
   // --- Tool: duplicate_slide ---
@@ -1569,12 +1493,11 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideIndex, insertAfter, presentationId }) => {
-      try {
-        const target = pool.resolveTarget(presentationId)
-        const insertPos = insertAfter ?? slideIndex
+    withTool(async ({ slideIndex, insertAfter, presentationId }) => {
+      const target = pool.resolveTarget(presentationId)
+      const insertPos = insertAfter ?? slideIndex
 
-        const code = `
+      const code = `
           var slides = context.presentation.slides;
           slides.load("items");
           await context.sync();
@@ -1597,15 +1520,11 @@ export function registerTools(
           await context.sync();
           return { duplicatedSlideIndex: ${slideIndex}, insertedAfter: ${insertPos}, slideCount: slides.items.length };
         `
-        const result = await pool.sendCommand('executeCode', { code }, target.ws)
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const text = JSON.stringify(result, null, 2) + (warning ?? '')
-        return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
-      }
-    },
+      const result = await pool.sendCommand('executeCode', { code }, target.ws)
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const text = JSON.stringify(result, null, 2) + (warning ?? '')
+      return { content: [{ type: 'text' as const, text }] }
+    }),
   )
 
   // --- Tool: verify_slides ---
@@ -1633,23 +1552,22 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideIndex, checks, presentationId }) => {
-      try {
-        const target = pool.resolveTarget(presentationId)
-        const enabledChecks = checks ?? [
-          'overlap',
-          'bounds',
-          'empty_text',
-          'tiny_shapes',
-          'unused_placeholder',
-          'layout_drift',
-          'background_cover',
-        ]
+    withTool(async ({ slideIndex, checks, presentationId }) => {
+      const target = pool.resolveTarget(presentationId)
+      const enabledChecks = checks ?? [
+        'overlap',
+        'bounds',
+        'empty_text',
+        'tiny_shapes',
+        'unused_placeholder',
+        'layout_drift',
+        'background_cover',
+      ]
 
-        const checkLayoutDrift = enabledChecks.includes('layout_drift')
+      const checkLayoutDrift = enabledChecks.includes('layout_drift')
 
-        // Reuse inspect_slide's shape-loading logic
-        const code = `
+      // Reuse inspect_slide's shape-loading logic
+      const code = `
           var slides = context.presentation.slides;
           slides.load("items");
           await context.sync();
@@ -1736,171 +1654,167 @@ export function registerTools(
           await context.sync();
           return { shapes: shapes, slideWidth: ps.slideWidth, slideHeight: ps.slideHeight };
         `
-        const slideData = (await pool.sendCommand('executeCode', { code }, target.ws)) as {
-          shapes: Array<{
-            name: string
-            id: string
-            left: number
-            top: number
-            width: number
-            height: number
-            text?: string
-            hasText?: boolean
-            isPlaceholder?: boolean
-            placeholderType?: string
-            layoutMatch?: { name: string; left: number; top: number; width: number; height: number }
-          }>
-          slideWidth: number
-          slideHeight: number
-        }
+      const slideData = (await pool.sendCommand('executeCode', { code }, target.ws)) as {
+        shapes: Array<{
+          name: string
+          id: string
+          left: number
+          top: number
+          width: number
+          height: number
+          text?: string
+          hasText?: boolean
+          isPlaceholder?: boolean
+          placeholderType?: string
+          layoutMatch?: { name: string; left: number; top: number; width: number; height: number }
+        }>
+        slideWidth: number
+        slideHeight: number
+      }
 
-        const issues: Array<{
-          type: string
-          severity: 'warning' | 'error'
-          shapeIds: string[]
-          description: string
-        }> = []
+      const issues: Array<{
+        type: string
+        severity: 'warning' | 'error'
+        shapeIds: string[]
+        description: string
+      }> = []
 
-        const { shapes, slideWidth, slideHeight } = slideData
+      const { shapes, slideWidth, slideHeight } = slideData
 
-        // Overlap check: AABB collision
-        if (enabledChecks.includes('overlap')) {
-          for (let i = 0; i < shapes.length; i++) {
-            for (let j = i + 1; j < shapes.length; j++) {
-              const a = shapes[i]!
-              const b = shapes[j]!
-              if (
-                a.left < b.left + b.width &&
-                a.left + a.width > b.left &&
-                a.top < b.top + b.height &&
-                a.top + a.height > b.top
-              ) {
-                issues.push({
-                  type: 'overlap',
-                  severity: 'warning',
-                  shapeIds: [a.id, b.id],
-                  description: `"${a.name}" and "${b.name}" overlap`,
-                })
-              }
-            }
-          }
-        }
-
-        // Bounds check: shape extends beyond slide
-        if (enabledChecks.includes('bounds')) {
-          for (const s of shapes) {
-            const outOfBounds: string[] = []
-            if (s.left < 0) outOfBounds.push('left of slide')
-            if (s.top < 0) outOfBounds.push('above slide')
-            if (s.left + s.width > slideWidth) outOfBounds.push('right of slide')
-            if (s.top + s.height > slideHeight) outOfBounds.push('below slide')
-            if (outOfBounds.length > 0) {
-              issues.push({
-                type: 'bounds',
-                severity: 'warning',
-                shapeIds: [s.id],
-                description: `"${s.name}" extends ${outOfBounds.join(', ')}`,
-              })
-            }
-          }
-        }
-
-        // Empty text check
-        if (enabledChecks.includes('empty_text')) {
-          for (const s of shapes) {
-            if (s.text !== undefined && s.text.trim() === '') {
-              issues.push({
-                type: 'empty_text',
-                severity: 'warning',
-                shapeIds: [s.id],
-                description: `"${s.name}" has an empty text frame`,
-              })
-            }
-          }
-        }
-
-        // Tiny shapes check
-        if (enabledChecks.includes('tiny_shapes')) {
-          for (const s of shapes) {
-            if (s.width < 10 || s.height < 10) {
-              issues.push({
-                type: 'tiny_shapes',
-                severity: 'warning',
-                shapeIds: [s.id],
-                description: `"${s.name}" is very small (${s.width.toFixed(1)} x ${s.height.toFixed(1)} pt)`,
-              })
-            }
-          }
-        }
-
-        // Unused placeholder check: placeholder shapes with no text content
-        if (enabledChecks.includes('unused_placeholder')) {
-          for (const s of shapes) {
-            if (s.isPlaceholder && !s.hasText) {
-              issues.push({
-                type: 'unused_placeholder',
-                severity: 'warning',
-                shapeIds: [s.id],
-                description: `"${s.name}" is an unused placeholder — delete it or fill it with content`,
-              })
-            }
-          }
-        }
-
-        // Layout drift check: placeholder position vs layout default
-        if (checkLayoutDrift) {
-          const DRIFT_THRESHOLD = 2 // points
-          for (const s of shapes) {
-            if (!s.isPlaceholder || !s.layoutMatch) continue
-            const lm = s.layoutMatch
-            const drifts: string[] = []
-            if (Math.abs(s.left - lm.left) > DRIFT_THRESHOLD) drifts.push(`left: ${s.left} vs layout ${lm.left}`)
-            if (Math.abs(s.top - lm.top) > DRIFT_THRESHOLD) drifts.push(`top: ${s.top} vs layout ${lm.top}`)
-            if (Math.abs(s.width - lm.width) > DRIFT_THRESHOLD) drifts.push(`width: ${s.width} vs layout ${lm.width}`)
-            if (Math.abs(s.height - lm.height) > DRIFT_THRESHOLD)
-              drifts.push(`height: ${s.height} vs layout ${lm.height}`)
-            if (drifts.length > 0) {
-              issues.push({
-                type: 'layout_drift',
-                severity: 'warning',
-                shapeIds: [s.id],
-                description: `"${s.name}" drifted from layout: ${drifts.join(', ')}`,
-              })
-            }
-          }
-        }
-
-        // Background cover check: non-placeholder shapes covering most of the slide
-        if (enabledChecks.includes('background_cover')) {
-          const dimThreshold = 0.85
-          const areaThreshold = 0.9
-          const slideArea = slideWidth * slideHeight
-          for (const s of shapes) {
-            if (s.isPlaceholder) continue
-            const widthRatio = s.width / slideWidth
-            const heightRatio = s.height / slideHeight
+      // Overlap check: AABB collision
+      if (enabledChecks.includes('overlap')) {
+        for (let i = 0; i < shapes.length; i++) {
+          for (let j = i + 1; j < shapes.length; j++) {
+            const a = shapes[i]!
+            const b = shapes[j]!
             if (
-              widthRatio >= dimThreshold &&
-              heightRatio >= dimThreshold &&
-              s.width * s.height >= slideArea * areaThreshold
+              a.left < b.left + b.width &&
+              a.left + a.width > b.left &&
+              a.top < b.top + b.height &&
+              a.top + a.height > b.top
             ) {
               issues.push({
-                type: 'background_cover',
-                severity: 'error',
-                shapeIds: [s.id],
-                description: `"${s.name}" covers ${(widthRatio * 100).toFixed(0)}% x ${(heightRatio * 100).toFixed(0)}% of the slide — this destroys the layout background, logo, and design system. Delete this shape and use the layout's background instead.`,
+                type: 'overlap',
+                severity: 'warning',
+                shapeIds: [a.id, b.id],
+                description: `"${a.name}" and "${b.name}" overlap`,
               })
             }
           }
         }
-
-        const result = { slideIndex, shapeCount: shapes.length, issueCount: issues.length, issues }
-        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
       }
-    },
+
+      // Bounds check: shape extends beyond slide
+      if (enabledChecks.includes('bounds')) {
+        for (const s of shapes) {
+          const outOfBounds: string[] = []
+          if (s.left < 0) outOfBounds.push('left of slide')
+          if (s.top < 0) outOfBounds.push('above slide')
+          if (s.left + s.width > slideWidth) outOfBounds.push('right of slide')
+          if (s.top + s.height > slideHeight) outOfBounds.push('below slide')
+          if (outOfBounds.length > 0) {
+            issues.push({
+              type: 'bounds',
+              severity: 'warning',
+              shapeIds: [s.id],
+              description: `"${s.name}" extends ${outOfBounds.join(', ')}`,
+            })
+          }
+        }
+      }
+
+      // Empty text check
+      if (enabledChecks.includes('empty_text')) {
+        for (const s of shapes) {
+          if (s.text !== undefined && s.text.trim() === '') {
+            issues.push({
+              type: 'empty_text',
+              severity: 'warning',
+              shapeIds: [s.id],
+              description: `"${s.name}" has an empty text frame`,
+            })
+          }
+        }
+      }
+
+      // Tiny shapes check
+      if (enabledChecks.includes('tiny_shapes')) {
+        for (const s of shapes) {
+          if (s.width < 10 || s.height < 10) {
+            issues.push({
+              type: 'tiny_shapes',
+              severity: 'warning',
+              shapeIds: [s.id],
+              description: `"${s.name}" is very small (${s.width.toFixed(1)} x ${s.height.toFixed(1)} pt)`,
+            })
+          }
+        }
+      }
+
+      // Unused placeholder check: placeholder shapes with no text content
+      if (enabledChecks.includes('unused_placeholder')) {
+        for (const s of shapes) {
+          if (s.isPlaceholder && !s.hasText) {
+            issues.push({
+              type: 'unused_placeholder',
+              severity: 'warning',
+              shapeIds: [s.id],
+              description: `"${s.name}" is an unused placeholder — delete it or fill it with content`,
+            })
+          }
+        }
+      }
+
+      // Layout drift check: placeholder position vs layout default
+      if (checkLayoutDrift) {
+        const DRIFT_THRESHOLD = 2 // points
+        for (const s of shapes) {
+          if (!s.isPlaceholder || !s.layoutMatch) continue
+          const lm = s.layoutMatch
+          const drifts: string[] = []
+          if (Math.abs(s.left - lm.left) > DRIFT_THRESHOLD) drifts.push(`left: ${s.left} vs layout ${lm.left}`)
+          if (Math.abs(s.top - lm.top) > DRIFT_THRESHOLD) drifts.push(`top: ${s.top} vs layout ${lm.top}`)
+          if (Math.abs(s.width - lm.width) > DRIFT_THRESHOLD) drifts.push(`width: ${s.width} vs layout ${lm.width}`)
+          if (Math.abs(s.height - lm.height) > DRIFT_THRESHOLD)
+            drifts.push(`height: ${s.height} vs layout ${lm.height}`)
+          if (drifts.length > 0) {
+            issues.push({
+              type: 'layout_drift',
+              severity: 'warning',
+              shapeIds: [s.id],
+              description: `"${s.name}" drifted from layout: ${drifts.join(', ')}`,
+            })
+          }
+        }
+      }
+
+      // Background cover check: non-placeholder shapes covering most of the slide
+      if (enabledChecks.includes('background_cover')) {
+        const dimThreshold = 0.85
+        const areaThreshold = 0.9
+        const slideArea = slideWidth * slideHeight
+        for (const s of shapes) {
+          if (s.isPlaceholder) continue
+          const widthRatio = s.width / slideWidth
+          const heightRatio = s.height / slideHeight
+          if (
+            widthRatio >= dimThreshold &&
+            heightRatio >= dimThreshold &&
+            s.width * s.height >= slideArea * areaThreshold
+          ) {
+            issues.push({
+              type: 'background_cover',
+              severity: 'error',
+              shapeIds: [s.id],
+              description: `"${s.name}" covers ${(widthRatio * 100).toFixed(0)}% x ${(heightRatio * 100).toFixed(0)}% of the slide — this destroys the layout background, logo, and design system. Delete this shape and use the layout's background instead.`,
+            })
+          }
+        }
+      }
+
+      const result = { slideIndex, shapeCount: shapes.length, issueCount: issues.length, issues }
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] }
+    }),
   )
 
   // --- Tool: read_slide_zip ---
@@ -1920,19 +1834,14 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideIndex, paths, presentationId }) => {
-      try {
-        const target = pool.resolveTarget(presentationId)
-        const exported = await exportSlide(pool, slideIndex, target.ws)
-        const { zip, files } = await extractZipFiles(exported.base64, paths)
-        const allPaths = listZipPaths(zip)
-        const result = { zipContents: files, allPaths }
-        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
-      }
-    },
+    withTool(async ({ slideIndex, paths, presentationId }) => {
+      const target = pool.resolveTarget(presentationId)
+      const exported = await exportSlide(pool, slideIndex, target.ws)
+      const { zip, files } = await extractZipFiles(exported.base64, paths)
+      const allPaths = listZipPaths(zip)
+      const result = { zipContents: files, allPaths }
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] }
+    }),
   )
 
   // --- Tool: edit_slide_zip ---
@@ -1951,39 +1860,34 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideIndex, files, presentationId }) => {
-      try {
-        const target = pool.resolveTarget(presentationId)
-        const exported = await exportSlide(pool, slideIndex, target.ws)
-        const { zip } = await extractZipFiles(exported.base64)
+    withTool(async ({ slideIndex, files, presentationId }) => {
+      const target = pool.resolveTarget(presentationId)
+      const exported = await exportSlide(pool, slideIndex, target.ws)
+      const { zip } = await extractZipFiles(exported.base64)
 
-        // Detect new files (not already in zip) for Content_Types auto-registration
-        const existingPaths = new Set(listZipPaths(zip))
-        const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p))
+      // Detect new files (not already in zip) for Content_Types auto-registration
+      const existingPaths = new Set(listZipPaths(zip))
+      const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p))
 
-        // Apply user-provided file changes first (explicit takes precedence)
-        const modifiedBase64 = await updateZipFiles(zip, files)
+      // Apply user-provided file changes first (explicit takes precedence)
+      const modifiedBase64 = await updateZipFiles(zip, files)
 
-        // Auto-register Content_Types for new chart files (if not already handled by user)
-        if (newPaths.length > 0 && !files['[Content_Types].xml']) {
-          const { zip: updatedZip } = await extractZipFiles(modifiedBase64)
-          await autoRegisterContentTypes(updatedZip, newPaths)
-          const finalBase64 = await updatedZip.generateAsync({ type: 'base64' })
-          await reimportSlide(pool, finalBase64, exported.slideId, exported.prevSlideId, target.ws)
-        } else {
-          await reimportSlide(pool, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws)
-        }
-
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const text =
-          JSON.stringify({ success: true, filesUpdated: Object.keys(files).length, newFiles: newPaths }, null, 2) +
-          (warning ?? '')
-        return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
+      // Auto-register Content_Types for new chart files (if not already handled by user)
+      if (newPaths.length > 0 && !files['[Content_Types].xml']) {
+        const { zip: updatedZip } = await extractZipFiles(modifiedBase64)
+        await autoRegisterContentTypes(updatedZip, newPaths)
+        const finalBase64 = await updatedZip.generateAsync({ type: 'base64' })
+        await reimportSlide(pool, finalBase64, exported.slideId, exported.prevSlideId, target.ws)
+      } else {
+        await reimportSlide(pool, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws)
       }
-    },
+
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const text =
+        JSON.stringify({ success: true, filesUpdated: Object.keys(files).length, newFiles: newPaths }, null, 2) +
+        (warning ?? '')
+      return { content: [{ type: 'text' as const, text }] }
+    }),
   )
 
   // --- Tool: edit_slide_chart ---
@@ -2030,98 +1934,93 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideIndex, chartType, title, categories, series, position, options, presentationId }) => {
-      try {
-        const target = pool.resolveTarget(presentationId)
+    withTool(async ({ slideIndex, chartType, title, categories, series, position, options, presentationId }) => {
+      const target = pool.resolveTarget(presentationId)
 
-        // 1. Export the slide
-        const exported = await exportSlide(pool, slideIndex, target.ws)
-        const { zip } = await extractZipFiles(exported.base64)
+      // 1. Export the slide
+      const exported = await exportSlide(pool, slideIndex, target.ws)
+      const { zip } = await extractZipFiles(exported.base64)
 
-        // 2. Determine next chart number (scan existing ppt/charts/ in zip)
-        const existingPaths = listZipPaths(zip)
-        const chartPaths = existingPaths.filter((p) => p.startsWith('ppt/charts/chart') && p.endsWith('.xml'))
-        const chartNums = chartPaths.map((p) => {
-          const m = p.match(/chart(\d+)\.xml$/)
-          return m ? Number(m[1]) : 0
-        })
-        const nextChartNum = chartNums.length > 0 ? Math.max(...chartNums) + 1 : 1
-        const chartFileName = `chart${nextChartNum}.xml`
-        const chartZipPath = `ppt/charts/${chartFileName}`
+      // 2. Determine next chart number (scan existing ppt/charts/ in zip)
+      const existingPaths = listZipPaths(zip)
+      const chartPaths = existingPaths.filter((p) => p.startsWith('ppt/charts/chart') && p.endsWith('.xml'))
+      const chartNums = chartPaths.map((p) => {
+        const m = p.match(/chart(\d+)\.xml$/)
+        return m ? Number(m[1]) : 0
+      })
+      const nextChartNum = chartNums.length > 0 ? Math.max(...chartNums) + 1 : 1
+      const chartFileName = `chart${nextChartNum}.xml`
+      const chartZipPath = `ppt/charts/${chartFileName}`
 
-        // 3. Determine next rId from slide rels
-        const relsPath = 'ppt/slides/_rels/slide1.xml.rels'
-        const relsContent = zip.file(relsPath)
-          ? await zip.file(relsPath)!.async('string')
-          : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>'
-        const rIdMatches = [...relsContent.matchAll(/Id="rId(\d+)"/g)]
-        const rIdNums = rIdMatches.map((m) => Number(m[1]))
-        const nextRIdNum = rIdNums.length > 0 ? Math.max(...rIdNums) + 1 : 1
-        const rId = `rId${nextRIdNum}`
+      // 3. Determine next rId from slide rels
+      const relsPath = 'ppt/slides/_rels/slide1.xml.rels'
+      const relsContent = zip.file(relsPath)
+        ? await zip.file(relsPath)!.async('string')
+        : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>'
+      const rIdMatches = [...relsContent.matchAll(/Id="rId(\d+)"/g)]
+      const rIdNums = rIdMatches.map((m) => Number(m[1]))
+      const nextRIdNum = rIdNums.length > 0 ? Math.max(...rIdNums) + 1 : 1
+      const rId = `rId${nextRIdNum}`
 
-        // 4. Generate chart XML
-        const chartXml = buildChartXml(chartType, title, categories, series, options)
+      // 4. Generate chart XML
+      const chartXml = buildChartXml(chartType, title, categories, series, options)
 
-        // 5. Generate graphic frame and inject into slide XML
-        const slideXmlPath = 'ppt/slides/slide1.xml'
-        const slideXml = await zip.file(slideXmlPath)!.async('string')
-        const emuPos = resolveChartPosition(position)
+      // 5. Generate graphic frame and inject into slide XML
+      const slideXmlPath = 'ppt/slides/slide1.xml'
+      const slideXml = await zip.file(slideXmlPath)!.async('string')
+      const emuPos = resolveChartPosition(position)
 
-        // Find the highest shape ID in the slide to avoid conflicts
-        const shapeIdMatches = [...slideXml.matchAll(/id="(\d+)"/g)]
-        const shapeIds = shapeIdMatches.map((m) => Number(m[1]))
-        const nextShapeId = shapeIds.length > 0 ? Math.max(...shapeIds) + 1 : 100
-        const chartName = `Chart ${nextChartNum}`
+      // Find the highest shape ID in the slide to avoid conflicts
+      const shapeIdMatches = [...slideXml.matchAll(/id="(\d+)"/g)]
+      const shapeIds = shapeIdMatches.map((m) => Number(m[1]))
+      const nextShapeId = shapeIds.length > 0 ? Math.max(...shapeIds) + 1 : 100
+      const chartName = `Chart ${nextChartNum}`
 
-        const graphicFrame = buildGraphicFrame(rId, emuPos, chartName, nextShapeId)
+      const graphicFrame = buildGraphicFrame(rId, emuPos, chartName, nextShapeId)
 
-        // Inject graphic frame before </p:spTree>
-        const modifiedSlideXml = slideXml.replace('</p:spTree>', `${graphicFrame}</p:spTree>`)
+      // Inject graphic frame before </p:spTree>
+      const modifiedSlideXml = slideXml.replace('</p:spTree>', `${graphicFrame}</p:spTree>`)
 
-        // 6. Add chart relationship to rels
-        const relEntry = buildChartRelationship(rId, `../charts/${chartFileName}`)
-        const modifiedRels = relsContent.replace('</Relationships>', `${relEntry}</Relationships>`)
+      // 6. Add chart relationship to rels
+      const relEntry = buildChartRelationship(rId, `../charts/${chartFileName}`)
+      const modifiedRels = relsContent.replace('</Relationships>', `${relEntry}</Relationships>`)
 
-        // 7. Write all files and reimport
-        const files: Record<string, string> = {
-          [slideXmlPath]: modifiedSlideXml,
-          [chartZipPath]: chartXml,
-          [relsPath]: modifiedRels,
-        }
-
-        const newPaths = Object.keys(files).filter((p) => !new Set(existingPaths).has(p))
-        const modifiedBase64 = await updateZipFiles(zip, files)
-
-        // Auto-register Content_Types for the new chart file
-        if (newPaths.length > 0) {
-          const { zip: updatedZip } = await extractZipFiles(modifiedBase64)
-          await autoRegisterContentTypes(updatedZip, newPaths)
-          const finalBase64 = await updatedZip.generateAsync({ type: 'base64' })
-          await reimportSlide(pool, finalBase64, exported.slideId, exported.prevSlideId, target.ws)
-        } else {
-          await reimportSlide(pool, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws)
-        }
-
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const text =
-          JSON.stringify(
-            {
-              success: true,
-              chartType,
-              title,
-              seriesCount: series.length,
-              categoryCount: categories.length,
-              chartFile: chartZipPath,
-            },
-            null,
-            2,
-          ) + (warning ?? '')
-        return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
+      // 7. Write all files and reimport
+      const files: Record<string, string> = {
+        [slideXmlPath]: modifiedSlideXml,
+        [chartZipPath]: chartXml,
+        [relsPath]: modifiedRels,
       }
-    },
+
+      const newPaths = Object.keys(files).filter((p) => !new Set(existingPaths).has(p))
+      const modifiedBase64 = await updateZipFiles(zip, files)
+
+      // Auto-register Content_Types for the new chart file
+      if (newPaths.length > 0) {
+        const { zip: updatedZip } = await extractZipFiles(modifiedBase64)
+        await autoRegisterContentTypes(updatedZip, newPaths)
+        const finalBase64 = await updatedZip.generateAsync({ type: 'base64' })
+        await reimportSlide(pool, finalBase64, exported.slideId, exported.prevSlideId, target.ws)
+      } else {
+        await reimportSlide(pool, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws)
+      }
+
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const text =
+        JSON.stringify(
+          {
+            success: true,
+            chartType,
+            title,
+            seriesCount: series.length,
+            categoryCount: categories.length,
+            chartFile: chartZipPath,
+          },
+          null,
+          2,
+        ) + (warning ?? '')
+      return { content: [{ type: 'text' as const, text }] }
+    }),
   )
 
   // --- Tool: search_text ---
@@ -2151,8 +2050,8 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ query, slideRange, caseSensitive, regex, context: contextLevel, includeNotes, presentationId }) => {
-      try {
+    withTool(
+      async ({ query, slideRange, caseSensitive, regex, context: contextLevel, includeNotes, presentationId }) => {
         const cs = caseSensitive === true
         const useRegex = regex === true
         const ctxLevel = contextLevel ?? 'shape'
@@ -2348,11 +2247,8 @@ export function registerTools(
         const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
         const text = JSON.stringify(result, null, 2) + (warning ?? '')
         return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
-      }
-    },
+      },
+    ),
   )
 
   // --- Tool: format_shapes ---
@@ -2384,14 +2280,13 @@ export function registerTools(
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideIndex, shapes, presentationId }) => {
-      try {
-        const target = pool.resolveTarget(presentationId)
+    withTool(async ({ slideIndex, shapes, presentationId }) => {
+      const target = pool.resolveTarget(presentationId)
 
-        // Build Office.js code that applies formatting to each shape
-        const shapeOps = buildFormatShapeOps(shapes, slideIndex)
+      // Build Office.js code that applies formatting to each shape
+      const shapeOps = buildFormatShapeOps(shapes, slideIndex)
 
-        const code = `
+      const code = `
 var slides = context.presentation.slides;
 slides.load("items");
 await context.sync();
@@ -2406,15 +2301,11 @@ ${shapeOps}
 await context.sync();
 return { success: true, shapesFormatted: ${shapes.length} };`
 
-        const result = await pool.sendCommand('executeCode', { code }, target.ws)
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? '')
-        return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
-      }
-    },
+      const result = await pool.sendCommand('executeCode', { code }, target.ws)
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? '')
+      return { content: [{ type: 'text' as const, text }] }
+    }),
   )
 
   // --- Tool: execute_officejs ---
@@ -2432,18 +2323,13 @@ return { success: true, shapesFormatted: ${shapes.length} };`
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ code, presentationId }) => {
-      try {
-        const target = pool.resolveTarget(presentationId)
-        const result = await pool.sendCommand('executeCode', { code }, target.ws)
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? '')
-        return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
-      }
-    },
+    withTool(async ({ code, presentationId }) => {
+      const target = pool.resolveTarget(presentationId)
+      const result = await pool.sendCommand('executeCode', { code }, target.ws)
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? '')
+      return { content: [{ type: 'text' as const, text }] }
+    }),
   )
 
   // --- Tool: search_fluent_icons ---
@@ -2458,15 +2344,10 @@ return { success: true, shapesFormatted: ${shapes.length} };`
         .optional()
         .describe('Filter by style: "regular" for mono/outline icons, "filled" for solid icons. Omit for both.'),
     },
-    async ({ query, top, style }) => {
-      try {
-        const results = await searchIcons(query, top ?? 10, style)
-        return { content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
-      }
-    },
+    withTool(async ({ query, top, style }) => {
+      const results = await searchIcons(query, top ?? 10, style)
+      return { content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }] }
+    }),
   )
 
   // --- Tool: read_speaker_notes ---
@@ -2480,28 +2361,23 @@ return { success: true, shapesFormatted: ${shapes.length} };`
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ slideRange, presentationId }) => {
-      try {
-        const target = pool.resolveTarget(presentationId)
-        const localPath = await getLocalCopyPath(pool, target)
-        const data = readFileSync(localPath)
-        const zip = await JSZip.loadAsync(data)
+    withTool(async ({ slideRange, presentationId }) => {
+      const target = pool.resolveTarget(presentationId)
+      const localPath = await getLocalCopyPath(pool, target)
+      const data = readFileSync(localPath)
+      const zip = await JSZip.loadAsync(data)
 
-        const indices = parseSlideRange(slideRange)
-        const notesMap = await readNotesFromDeck(zip, indices)
+      const indices = parseSlideRange(slideRange)
+      const notesMap = await readNotesFromDeck(zip, indices)
 
-        const slides = [...notesMap.entries()]
-          .sort(([a], [b]) => a - b)
-          .map(([slideIndex, notes]) => ({ slideIndex, notes }))
+      const slides = [...notesMap.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([slideIndex, notes]) => ({ slideIndex, notes }))
 
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ slides }, null, 2) }],
-        }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({ slides }, null, 2) }],
       }
-    },
+    }),
   )
 
   // --- Tool: edit_speaker_notes ---
@@ -2527,60 +2403,54 @@ return { success: true, shapesFormatted: ${shapes.length} };`
         .optional()
         .describe('Target presentation ID from list_presentations. Optional when only one presentation is connected.'),
     },
-    async ({ notes, presentationId }) => {
-      try {
-        const target = pool.resolveTarget(presentationId)
-        const results: Array<{ slideIndex: number; success: boolean; error?: string }> = []
+    withTool(async ({ notes, presentationId }) => {
+      const target = pool.resolveTarget(presentationId)
+      const results: Array<{ slideIndex: number; success: boolean; error?: string }> = []
 
-        for (const entry of notes) {
-          try {
-            // Export the single slide
-            const exported = await exportSlide(pool, entry.slideIndex, target.ws)
-            const { zip } = await extractZipFiles(exported.base64)
+      for (const entry of notes) {
+        try {
+          // Export the single slide
+          const exported = await exportSlide(pool, entry.slideIndex, target.ws)
+          const { zip } = await extractZipFiles(exported.base64)
 
-            // Read current slide rels
-            const slideRelsFile = zip.file('ppt/slides/_rels/slide1.xml.rels')
-            const slideRelsXml = slideRelsFile
-              ? await slideRelsFile.async('string')
-              : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`
+          // Read current slide rels
+          const slideRelsFile = zip.file('ppt/slides/_rels/slide1.xml.rels')
+          const slideRelsXml = slideRelsFile
+            ? await slideRelsFile.async('string')
+            : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`
 
-            // Build the notes injection files
-            const files = buildNotesInjection(slideRelsXml, entry.text)
+          // Build the notes injection files
+          const files = buildNotesInjection(slideRelsXml, entry.text)
 
-            // Detect new files for Content_Types
-            const existingPaths = new Set(listZipPaths(zip))
-            const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p))
+          // Detect new files for Content_Types
+          const existingPaths = new Set(listZipPaths(zip))
+          const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p))
 
-            // Apply changes
-            const modifiedBase64 = await updateZipFiles(zip, files)
+          // Apply changes
+          const modifiedBase64 = await updateZipFiles(zip, files)
 
-            // Auto-register Content_Types for new notes files
-            if (newPaths.length > 0 && !files['[Content_Types].xml']) {
-              const { zip: updatedZip } = await extractZipFiles(modifiedBase64)
-              await autoRegisterContentTypes(updatedZip, newPaths)
-              const finalBase64 = await updatedZip.generateAsync({ type: 'base64' })
-              await reimportSlide(pool, finalBase64, exported.slideId, exported.prevSlideId, target.ws)
-            } else {
-              await reimportSlide(pool, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws)
-            }
-
-            results.push({ slideIndex: entry.slideIndex, success: true })
-          } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : String(err)
-            results.push({ slideIndex: entry.slideIndex, success: false, error: message })
+          // Auto-register Content_Types for new notes files
+          if (newPaths.length > 0 && !files['[Content_Types].xml']) {
+            const { zip: updatedZip } = await extractZipFiles(modifiedBase64)
+            await autoRegisterContentTypes(updatedZip, newPaths)
+            const finalBase64 = await updatedZip.generateAsync({ type: 'base64' })
+            await reimportSlide(pool, finalBase64, exported.slideId, exported.prevSlideId, target.ws)
+          } else {
+            await reimportSlide(pool, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws)
           }
+
+          results.push({ slideIndex: entry.slideIndex, success: true })
+        } catch (err: unknown) {
+          results.push({ slideIndex: entry.slideIndex, success: false, error: errorMessage(err) })
         }
-
-        // Invalidate local copy cache so read_speaker_notes sees updates
-        localCopyCache.delete(target.presentationId)
-
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-        const text = JSON.stringify({ results }, null, 2) + (warning ?? '')
-        return { content: [{ type: 'text' as const, text }] }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true }
       }
-    },
+
+      // Invalidate local copy cache so read_speaker_notes sees updates
+      localCopyCache.delete(target.presentationId)
+
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+      const text = JSON.stringify({ results }, null, 2) + (warning ?? '')
+      return { content: [{ type: 'text' as const, text }] }
+    }),
   )
 }

@@ -27018,15 +27018,15 @@ var makeIssue = (params) => {
       message: issueData.message
     };
   }
-  let errorMessage = "";
+  let errorMessage2 = "";
   const maps = errorMaps.filter((m) => !!m).slice().reverse();
   for (const map2 of maps) {
-    errorMessage = map2(fullIssue, { data, defaultError: errorMessage }).message;
+    errorMessage2 = map2(fullIssue, { data, defaultError: errorMessage2 }).message;
   }
   return {
     ...issueData,
     path: fullPath,
-    message: errorMessage
+    message: errorMessage2
   };
 };
 function addIssueToContext(ctx, issueData) {
@@ -46059,19 +46059,19 @@ var getRefs = (options) => {
 };
 
 // node_modules/zod-to-json-schema/dist/esm/errorMessages.js
-function addErrorMessage(res, key, errorMessage, refs) {
+function addErrorMessage(res, key, errorMessage2, refs) {
   if (!refs?.errorMessages)
     return;
-  if (errorMessage) {
+  if (errorMessage2) {
     res.errorMessage = {
       ...res.errorMessage,
-      [key]: errorMessage
+      [key]: errorMessage2
     };
   }
 }
-function setResponseValueAndErrors(res, key, value, errorMessage, refs) {
+function setResponseValueAndErrors(res, key, value, errorMessage2, refs) {
   res[key] = value;
-  addErrorMessage(res, key, errorMessage, refs);
+  addErrorMessage(res, key, errorMessage2, refs);
 }
 
 // node_modules/zod-to-json-schema/dist/esm/getRelativePath.js
@@ -47382,8 +47382,8 @@ var Protocol = class {
                   if (queuedMessage.type === "response") {
                     resolver(message);
                   } else {
-                    const errorMessage = message;
-                    const error48 = new McpError(errorMessage.error.code, errorMessage.error.message, errorMessage.error.data);
+                    const errorMessage2 = message;
+                    const error48 = new McpError(errorMessage2.error.code, errorMessage2.error.message, errorMessage2.error.data);
                     resolver(error48);
                   }
                 } else {
@@ -48536,23 +48536,23 @@ var Server = class extends Protocol {
       const wrappedHandler = async (request, extra) => {
         const validatedRequest = safeParse2(CallToolRequestSchema, request);
         if (!validatedRequest.success) {
-          const errorMessage = validatedRequest.error instanceof Error ? validatedRequest.error.message : String(validatedRequest.error);
-          throw new McpError(ErrorCode.InvalidParams, `Invalid tools/call request: ${errorMessage}`);
+          const errorMessage2 = validatedRequest.error instanceof Error ? validatedRequest.error.message : String(validatedRequest.error);
+          throw new McpError(ErrorCode.InvalidParams, `Invalid tools/call request: ${errorMessage2}`);
         }
         const { params } = validatedRequest.data;
         const result = await Promise.resolve(handler(request, extra));
         if (params.task) {
           const taskValidationResult = safeParse2(CreateTaskResultSchema, result);
           if (!taskValidationResult.success) {
-            const errorMessage = taskValidationResult.error instanceof Error ? taskValidationResult.error.message : String(taskValidationResult.error);
-            throw new McpError(ErrorCode.InvalidParams, `Invalid task creation result: ${errorMessage}`);
+            const errorMessage2 = taskValidationResult.error instanceof Error ? taskValidationResult.error.message : String(taskValidationResult.error);
+            throw new McpError(ErrorCode.InvalidParams, `Invalid task creation result: ${errorMessage2}`);
           }
           return taskValidationResult.data;
         }
         const validationResult = safeParse2(CallToolResultSchema, result);
         if (!validationResult.success) {
-          const errorMessage = validationResult.error instanceof Error ? validationResult.error.message : String(validationResult.error);
-          throw new McpError(ErrorCode.InvalidParams, `Invalid tools/call result: ${errorMessage}`);
+          const errorMessage2 = validationResult.error instanceof Error ? validationResult.error.message : String(validationResult.error);
+          throw new McpError(ErrorCode.InvalidParams, `Invalid tools/call result: ${errorMessage2}`);
         }
         return validationResult.data;
       };
@@ -49046,12 +49046,12 @@ var McpServer = class {
    * @param errorMessage - The error message.
    * @returns The tool error result.
    */
-  createToolError(errorMessage) {
+  createToolError(errorMessage2) {
     return {
       content: [
         {
           type: "text",
-          text: errorMessage
+          text: errorMessage2
         }
       ],
       isError: true
@@ -49069,8 +49069,8 @@ var McpServer = class {
     const parseResult = await safeParseAsync2(schemaToParse, args);
     if (!parseResult.success) {
       const error48 = "error" in parseResult ? parseResult.error : "Unknown error";
-      const errorMessage = getParseErrorMessage(error48);
-      throw new McpError(ErrorCode.InvalidParams, `Input validation error: Invalid arguments for tool ${toolName}: ${errorMessage}`);
+      const errorMessage2 = getParseErrorMessage(error48);
+      throw new McpError(ErrorCode.InvalidParams, `Input validation error: Invalid arguments for tool ${toolName}: ${errorMessage2}`);
     }
     return parseResult.data;
   }
@@ -49094,8 +49094,8 @@ var McpServer = class {
     const parseResult = await safeParseAsync2(outputObj, result.structuredContent);
     if (!parseResult.success) {
       const error48 = "error" in parseResult ? parseResult.error : "Unknown error";
-      const errorMessage = getParseErrorMessage(error48);
-      throw new McpError(ErrorCode.InvalidParams, `Output validation error: Invalid structured content for tool ${toolName}: ${errorMessage}`);
+      const errorMessage2 = getParseErrorMessage(error48);
+      throw new McpError(ErrorCode.InvalidParams, `Output validation error: Invalid structured content for tool ${toolName}: ${errorMessage2}`);
     }
   }
   /**
@@ -49307,8 +49307,8 @@ var McpServer = class {
         const parseResult = await safeParseAsync2(argsObj, request.params.arguments);
         if (!parseResult.success) {
           const error48 = "error" in parseResult ? parseResult.error : "Unknown error";
-          const errorMessage = getParseErrorMessage(error48);
-          throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for prompt ${request.params.name}: ${errorMessage}`);
+          const errorMessage2 = getParseErrorMessage(error48);
+          throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for prompt ${request.params.name}: ${errorMessage2}`);
         }
         const args = parseResult.data;
         const cb = prompt.callback;
@@ -51154,7 +51154,7 @@ var ConnectionPool = class {
     }
   }
   /** Handle an incoming response/error from the add-in */
-  handleResponse(id, type, data, errorMessage) {
+  handleResponse(id, type, data, errorMessage2) {
     const pending = this.pendingRequests.get(id);
     if (!pending) return;
     clearTimeout(pending.timer);
@@ -51162,7 +51162,7 @@ var ConnectionPool = class {
     if (type === "response") {
       pending.resolve(data);
     } else {
-      pending.reject(new Error(errorMessage || "Command failed"));
+      pending.reject(new Error(errorMessage2 || "Command failed"));
     }
   }
   /** Generate a presentation ID for a new connection */
@@ -52199,6 +52199,30 @@ function buildNotesInjection(slideRelsXml, markdownText) {
   return files;
 }
 
+// server/tool-helpers.ts
+function errorMessage(err) {
+  return err instanceof Error ? err.message : String(err);
+}
+function isCallToolResult(value) {
+  return typeof value === "object" && value !== null && Array.isArray(value.content);
+}
+function withTool(handler) {
+  return async (args, extra) => {
+    try {
+      const result = await handler(args, extra);
+      if (typeof result === "string") {
+        return { content: [{ type: "text", text: result }] };
+      }
+      if (isCallToolResult(result)) {
+        return result;
+      }
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${errorMessage(err)}` }], isError: true };
+    }
+  };
+}
+
 // server/tools.ts
 var localCopyCache = /* @__PURE__ */ new Map();
 var themeCache = /* @__PURE__ */ new Map();
@@ -52346,7 +52370,7 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
   server.tool(
     "list_presentations",
     "Lists all PowerPoint presentations currently connected to the bridge server. Shows presentation IDs (file paths for saved files, generated IDs for unsaved) and connection status. Use this to find the presentationId to pass to other tools when multiple presentations are open.",
-    async () => {
+    withTool(async () => {
       const presentations = [];
       for (const [id, conn] of pool2.entries()) {
         presentations.push({
@@ -52363,7 +52387,7 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
           }
         ]
       };
-    }
+    })
   );
   async function getLayoutUsage(connPool, ws) {
     const code = `
@@ -52397,9 +52421,8 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
     {
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ presentationId }) => {
-      try {
-        const code = `
+    withTool(async ({ presentationId }) => {
+      const code = `
           var p = context.presentation;
           var slides = p.slides;
           var ps = p.pageSetup;
@@ -52419,26 +52442,22 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
           }
           return { slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
         `;
-        const target = pool2.resolveTarget(presentationId);
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        let theme = themeCache.get(target.presentationId);
-        if (!theme) {
-          try {
-            const exported = await exportSlide(pool2, 0, target.ws);
-            theme = await extractThemeFromZip(exported.base64);
-            themeCache.set(target.presentationId, theme);
-          } catch {
-          }
+      const target = pool2.resolveTarget(presentationId);
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      let theme = themeCache.get(target.presentationId);
+      if (!theme) {
+        try {
+          const exported = await exportSlide(pool2, 0, target.ws);
+          theme = await extractThemeFromZip(exported.base64);
+          themeCache.set(target.presentationId, theme);
+        } catch {
         }
-        const output = { ...result, ...theme ? { theme } : {} };
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(output) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
       }
-    }
+      const output = { ...result, ...theme ? { theme } : {} };
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(output) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "inspect_layouts",
@@ -52452,7 +52471,7 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
       ),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ fields, usedOnly, presentationId }) => {
+    withTool(async ({ fields, usedOnly, presentationId }) => {
       const DEFAULT_FIELDS = "index,name,type,usedBySlides,placeholders(type,idx,name)";
       const fieldSpec = fields ?? DEFAULT_FIELDS;
       const phMatch = fieldSpec.match(/placeholders\(([^)]+)\)/);
@@ -52465,11 +52484,11 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
         for (const key of layoutFields) {
           if (key === "placeholders" && phFields && Array.isArray(layout.placeholders)) {
             out.placeholders = layout.placeholders.map((ph) => {
-              const filtered = {};
+              const filtered2 = {};
               for (const f of phFields) {
-                if (ph[f] !== void 0) filtered[f] = ph[f];
+                if (ph[f] !== void 0) filtered2[f] = ph[f];
               }
-              return filtered;
+              return filtered2;
             });
           } else if (key === "usedBySlides" && Array.isArray(layout[key]) && layout[key].length === 0) {
           } else if (layout[key] !== void 0) {
@@ -52478,31 +52497,26 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
         }
         return out;
       }
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        if (usedOnly) {
-          const layouts2 = await getLayoutUsage(pool2, target.ws);
-          return { content: [{ type: "text", text: JSON.stringify({ layouts: layouts2, usedOnly: true }) }] };
-        }
-        const localPath = await getLocalCopyPath(pool2, target);
-        const fileData = (0, import_node_fs2.readFileSync)(localPath);
-        const zip = await import_jszip2.default.loadAsync(fileData);
-        const layouts = await extractLayoutsFromZip(zip);
-        try {
-          const usage = await getLayoutUsage(pool2, target.ws);
-          const usageByName = new Map(usage.map((u) => [u.name, u.usedBySlides]));
-          for (const layout of layouts) {
-            layout.usedBySlides = usageByName.get(layout.name) ?? [];
-          }
-        } catch {
-        }
-        const filtered = layouts.map((l) => filterLayout(l));
-        return { content: [{ type: "text", text: JSON.stringify({ layouts: filtered }) }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+      const target = pool2.resolveTarget(presentationId);
+      if (usedOnly) {
+        const layouts2 = await getLayoutUsage(pool2, target.ws);
+        return { content: [{ type: "text", text: JSON.stringify({ layouts: layouts2, usedOnly: true }) }] };
       }
-    }
+      const localPath = await getLocalCopyPath(pool2, target);
+      const fileData = (0, import_node_fs2.readFileSync)(localPath);
+      const zip = await import_jszip2.default.loadAsync(fileData);
+      const layouts = await extractLayoutsFromZip(zip);
+      try {
+        const usage = await getLayoutUsage(pool2, target.ws);
+        const usageByName = new Map(usage.map((u) => [u.name, u.usedBySlides]));
+        for (const layout of layouts) {
+          layout.usedBySlides = usageByName.get(layout.name) ?? [];
+        }
+      } catch {
+      }
+      const filtered = layouts.map((l) => filterLayout(l));
+      return { content: [{ type: "text", text: JSON.stringify({ layouts: filtered }) }] };
+    })
   );
   server.tool(
     "add_slide",
@@ -52519,54 +52533,53 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
       ),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ layoutName, position, placeholders, presentationId }) => {
-      try {
-        if (layoutName.startsWith("_")) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error: Layout "${layoutName}" is a technical gallery separator, not a real layout. Use inspect_layouts to find available layouts.`
-              }
-            ],
-            isError: true
-          };
-        }
-        const target = pool2.resolveTarget(presentationId);
-        const localPath = await getLocalCopyPath(pool2, target);
-        const fileData = (0, import_node_fs2.readFileSync)(localPath);
-        const zip = await import_jszip2.default.loadAsync(fileData);
-        const layouts = await extractLayoutsFromZip(zip);
-        const targetLower = layoutName.toLowerCase();
-        const layoutInfo = layouts.find((l) => l.name.toLowerCase() === targetLower);
-        if (!layoutInfo) {
-          const available = layouts.filter((l) => !l.name.startsWith("_")).map((l) => l.name).join(", ");
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error: Layout "${layoutName}" not found. Available: ${available}`
-              }
-            ],
-            isError: true
-          };
-        }
-        const idxToName = /* @__PURE__ */ new Map();
-        for (const ph of layoutInfo.placeholders) {
-          if (ph.idx !== void 0 && ph.name) {
-            idxToName.set(String(ph.idx), ph.name);
-          }
-        }
-        const warnings = [];
-        if (placeholders) {
-          const layoutNames = new Set(layoutInfo.placeholders.map((ph) => ph.name).filter(Boolean));
-          for (const key of Object.keys(placeholders)) {
-            if (!layoutNames.has(key)) {
-              warnings.push(`Placeholder "${key}" not found in layout "${layoutInfo.name}"`);
+    withTool(async ({ layoutName, position, placeholders, presentationId }) => {
+      if (layoutName.startsWith("_")) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error: Layout "${layoutName}" is a technical gallery separator, not a real layout. Use inspect_layouts to find available layouts.`
             }
+          ],
+          isError: true
+        };
+      }
+      const target = pool2.resolveTarget(presentationId);
+      const localPath = await getLocalCopyPath(pool2, target);
+      const fileData = (0, import_node_fs2.readFileSync)(localPath);
+      const zip = await import_jszip2.default.loadAsync(fileData);
+      const layouts = await extractLayoutsFromZip(zip);
+      const targetLower = layoutName.toLowerCase();
+      const layoutInfo = layouts.find((l) => l.name.toLowerCase() === targetLower);
+      if (!layoutInfo) {
+        const available = layouts.filter((l) => !l.name.startsWith("_")).map((l) => l.name).join(", ");
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error: Layout "${layoutName}" not found. Available: ${available}`
+            }
+          ],
+          isError: true
+        };
+      }
+      const idxToName = /* @__PURE__ */ new Map();
+      for (const ph of layoutInfo.placeholders) {
+        if (ph.idx !== void 0 && ph.name) {
+          idxToName.set(String(ph.idx), ph.name);
+        }
+      }
+      const warnings = [];
+      if (placeholders) {
+        const layoutNames = new Set(layoutInfo.placeholders.map((ph) => ph.name).filter(Boolean));
+        for (const key of Object.keys(placeholders)) {
+          if (!layoutNames.has(key)) {
+            warnings.push(`Placeholder "${key}" not found in layout "${layoutInfo.name}"`);
           }
         }
-        const addCode = `
+      }
+      const addCode = `
           var masters = context.presentation.slideMasters;
           masters.load("items");
           await context.sync();
@@ -52604,39 +52617,39 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
           }
           return { slideIndex: finalIndex, slideId: newSlide.id, slideCount: slides.items.length, layoutName: layout.name };
         `;
-        const addResult = await pool2.sendCommand("executeCode", { code: addCode }, target.ws);
-        const exported = await exportSlide(pool2, addResult.slideIndex, target.ws);
-        const { xmlString } = await extractSlideXmlFromZip(exported.base64);
-        const doc = parseSlideXml(xmlString);
-        const shapeIdToIdx = /* @__PURE__ */ new Map();
-        const spElements = doc.getElementsByTagNameNS(NS_P, "sp");
-        for (let i = 0; i < spElements.length; i++) {
-          const sp = spElements[i];
-          const nvSpPr = sp.getElementsByTagNameNS(NS_P, "nvSpPr")[0];
-          if (!nvSpPr) continue;
-          const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P, "cNvPr")[0];
-          const nvPr = nvSpPr.getElementsByTagNameNS(NS_P, "nvPr")[0];
-          if (!cNvPr || !nvPr) continue;
-          const phEl = nvPr.getElementsByTagNameNS(NS_P, "ph")[0];
-          if (!phEl) continue;
-          const idx = phEl.getAttribute("idx");
-          const id = cNvPr.getAttribute("id");
-          if (idx && id) {
-            shapeIdToIdx.set(id, idx);
+      const addResult = await pool2.sendCommand("executeCode", { code: addCode }, target.ws);
+      const exported = await exportSlide(pool2, addResult.slideIndex, target.ws);
+      const { xmlString } = await extractSlideXmlFromZip(exported.base64);
+      const doc = parseSlideXml(xmlString);
+      const shapeIdToIdx = /* @__PURE__ */ new Map();
+      const spElements = doc.getElementsByTagNameNS(NS_P, "sp");
+      for (let i = 0; i < spElements.length; i++) {
+        const sp = spElements[i];
+        const nvSpPr = sp.getElementsByTagNameNS(NS_P, "nvSpPr")[0];
+        if (!nvSpPr) continue;
+        const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P, "cNvPr")[0];
+        const nvPr = nvSpPr.getElementsByTagNameNS(NS_P, "nvPr")[0];
+        if (!cNvPr || !nvPr) continue;
+        const phEl = nvPr.getElementsByTagNameNS(NS_P, "ph")[0];
+        if (!phEl) continue;
+        const idx = phEl.getAttribute("idx");
+        const id = cNvPr.getAttribute("id");
+        if (idx && id) {
+          shapeIdToIdx.set(id, idx);
+        }
+      }
+      const renameMap = {};
+      const textMap = {};
+      for (const [shapeId, idx] of shapeIdToIdx) {
+        const semanticName = idxToName.get(idx);
+        if (semanticName) {
+          renameMap[shapeId] = semanticName;
+          if (placeholders?.[semanticName]) {
+            textMap[shapeId] = placeholders[semanticName];
           }
         }
-        const renameMap = {};
-        const textMap = {};
-        for (const [shapeId, idx] of shapeIdToIdx) {
-          const semanticName = idxToName.get(idx);
-          if (semanticName) {
-            renameMap[shapeId] = semanticName;
-            if (placeholders?.[semanticName]) {
-              textMap[shapeId] = placeholders[semanticName];
-            }
-          }
-        }
-        const renameCode = `
+      }
+      const renameCode = `
           var slides = context.presentation.slides;
           slides.load("items");
           await context.sync();
@@ -52678,24 +52691,20 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
           }
           return placeholders;
         `;
-        const phResult = await pool2.sendCommand("executeCode", { code: renameCode }, target.ws);
-        const result = {
-          slideIndex: addResult.slideIndex,
-          slideCount: addResult.slideCount,
-          layoutName: addResult.layoutName,
-          placeholders: phResult
-        };
-        if (warnings.length > 0) {
-          result.warnings = warnings;
-        }
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+      const phResult = await pool2.sendCommand("executeCode", { code: renameCode }, target.ws);
+      const result = {
+        slideIndex: addResult.slideIndex,
+        slideCount: addResult.slideCount,
+        layoutName: addResult.layoutName,
+        placeholders: phResult
+      };
+      if (warnings.length > 0) {
+        result.warnings = warnings;
       }
-    }
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "inspect_slide",
@@ -52704,12 +52713,11 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
       slideRange: external_exports3.string().describe('Slide indices to inspect, e.g. "0", "0-5", "2,4,7". Single index or range.'),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideRange, presentationId }) => {
-      try {
-        const indices = parseSlideRange(slideRange) ?? [];
-        if (indices.length === 0) throw new Error("slideRange is required");
-        const indicesJs = JSON.stringify(indices);
-        const code = `
+    withTool(async ({ slideRange, presentationId }) => {
+      const indices = parseSlideRange(slideRange) ?? [];
+      if (indices.length === 0) throw new Error("slideRange is required");
+      const indicesJs = JSON.stringify(indices);
+      const code = `
           var p = context.presentation;
           var slides = p.slides;
           var ps = p.pageSetup;
@@ -52762,16 +52770,12 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
           }
           return { slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
         `;
-        const target = pool2.resolveTarget(presentationId);
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
+      const target = pool2.resolveTarget(presentationId);
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "scan_slide",
@@ -52782,12 +52786,11 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
       shapeType: external_exports3.string().optional().describe('Filter by shape type: "Placeholder", "TextBox", "GeometricShape", "Graphic", "Picture", etc.'),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideRange, namePattern, shapeType, presentationId }) => {
-      try {
-        const indices = parseSlideRange(slideRange) ?? [];
-        if (indices.length === 0) throw new Error("slideRange is required");
-        const indicesJs = JSON.stringify(indices);
-        const code = `
+    withTool(async ({ slideRange, namePattern, shapeType, presentationId }) => {
+      const indices = parseSlideRange(slideRange) ?? [];
+      if (indices.length === 0) throw new Error("slideRange is required");
+      const indicesJs = JSON.stringify(indices);
+      const code = `
           var p = context.presentation;
           var slides = p.slides;
           var ps = p.pageSetup;
@@ -52825,27 +52828,23 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
           }
           return { slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
         `;
-        const target = pool2.resolveTarget(presentationId);
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        if (namePattern || shapeType) {
-          const nameRegex = namePattern ? globToRegExp(namePattern) : null;
-          const typeLower = shapeType?.toLowerCase();
-          for (const slide of result.slides) {
-            slide.shapes = slide.shapes.filter((s) => {
-              if (nameRegex && !nameRegex.test(s.name)) return false;
-              if (typeLower && s.type.toLowerCase() !== typeLower) return false;
-              return true;
-            });
-          }
+      const target = pool2.resolveTarget(presentationId);
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      if (namePattern || shapeType) {
+        const nameRegex = namePattern ? globToRegExp(namePattern) : null;
+        const typeLower = shapeType?.toLowerCase();
+        for (const slide of result.slides) {
+          slide.shapes = slide.shapes.filter((s) => {
+            if (nameRegex && !nameRegex.test(s.name)) return false;
+            if (typeLower && s.type.toLowerCase() !== typeLower) return false;
+            return true;
+          });
         }
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
       }
-    }
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "screenshot_slide",
@@ -52858,15 +52857,14 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
       height: external_exports3.number().int().min(1).max(4096).optional().describe("Image height in pixels. If omitted, auto-calculated from width to preserve aspect ratio."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, width, height, presentationId }) => {
-      try {
-        const imgWidth = width ?? 720;
-        const optionsParts = [`width: ${imgWidth}`];
-        if (height !== void 0) {
-          optionsParts.push(`height: ${height}`);
-        }
-        const optionsStr = `{ ${optionsParts.join(", ")} }`;
-        const code = `
+    withTool(async ({ slideIndex, width, height, presentationId }) => {
+      const imgWidth = width ?? 720;
+      const optionsParts = [`width: ${imgWidth}`];
+      if (height !== void 0) {
+        optionsParts.push(`height: ${height}`);
+      }
+      const optionsStr = `{ ${optionsParts.join(", ")} }`;
+      const code = `
           var slides = context.presentation.slides;
           slides.load("items");
           await context.sync();
@@ -52878,29 +52876,24 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
           await context.sync();
           return { base64: result.value, slideIndex: ${slideIndex}, slideId: slide.id };
         `;
-        const target = pool2.resolveTarget(presentationId);
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const description = `Slide ${result.slideIndex} (ID: ${result.slideId})${warning ?? ""}`;
-        return {
-          content: [
-            {
-              type: "image",
-              data: result.base64,
-              mimeType: "image/png"
-            },
-            {
-              type: "text",
-              text: description
-            }
-          ]
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        const hint = message.includes("getImageAsBase64") || message.includes("not a function") ? " (This API requires PowerPoint 16.96+ with PowerPointApi 1.8 support)" : "";
-        return { content: [{ type: "text", text: `Error: ${message}${hint}` }], isError: true };
-      }
-    }
+      const target = pool2.resolveTarget(presentationId);
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const description = `Slide ${result.slideIndex} (ID: ${result.slideId})${warning ?? ""}`;
+      return {
+        content: [
+          {
+            type: "image",
+            data: result.base64,
+            mimeType: "image/png"
+          },
+          {
+            type: "text",
+            text: description
+          }
+        ]
+      };
+    })
   );
   server.tool(
     "copy_slides",
@@ -52914,8 +52907,8 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
       ),
       formatting: external_exports3.enum(["KeepSourceFormatting", "UseDestinationTheme"]).optional().describe("Formatting mode. Default: KeepSourceFormatting.")
     },
-    async ({ sourceSlideIndex, sourcePresentationId, destinationPresentationId, targetSlideId, formatting }) => {
-      try {
+    withTool(
+      async ({ sourceSlideIndex, sourcePresentationId, destinationPresentationId, targetSlideId, formatting }) => {
         const source = pool2.resolveTarget(sourcePresentationId);
         const exportCode = `
           var slides = context.presentation.slides;
@@ -52951,11 +52944,8 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
           2
         ) + (warning ?? "");
         return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
       }
-    }
+    )
   );
   server.tool(
     "insert_image",
@@ -52977,45 +52967,44 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
       ),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ source, sourceType, slideIndex, left, top, width, height, color, presentationId }) => {
-      try {
-        let base64Data;
-        if (sourceType === "file") {
-          base64Data = (0, import_node_fs2.readFileSync)(source).toString("base64");
-        } else if (sourceType === "url") {
-          const resp = await fetch(source);
-          if (!resp.ok) {
-            throw new Error(`Failed to fetch image from URL: ${resp.status} ${resp.statusText}`);
-          }
-          const buf = await resp.arrayBuffer();
-          base64Data = Buffer.from(buf).toString("base64");
+    withTool(async ({ source, sourceType, slideIndex, left, top, width, height, color, presentationId }) => {
+      let base64Data;
+      if (sourceType === "file") {
+        base64Data = (0, import_node_fs2.readFileSync)(source).toString("base64");
+      } else if (sourceType === "url") {
+        const resp = await fetch(source);
+        if (!resp.ok) {
+          throw new Error(`Failed to fetch image from URL: ${resp.status} ${resp.statusText}`);
+        }
+        const buf = await resp.arrayBuffer();
+        base64Data = Buffer.from(buf).toString("base64");
+      } else {
+        base64Data = source;
+      }
+      if (color) {
+        const svg = Buffer.from(base64Data, "base64").toString("utf-8");
+        if (svg.trimStart().startsWith("<svg") || svg.trimStart().startsWith("<?xml")) {
+          base64Data = Buffer.from(recolorSvg(svg, color)).toString("base64");
         } else {
-          base64Data = source;
+          throw new Error("color parameter only works with SVG images, but the source is not SVG");
         }
-        if (color) {
-          const svg = Buffer.from(base64Data, "base64").toString("utf-8");
-          if (svg.trimStart().startsWith("<svg") || svg.trimStart().startsWith("<?xml")) {
-            base64Data = Buffer.from(recolorSvg(svg, color)).toString("base64");
-          } else {
-            throw new Error("color parameter only works with SVG images, but the source is not SVG");
-          }
-        }
-        const optionsParts = ["coercionType: Office.CoercionType.Image"];
-        if (left !== void 0) optionsParts.push(`imageLeft: ${left}`);
-        if (top !== void 0) optionsParts.push(`imageTop: ${top}`);
-        if (width !== void 0) optionsParts.push(`imageWidth: ${width}`);
-        if (height !== void 0) optionsParts.push(`imageHeight: ${height}`);
-        const optionsStr = `{ ${optionsParts.join(", ")} }`;
-        const insertCall = `Office.context.document.setSelectedDataAsync("${base64Data}", ${optionsStr}, function(result) {
+      }
+      const optionsParts = ["coercionType: Office.CoercionType.Image"];
+      if (left !== void 0) optionsParts.push(`imageLeft: ${left}`);
+      if (top !== void 0) optionsParts.push(`imageTop: ${top}`);
+      if (width !== void 0) optionsParts.push(`imageWidth: ${width}`);
+      if (height !== void 0) optionsParts.push(`imageHeight: ${height}`);
+      const optionsStr = `{ ${optionsParts.join(", ")} }`;
+      const insertCall = `Office.context.document.setSelectedDataAsync("${base64Data}", ${optionsStr}, function(result) {
         if (result.status === Office.AsyncResultStatus.Succeeded) {
           resolve({ success: true });
         } else {
           reject(new Error(result.error.message));
         }
       });`;
-        let code;
-        if (slideIndex !== void 0) {
-          code = `return new Promise(function(resolve, reject) {
+      let code;
+      if (slideIndex !== void 0) {
+        code = `return new Promise(function(resolve, reject) {
       Office.context.document.goToByIdAsync(${slideIndex + 1}, Office.GoToType.Index, function(navResult) {
         if (navResult.status !== Office.AsyncResultStatus.Succeeded) {
           reject(new Error("Navigation failed: " + navResult.error.message));
@@ -53024,21 +53013,17 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
         ${insertCall}
       });
     });`;
-        } else {
-          code = `return new Promise(function(resolve, reject) {
+      } else {
+        code = `return new Promise(function(resolve, reject) {
       ${insertCall}
     });`;
-        }
-        const target = pool2.resolveTarget(presentationId);
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
       }
-    }
+      const target = pool2.resolveTarget(presentationId);
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "preview_deck",
@@ -53049,13 +53034,12 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
       includeImages: external_exports3.boolean().optional().describe("Include slide thumbnails. Default: true. Set false for text-only overview (faster)."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideRange, imageWidth, includeImages, presentationId }) => {
-      try {
-        const indices = parseSlideRange(slideRange);
-        const width = imageWidth ?? 480;
-        const withImages = includeImages !== false;
-        const indicesJs = indices ? JSON.stringify(indices) : "null";
-        const code = `
+    withTool(async ({ slideRange, imageWidth, includeImages, presentationId }) => {
+      const indices = parseSlideRange(slideRange);
+      const width = imageWidth ?? 480;
+      const withImages = includeImages !== false;
+      const indicesJs = indices ? JSON.stringify(indices) : "null";
+      const code = `
           var p = context.presentation;
           var slides = p.slides;
           var ps = p.pageSetup;
@@ -53101,31 +53085,27 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
           }
           return { slideCount: slides.items.length, slideWidth: ps.slideWidth, slideHeight: ps.slideHeight, slides: output };
         `;
-        const target = pool2.resolveTarget(presentationId);
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws, 12e4);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const content = [];
-        const showing = result.slides.length;
-        const header = `Deck overview: ${result.slideCount} total slides (${result.slideWidth} x ${result.slideHeight} pt), showing ${showing}${warning ?? ""}`;
-        content.push({ type: "text", text: header });
-        for (const slide of result.slides) {
-          if (slide.imageBase64) {
-            content.push({ type: "image", data: slide.imageBase64, mimeType: "image/png" });
-          }
-          const textParts = slide.shapes.filter((s) => s.text).map((s) => s.text);
-          const shapeText = textParts.length > 0 ? `
-${textParts.join("\n")}` : "\n(no text content)";
-          content.push({
-            type: "text",
-            text: `--- Slide ${slide.index} | ${slide.shapeCount} shapes ---${shapeText}`
-          });
+      const target = pool2.resolveTarget(presentationId);
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws, 12e4);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const content = [];
+      const showing = result.slides.length;
+      const header = `Deck overview: ${result.slideCount} total slides (${result.slideWidth} x ${result.slideHeight} pt), showing ${showing}${warning ?? ""}`;
+      content.push({ type: "text", text: header });
+      for (const slide of result.slides) {
+        if (slide.imageBase64) {
+          content.push({ type: "image", data: slide.imageBase64, mimeType: "image/png" });
         }
-        return { content };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+        const textParts = slide.shapes.filter((s) => s.text).map((s) => s.text);
+        const shapeText = textParts.length > 0 ? `
+${textParts.join("\n")}` : "\n(no text content)";
+        content.push({
+          type: "text",
+          text: `--- Slide ${slide.index} | ${slide.shapeCount} shapes ---${shapeText}`
+        });
       }
-    }
+      return { content };
+    })
   );
   server.tool(
     "get_local_copy",
@@ -53133,22 +53113,17 @@ ${textParts.join("\n")}` : "\n(no text content)";
     {
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const cachedBefore = localCopyCache.get(target.presentationId)?.localPath;
-        const localPath = await getLocalCopyPath(pool2, target);
-        const isLocal = target.filePath && !target.filePath.startsWith("http");
-        const cached2 = localCopyCache.get(target.presentationId);
-        const source = isLocal ? "local" : cachedBefore === localPath ? "cached" : "exported";
-        const result = { localPath, source };
-        if (cached2) result.revision = cached2.revision;
-        return { content: [{ type: "text", text: JSON.stringify(result) }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
+    withTool(async ({ presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const cachedBefore = localCopyCache.get(target.presentationId)?.localPath;
+      const localPath = await getLocalCopyPath(pool2, target);
+      const isLocal = target.filePath && !target.filePath.startsWith("http");
+      const cached2 = localCopyCache.get(target.presentationId);
+      const source = isLocal ? "local" : cachedBefore === localPath ? "cached" : "exported";
+      const result = { localPath, source };
+      if (cached2) result.revision = cached2.revision;
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    })
   );
   server.tool(
     "read_shape_paragraphs",
@@ -53158,23 +53133,18 @@ ${textParts.join("\n")}` : "\n(no text content)";
       shapeId: external_exports3.string().describe('Shape ID from inspect_slide results (e.g. "5")'),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, shapeId, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const exported = await exportSlide(pool2, slideIndex, target.ws);
-        const { xmlString } = await extractSlideXmlFromZip(exported.base64);
-        const doc = parseSlideXml(xmlString);
-        const shape = findShapeById(doc, shapeId);
-        if (!shape) {
-          throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
-        }
-        const paragraphXml = extractParagraphs(shape);
-        return { content: [{ type: "text", text: paragraphXml }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+    withTool(async ({ slideIndex, shapeId, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const exported = await exportSlide(pool2, slideIndex, target.ws);
+      const { xmlString } = await extractSlideXmlFromZip(exported.base64);
+      const doc = parseSlideXml(xmlString);
+      const shape = findShapeById(doc, shapeId);
+      if (!shape) {
+        throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
       }
-    }
+      const paragraphXml = extractParagraphs(shape);
+      return { content: [{ type: "text", text: paragraphXml }] };
+    })
   );
   server.tool(
     "read_deck_text",
@@ -53184,21 +53154,16 @@ ${textParts.join("\n")}` : "\n(no text content)";
       includeNotes: external_exports3.boolean().optional().describe("Include speaker notes. Default: false."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideRange, includeNotes, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const localPath = await getLocalCopyPath(pool2, target);
-        const zipBuffer = (0, import_node_fs2.readFileSync)(localPath);
-        const indices = slideRange ? parseSlideRange(slideRange) : null;
-        const result = await extractDeckText(zipBuffer, indices, includeNotes === true);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
+    withTool(async ({ slideRange, includeNotes, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const localPath = await getLocalCopyPath(pool2, target);
+      const zipBuffer = (0, import_node_fs2.readFileSync)(localPath);
+      const indices = slideRange ? parseSlideRange(slideRange) : null;
+      const result = await extractDeckText(zipBuffer, indices, includeNotes === true);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "edit_shape_paragraphs",
@@ -53209,27 +53174,22 @@ ${textParts.join("\n")}` : "\n(no text content)";
       xml: external_exports3.string().describe("The <a:p> paragraph XML to replace the current text body content with"),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, shapeId, xml, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const exported = await exportSlide(pool2, slideIndex, target.ws);
-        const { zip, xmlString } = await extractSlideXmlFromZip(exported.base64);
-        const doc = parseSlideXml(xmlString);
-        const shape = findShapeById(doc, shapeId);
-        if (!shape) {
-          throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
-        }
-        replaceParagraphs(doc, shape, xml);
-        const modifiedBase64 = await updateSlideXmlInZip(zip, serializeXml(doc));
-        await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify({ success: true }, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+    withTool(async ({ slideIndex, shapeId, xml, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const exported = await exportSlide(pool2, slideIndex, target.ws);
+      const { zip, xmlString } = await extractSlideXmlFromZip(exported.base64);
+      const doc = parseSlideXml(xmlString);
+      const shape = findShapeById(doc, shapeId);
+      if (!shape) {
+        throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
       }
-    }
+      replaceParagraphs(doc, shape, xml);
+      const modifiedBase64 = await updateSlideXmlInZip(zip, serializeXml(doc));
+      await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify({ success: true }, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "read_slide_xml",
@@ -53239,25 +53199,20 @@ ${textParts.join("\n")}` : "\n(no text content)";
       shapeId: external_exports3.string().optional().describe("Optional shape ID to filter to. If provided, returns only that shape's <p:sp> element."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, shapeId, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const exported = await exportSlide(pool2, slideIndex, target.ws);
-        const { xmlString } = await extractSlideXmlFromZip(exported.base64);
-        if (shapeId) {
-          const doc = parseSlideXml(xmlString);
-          const shape = findShapeById(doc, shapeId);
-          if (!shape) {
-            throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
-          }
-          return { content: [{ type: "text", text: serializeXml(shape) }] };
+    withTool(async ({ slideIndex, shapeId, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const exported = await exportSlide(pool2, slideIndex, target.ws);
+      const { xmlString } = await extractSlideXmlFromZip(exported.base64);
+      if (shapeId) {
+        const doc = parseSlideXml(xmlString);
+        const shape = findShapeById(doc, shapeId);
+        if (!shape) {
+          throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
         }
-        return { content: [{ type: "text", text: xmlString }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+        return { content: [{ type: "text", text: serializeXml(shape) }] };
       }
-    }
+      return { content: [{ type: "text", text: xmlString }] };
+    })
   );
   server.tool(
     "edit_slide_xml",
@@ -53276,7 +53231,7 @@ ${textParts.join("\n")}` : "\n(no text content)";
       ),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, xml, code, shapeId, presentationId }) => {
+    withTool(async ({ slideIndex, xml, code, shapeId, presentationId }) => {
       if (!xml && !code || xml && code) {
         return {
           content: [
@@ -53285,53 +53240,48 @@ ${textParts.join("\n")}` : "\n(no text content)";
           isError: true
         };
       }
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const exported = await exportSlide(pool2, slideIndex, target.ws);
-        const { zip, xmlString } = await extractSlideXmlFromZip(exported.base64);
-        let finalXml;
-        if (code) {
-          const doc = parseSlideXml(xmlString);
-          const sandbox = {
-            doc,
-            findShapeById: (id) => findShapeById(doc, id),
-            NS_P,
-            NS_A,
-            escapeXml,
-            serializeXml,
-            DOMParser: import_xmldom3.DOMParser
-          };
-          try {
-            const keys = Object.keys(sandbox);
-            const values = Object.values(sandbox);
-            const fn = new Function(...keys, code);
-            fn(...values);
-          } catch (codeErr) {
-            const msg = codeErr instanceof Error ? codeErr.message : String(codeErr);
-            throw new Error(`Code execution error: ${msg}`);
-          }
-          finalXml = serializeXml(doc);
-        } else if (shapeId) {
-          const doc = parseSlideXml(xmlString);
-          const shape = findShapeById(doc, shapeId);
-          if (!shape) {
-            throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
-          }
-          replaceShape(doc, shape, xml);
-          finalXml = serializeXml(doc);
-        } else {
-          finalXml = xml;
+      const target = pool2.resolveTarget(presentationId);
+      const exported = await exportSlide(pool2, slideIndex, target.ws);
+      const { zip, xmlString } = await extractSlideXmlFromZip(exported.base64);
+      let finalXml;
+      if (code) {
+        const doc = parseSlideXml(xmlString);
+        const sandbox = {
+          doc,
+          findShapeById: (id) => findShapeById(doc, id),
+          NS_P,
+          NS_A,
+          escapeXml,
+          serializeXml,
+          DOMParser: import_xmldom3.DOMParser
+        };
+        try {
+          const keys = Object.keys(sandbox);
+          const values = Object.values(sandbox);
+          const fn = new Function(...keys, code);
+          fn(...values);
+        } catch (codeErr) {
+          const msg = codeErr instanceof Error ? codeErr.message : String(codeErr);
+          throw new Error(`Code execution error: ${msg}`);
         }
-        const modifiedBase64 = await updateSlideXmlInZip(zip, finalXml);
-        await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify({ success: true }, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+        finalXml = serializeXml(doc);
+      } else if (shapeId) {
+        const doc = parseSlideXml(xmlString);
+        const shape = findShapeById(doc, shapeId);
+        if (!shape) {
+          throw new Error(`Shape with ID "${shapeId}" not found on slide ${slideIndex}`);
+        }
+        replaceShape(doc, shape, xml);
+        finalXml = serializeXml(doc);
+      } else {
+        finalXml = xml;
       }
-    }
+      const modifiedBase64 = await updateSlideXmlInZip(zip, finalXml);
+      await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify({ success: true }, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "duplicate_slide",
@@ -53343,11 +53293,10 @@ ${textParts.join("\n")}` : "\n(no text content)";
       ),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, insertAfter, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const insertPos = insertAfter ?? slideIndex;
-        const code = `
+    withTool(async ({ slideIndex, insertAfter, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const insertPos = insertAfter ?? slideIndex;
+      const code = `
           var slides = context.presentation.slides;
           slides.load("items");
           await context.sync();
@@ -53370,15 +53319,11 @@ ${textParts.join("\n")}` : "\n(no text content)";
           await context.sync();
           return { duplicatedSlideIndex: ${slideIndex}, insertedAfter: ${insertPos}, slideCount: slides.items.length };
         `;
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "verify_slides",
@@ -53398,20 +53343,19 @@ ${textParts.join("\n")}` : "\n(no text content)";
       ).optional().describe("Checks to run. Default: all checks."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, checks, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const enabledChecks = checks ?? [
-          "overlap",
-          "bounds",
-          "empty_text",
-          "tiny_shapes",
-          "unused_placeholder",
-          "layout_drift",
-          "background_cover"
-        ];
-        const checkLayoutDrift = enabledChecks.includes("layout_drift");
-        const code = `
+    withTool(async ({ slideIndex, checks, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const enabledChecks = checks ?? [
+        "overlap",
+        "bounds",
+        "empty_text",
+        "tiny_shapes",
+        "unused_placeholder",
+        "layout_drift",
+        "background_cover"
+      ];
+      const checkLayoutDrift = enabledChecks.includes("layout_drift");
+      const code = `
           var slides = context.presentation.slides;
           slides.load("items");
           await context.sync();
@@ -53498,124 +53442,120 @@ ${textParts.join("\n")}` : "\n(no text content)";
           await context.sync();
           return { shapes: shapes, slideWidth: ps.slideWidth, slideHeight: ps.slideHeight };
         `;
-        const slideData = await pool2.sendCommand("executeCode", { code }, target.ws);
-        const issues = [];
-        const { shapes, slideWidth, slideHeight } = slideData;
-        if (enabledChecks.includes("overlap")) {
-          for (let i = 0; i < shapes.length; i++) {
-            for (let j = i + 1; j < shapes.length; j++) {
-              const a = shapes[i];
-              const b = shapes[j];
-              if (a.left < b.left + b.width && a.left + a.width > b.left && a.top < b.top + b.height && a.top + a.height > b.top) {
-                issues.push({
-                  type: "overlap",
-                  severity: "warning",
-                  shapeIds: [a.id, b.id],
-                  description: `"${a.name}" and "${b.name}" overlap`
-                });
-              }
-            }
-          }
-        }
-        if (enabledChecks.includes("bounds")) {
-          for (const s of shapes) {
-            const outOfBounds = [];
-            if (s.left < 0) outOfBounds.push("left of slide");
-            if (s.top < 0) outOfBounds.push("above slide");
-            if (s.left + s.width > slideWidth) outOfBounds.push("right of slide");
-            if (s.top + s.height > slideHeight) outOfBounds.push("below slide");
-            if (outOfBounds.length > 0) {
+      const slideData = await pool2.sendCommand("executeCode", { code }, target.ws);
+      const issues = [];
+      const { shapes, slideWidth, slideHeight } = slideData;
+      if (enabledChecks.includes("overlap")) {
+        for (let i = 0; i < shapes.length; i++) {
+          for (let j = i + 1; j < shapes.length; j++) {
+            const a = shapes[i];
+            const b = shapes[j];
+            if (a.left < b.left + b.width && a.left + a.width > b.left && a.top < b.top + b.height && a.top + a.height > b.top) {
               issues.push({
-                type: "bounds",
+                type: "overlap",
                 severity: "warning",
-                shapeIds: [s.id],
-                description: `"${s.name}" extends ${outOfBounds.join(", ")}`
+                shapeIds: [a.id, b.id],
+                description: `"${a.name}" and "${b.name}" overlap`
               });
             }
           }
         }
-        if (enabledChecks.includes("empty_text")) {
-          for (const s of shapes) {
-            if (s.text !== void 0 && s.text.trim() === "") {
-              issues.push({
-                type: "empty_text",
-                severity: "warning",
-                shapeIds: [s.id],
-                description: `"${s.name}" has an empty text frame`
-              });
-            }
-          }
-        }
-        if (enabledChecks.includes("tiny_shapes")) {
-          for (const s of shapes) {
-            if (s.width < 10 || s.height < 10) {
-              issues.push({
-                type: "tiny_shapes",
-                severity: "warning",
-                shapeIds: [s.id],
-                description: `"${s.name}" is very small (${s.width.toFixed(1)} x ${s.height.toFixed(1)} pt)`
-              });
-            }
-          }
-        }
-        if (enabledChecks.includes("unused_placeholder")) {
-          for (const s of shapes) {
-            if (s.isPlaceholder && !s.hasText) {
-              issues.push({
-                type: "unused_placeholder",
-                severity: "warning",
-                shapeIds: [s.id],
-                description: `"${s.name}" is an unused placeholder \u2014 delete it or fill it with content`
-              });
-            }
-          }
-        }
-        if (checkLayoutDrift) {
-          const DRIFT_THRESHOLD = 2;
-          for (const s of shapes) {
-            if (!s.isPlaceholder || !s.layoutMatch) continue;
-            const lm = s.layoutMatch;
-            const drifts = [];
-            if (Math.abs(s.left - lm.left) > DRIFT_THRESHOLD) drifts.push(`left: ${s.left} vs layout ${lm.left}`);
-            if (Math.abs(s.top - lm.top) > DRIFT_THRESHOLD) drifts.push(`top: ${s.top} vs layout ${lm.top}`);
-            if (Math.abs(s.width - lm.width) > DRIFT_THRESHOLD) drifts.push(`width: ${s.width} vs layout ${lm.width}`);
-            if (Math.abs(s.height - lm.height) > DRIFT_THRESHOLD)
-              drifts.push(`height: ${s.height} vs layout ${lm.height}`);
-            if (drifts.length > 0) {
-              issues.push({
-                type: "layout_drift",
-                severity: "warning",
-                shapeIds: [s.id],
-                description: `"${s.name}" drifted from layout: ${drifts.join(", ")}`
-              });
-            }
-          }
-        }
-        if (enabledChecks.includes("background_cover")) {
-          const dimThreshold = 0.85;
-          const areaThreshold = 0.9;
-          const slideArea = slideWidth * slideHeight;
-          for (const s of shapes) {
-            if (s.isPlaceholder) continue;
-            const widthRatio = s.width / slideWidth;
-            const heightRatio = s.height / slideHeight;
-            if (widthRatio >= dimThreshold && heightRatio >= dimThreshold && s.width * s.height >= slideArea * areaThreshold) {
-              issues.push({
-                type: "background_cover",
-                severity: "error",
-                shapeIds: [s.id],
-                description: `"${s.name}" covers ${(widthRatio * 100).toFixed(0)}% x ${(heightRatio * 100).toFixed(0)}% of the slide \u2014 this destroys the layout background, logo, and design system. Delete this shape and use the layout's background instead.`
-              });
-            }
-          }
-        }
-        const result = { slideIndex, shapeCount: shapes.length, issueCount: issues.length, issues };
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
       }
-    }
+      if (enabledChecks.includes("bounds")) {
+        for (const s of shapes) {
+          const outOfBounds = [];
+          if (s.left < 0) outOfBounds.push("left of slide");
+          if (s.top < 0) outOfBounds.push("above slide");
+          if (s.left + s.width > slideWidth) outOfBounds.push("right of slide");
+          if (s.top + s.height > slideHeight) outOfBounds.push("below slide");
+          if (outOfBounds.length > 0) {
+            issues.push({
+              type: "bounds",
+              severity: "warning",
+              shapeIds: [s.id],
+              description: `"${s.name}" extends ${outOfBounds.join(", ")}`
+            });
+          }
+        }
+      }
+      if (enabledChecks.includes("empty_text")) {
+        for (const s of shapes) {
+          if (s.text !== void 0 && s.text.trim() === "") {
+            issues.push({
+              type: "empty_text",
+              severity: "warning",
+              shapeIds: [s.id],
+              description: `"${s.name}" has an empty text frame`
+            });
+          }
+        }
+      }
+      if (enabledChecks.includes("tiny_shapes")) {
+        for (const s of shapes) {
+          if (s.width < 10 || s.height < 10) {
+            issues.push({
+              type: "tiny_shapes",
+              severity: "warning",
+              shapeIds: [s.id],
+              description: `"${s.name}" is very small (${s.width.toFixed(1)} x ${s.height.toFixed(1)} pt)`
+            });
+          }
+        }
+      }
+      if (enabledChecks.includes("unused_placeholder")) {
+        for (const s of shapes) {
+          if (s.isPlaceholder && !s.hasText) {
+            issues.push({
+              type: "unused_placeholder",
+              severity: "warning",
+              shapeIds: [s.id],
+              description: `"${s.name}" is an unused placeholder \u2014 delete it or fill it with content`
+            });
+          }
+        }
+      }
+      if (checkLayoutDrift) {
+        const DRIFT_THRESHOLD = 2;
+        for (const s of shapes) {
+          if (!s.isPlaceholder || !s.layoutMatch) continue;
+          const lm = s.layoutMatch;
+          const drifts = [];
+          if (Math.abs(s.left - lm.left) > DRIFT_THRESHOLD) drifts.push(`left: ${s.left} vs layout ${lm.left}`);
+          if (Math.abs(s.top - lm.top) > DRIFT_THRESHOLD) drifts.push(`top: ${s.top} vs layout ${lm.top}`);
+          if (Math.abs(s.width - lm.width) > DRIFT_THRESHOLD) drifts.push(`width: ${s.width} vs layout ${lm.width}`);
+          if (Math.abs(s.height - lm.height) > DRIFT_THRESHOLD)
+            drifts.push(`height: ${s.height} vs layout ${lm.height}`);
+          if (drifts.length > 0) {
+            issues.push({
+              type: "layout_drift",
+              severity: "warning",
+              shapeIds: [s.id],
+              description: `"${s.name}" drifted from layout: ${drifts.join(", ")}`
+            });
+          }
+        }
+      }
+      if (enabledChecks.includes("background_cover")) {
+        const dimThreshold = 0.85;
+        const areaThreshold = 0.9;
+        const slideArea = slideWidth * slideHeight;
+        for (const s of shapes) {
+          if (s.isPlaceholder) continue;
+          const widthRatio = s.width / slideWidth;
+          const heightRatio = s.height / slideHeight;
+          if (widthRatio >= dimThreshold && heightRatio >= dimThreshold && s.width * s.height >= slideArea * areaThreshold) {
+            issues.push({
+              type: "background_cover",
+              severity: "error",
+              shapeIds: [s.id],
+              description: `"${s.name}" covers ${(widthRatio * 100).toFixed(0)}% x ${(heightRatio * 100).toFixed(0)}% of the slide \u2014 this destroys the layout background, logo, and design system. Delete this shape and use the layout's background instead.`
+            });
+          }
+        }
+      }
+      const result = { slideIndex, shapeCount: shapes.length, issueCount: issues.length, issues };
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    })
   );
   server.tool(
     "read_slide_zip",
@@ -53627,19 +53567,14 @@ ${textParts.join("\n")}` : "\n(no text content)";
       ),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, paths, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const exported = await exportSlide(pool2, slideIndex, target.ws);
-        const { zip, files } = await extractZipFiles(exported.base64, paths);
-        const allPaths = listZipPaths(zip);
-        const result = { zipContents: files, allPaths };
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
+    withTool(async ({ slideIndex, paths, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const exported = await exportSlide(pool2, slideIndex, target.ws);
+      const { zip, files } = await extractZipFiles(exported.base64, paths);
+      const allPaths = listZipPaths(zip);
+      const result = { zipContents: files, allPaths };
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    })
   );
   server.tool(
     "edit_slide_zip",
@@ -53651,30 +53586,25 @@ ${textParts.join("\n")}` : "\n(no text content)";
       ),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, files, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const exported = await exportSlide(pool2, slideIndex, target.ws);
-        const { zip } = await extractZipFiles(exported.base64);
-        const existingPaths = new Set(listZipPaths(zip));
-        const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p));
-        const modifiedBase64 = await updateZipFiles(zip, files);
-        if (newPaths.length > 0 && !files["[Content_Types].xml"]) {
-          const { zip: updatedZip } = await extractZipFiles(modifiedBase64);
-          await autoRegisterContentTypes(updatedZip, newPaths);
-          const finalBase64 = await updatedZip.generateAsync({ type: "base64" });
-          await reimportSlide(pool2, finalBase64, exported.slideId, exported.prevSlideId, target.ws);
-        } else {
-          await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
-        }
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify({ success: true, filesUpdated: Object.keys(files).length, newFiles: newPaths }, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+    withTool(async ({ slideIndex, files, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const exported = await exportSlide(pool2, slideIndex, target.ws);
+      const { zip } = await extractZipFiles(exported.base64);
+      const existingPaths = new Set(listZipPaths(zip));
+      const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p));
+      const modifiedBase64 = await updateZipFiles(zip, files);
+      if (newPaths.length > 0 && !files["[Content_Types].xml"]) {
+        const { zip: updatedZip } = await extractZipFiles(modifiedBase64);
+        await autoRegisterContentTypes(updatedZip, newPaths);
+        const finalBase64 = await updatedZip.generateAsync({ type: "base64" });
+        await reimportSlide(pool2, finalBase64, exported.slideId, exported.prevSlideId, target.ws);
+      } else {
+        await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
       }
-    }
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify({ success: true, filesUpdated: Object.keys(files).length, newFiles: newPaths }, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "edit_slide_chart",
@@ -53704,72 +53634,67 @@ ${textParts.join("\n")}` : "\n(no text content)";
       }).optional().describe("Chart options"),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, chartType, title, categories, series, position, options, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const exported = await exportSlide(pool2, slideIndex, target.ws);
-        const { zip } = await extractZipFiles(exported.base64);
-        const existingPaths = listZipPaths(zip);
-        const chartPaths = existingPaths.filter((p) => p.startsWith("ppt/charts/chart") && p.endsWith(".xml"));
-        const chartNums = chartPaths.map((p) => {
-          const m = p.match(/chart(\d+)\.xml$/);
-          return m ? Number(m[1]) : 0;
-        });
-        const nextChartNum = chartNums.length > 0 ? Math.max(...chartNums) + 1 : 1;
-        const chartFileName = `chart${nextChartNum}.xml`;
-        const chartZipPath = `ppt/charts/${chartFileName}`;
-        const relsPath = "ppt/slides/_rels/slide1.xml.rels";
-        const relsContent = zip.file(relsPath) ? await zip.file(relsPath).async("string") : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
-        const rIdMatches = [...relsContent.matchAll(/Id="rId(\d+)"/g)];
-        const rIdNums = rIdMatches.map((m) => Number(m[1]));
-        const nextRIdNum = rIdNums.length > 0 ? Math.max(...rIdNums) + 1 : 1;
-        const rId = `rId${nextRIdNum}`;
-        const chartXml = buildChartXml(chartType, title, categories, series, options);
-        const slideXmlPath = "ppt/slides/slide1.xml";
-        const slideXml = await zip.file(slideXmlPath).async("string");
-        const emuPos = resolveChartPosition(position);
-        const shapeIdMatches = [...slideXml.matchAll(/id="(\d+)"/g)];
-        const shapeIds = shapeIdMatches.map((m) => Number(m[1]));
-        const nextShapeId = shapeIds.length > 0 ? Math.max(...shapeIds) + 1 : 100;
-        const chartName = `Chart ${nextChartNum}`;
-        const graphicFrame = buildGraphicFrame(rId, emuPos, chartName, nextShapeId);
-        const modifiedSlideXml = slideXml.replace("</p:spTree>", `${graphicFrame}</p:spTree>`);
-        const relEntry = buildChartRelationship(rId, `../charts/${chartFileName}`);
-        const modifiedRels = relsContent.replace("</Relationships>", `${relEntry}</Relationships>`);
-        const files = {
-          [slideXmlPath]: modifiedSlideXml,
-          [chartZipPath]: chartXml,
-          [relsPath]: modifiedRels
-        };
-        const newPaths = Object.keys(files).filter((p) => !new Set(existingPaths).has(p));
-        const modifiedBase64 = await updateZipFiles(zip, files);
-        if (newPaths.length > 0) {
-          const { zip: updatedZip } = await extractZipFiles(modifiedBase64);
-          await autoRegisterContentTypes(updatedZip, newPaths);
-          const finalBase64 = await updatedZip.generateAsync({ type: "base64" });
-          await reimportSlide(pool2, finalBase64, exported.slideId, exported.prevSlideId, target.ws);
-        } else {
-          await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
-        }
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(
-          {
-            success: true,
-            chartType,
-            title,
-            seriesCount: series.length,
-            categoryCount: categories.length,
-            chartFile: chartZipPath
-          },
-          null,
-          2
-        ) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+    withTool(async ({ slideIndex, chartType, title, categories, series, position, options, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const exported = await exportSlide(pool2, slideIndex, target.ws);
+      const { zip } = await extractZipFiles(exported.base64);
+      const existingPaths = listZipPaths(zip);
+      const chartPaths = existingPaths.filter((p) => p.startsWith("ppt/charts/chart") && p.endsWith(".xml"));
+      const chartNums = chartPaths.map((p) => {
+        const m = p.match(/chart(\d+)\.xml$/);
+        return m ? Number(m[1]) : 0;
+      });
+      const nextChartNum = chartNums.length > 0 ? Math.max(...chartNums) + 1 : 1;
+      const chartFileName = `chart${nextChartNum}.xml`;
+      const chartZipPath = `ppt/charts/${chartFileName}`;
+      const relsPath = "ppt/slides/_rels/slide1.xml.rels";
+      const relsContent = zip.file(relsPath) ? await zip.file(relsPath).async("string") : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+      const rIdMatches = [...relsContent.matchAll(/Id="rId(\d+)"/g)];
+      const rIdNums = rIdMatches.map((m) => Number(m[1]));
+      const nextRIdNum = rIdNums.length > 0 ? Math.max(...rIdNums) + 1 : 1;
+      const rId = `rId${nextRIdNum}`;
+      const chartXml = buildChartXml(chartType, title, categories, series, options);
+      const slideXmlPath = "ppt/slides/slide1.xml";
+      const slideXml = await zip.file(slideXmlPath).async("string");
+      const emuPos = resolveChartPosition(position);
+      const shapeIdMatches = [...slideXml.matchAll(/id="(\d+)"/g)];
+      const shapeIds = shapeIdMatches.map((m) => Number(m[1]));
+      const nextShapeId = shapeIds.length > 0 ? Math.max(...shapeIds) + 1 : 100;
+      const chartName = `Chart ${nextChartNum}`;
+      const graphicFrame = buildGraphicFrame(rId, emuPos, chartName, nextShapeId);
+      const modifiedSlideXml = slideXml.replace("</p:spTree>", `${graphicFrame}</p:spTree>`);
+      const relEntry = buildChartRelationship(rId, `../charts/${chartFileName}`);
+      const modifiedRels = relsContent.replace("</Relationships>", `${relEntry}</Relationships>`);
+      const files = {
+        [slideXmlPath]: modifiedSlideXml,
+        [chartZipPath]: chartXml,
+        [relsPath]: modifiedRels
+      };
+      const newPaths = Object.keys(files).filter((p) => !new Set(existingPaths).has(p));
+      const modifiedBase64 = await updateZipFiles(zip, files);
+      if (newPaths.length > 0) {
+        const { zip: updatedZip } = await extractZipFiles(modifiedBase64);
+        await autoRegisterContentTypes(updatedZip, newPaths);
+        const finalBase64 = await updatedZip.generateAsync({ type: "base64" });
+        await reimportSlide(pool2, finalBase64, exported.slideId, exported.prevSlideId, target.ws);
+      } else {
+        await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
       }
-    }
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(
+        {
+          success: true,
+          chartType,
+          title,
+          seriesCount: series.length,
+          categoryCount: categories.length,
+          chartFile: chartZipPath
+        },
+        null,
+        2
+      ) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "search_text",
@@ -53785,8 +53710,8 @@ ${textParts.join("\n")}` : "\n(no text content)";
       includeNotes: external_exports3.boolean().optional().describe("Search speaker notes in addition to slide content. Default: true."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ query, slideRange, caseSensitive, regex, context: contextLevel, includeNotes, presentationId }) => {
-      try {
+    withTool(
+      async ({ query, slideRange, caseSensitive, regex, context: contextLevel, includeNotes, presentationId }) => {
         const cs = caseSensitive === true;
         const useRegex = regex === true;
         const ctxLevel = contextLevel ?? "shape";
@@ -53982,11 +53907,8 @@ ${textParts.join("\n")}` : "\n(no text content)";
         const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
         const text = JSON.stringify(result, null, 2) + (warning ?? "");
         return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
       }
-    }
+    )
   );
   server.tool(
     "format_shapes",
@@ -54008,11 +53930,10 @@ ${textParts.join("\n")}` : "\n(no text content)";
       ).min(1).describe("Shapes to format with their properties"),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideIndex, shapes, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const shapeOps = buildFormatShapeOps(shapes, slideIndex);
-        const code = `
+    withTool(async ({ slideIndex, shapes, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const shapeOps = buildFormatShapeOps(shapes, slideIndex);
+      const code = `
 var slides = context.presentation.slides;
 slides.load("items");
 await context.sync();
@@ -54026,15 +53947,11 @@ for (var i = 0; i < slide.shapes.items.length; i++) {
 ${shapeOps}
 await context.sync();
 return { success: true, shapesFormatted: ${shapes.length} };`;
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "execute_officejs",
@@ -54045,18 +53962,13 @@ return { success: true, shapesFormatted: ${shapes.length} };`;
       ),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ code, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
+    withTool(async ({ code, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify(result ?? { success: true }, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
   server.tool(
     "search_fluent_icons",
@@ -54066,15 +53978,10 @@ return { success: true, shapesFormatted: ${shapes.length} };`;
       top: external_exports3.number().int().min(1).max(50).optional().describe("Max results to return (default 10)"),
       style: external_exports3.enum(["regular", "filled"]).optional().describe('Filter by style: "regular" for mono/outline icons, "filled" for solid icons. Omit for both.')
     },
-    async ({ query, top, style }) => {
-      try {
-        const results = await searchIcons(query, top ?? 10, style);
-        return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
+    withTool(async ({ query, top, style }) => {
+      const results = await searchIcons(query, top ?? 10, style);
+      return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
+    })
   );
   server.tool(
     "read_speaker_notes",
@@ -54083,23 +53990,18 @@ return { success: true, shapesFormatted: ${shapes.length} };`;
       slideRange: external_exports3.string().optional().describe('Slide indices, e.g. "0", "0-5", "2,4,7". Omit to read all slides.'),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ slideRange, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const localPath = await getLocalCopyPath(pool2, target);
-        const data = (0, import_node_fs2.readFileSync)(localPath);
-        const zip = await import_jszip2.default.loadAsync(data);
-        const indices = parseSlideRange(slideRange);
-        const notesMap = await readNotesFromDeck(zip, indices);
-        const slides = [...notesMap.entries()].sort(([a], [b]) => a - b).map(([slideIndex, notes]) => ({ slideIndex, notes }));
-        return {
-          content: [{ type: "text", text: JSON.stringify({ slides }, null, 2) }]
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-      }
-    }
+    withTool(async ({ slideRange, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const localPath = await getLocalCopyPath(pool2, target);
+      const data = (0, import_node_fs2.readFileSync)(localPath);
+      const zip = await import_jszip2.default.loadAsync(data);
+      const indices = parseSlideRange(slideRange);
+      const notesMap = await readNotesFromDeck(zip, indices);
+      const slides = [...notesMap.entries()].sort(([a], [b]) => a - b).map(([slideIndex, notes]) => ({ slideIndex, notes }));
+      return {
+        content: [{ type: "text", text: JSON.stringify({ slides }, null, 2) }]
+      };
+    })
   );
   server.tool(
     "edit_speaker_notes",
@@ -54115,44 +54017,38 @@ return { success: true, shapesFormatted: ${shapes.length} };`;
       ).min(1).describe("Array of slide notes to set."),
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
-    async ({ notes, presentationId }) => {
-      try {
-        const target = pool2.resolveTarget(presentationId);
-        const results = [];
-        for (const entry of notes) {
-          try {
-            const exported = await exportSlide(pool2, entry.slideIndex, target.ws);
-            const { zip } = await extractZipFiles(exported.base64);
-            const slideRelsFile = zip.file("ppt/slides/_rels/slide1.xml.rels");
-            const slideRelsXml = slideRelsFile ? await slideRelsFile.async("string") : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r
+    withTool(async ({ notes, presentationId }) => {
+      const target = pool2.resolveTarget(presentationId);
+      const results = [];
+      for (const entry of notes) {
+        try {
+          const exported = await exportSlide(pool2, entry.slideIndex, target.ws);
+          const { zip } = await extractZipFiles(exported.base64);
+          const slideRelsFile = zip.file("ppt/slides/_rels/slide1.xml.rels");
+          const slideRelsXml = slideRelsFile ? await slideRelsFile.async("string") : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
-            const files = buildNotesInjection(slideRelsXml, entry.text);
-            const existingPaths = new Set(listZipPaths(zip));
-            const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p));
-            const modifiedBase64 = await updateZipFiles(zip, files);
-            if (newPaths.length > 0 && !files["[Content_Types].xml"]) {
-              const { zip: updatedZip } = await extractZipFiles(modifiedBase64);
-              await autoRegisterContentTypes(updatedZip, newPaths);
-              const finalBase64 = await updatedZip.generateAsync({ type: "base64" });
-              await reimportSlide(pool2, finalBase64, exported.slideId, exported.prevSlideId, target.ws);
-            } else {
-              await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
-            }
-            results.push({ slideIndex: entry.slideIndex, success: true });
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            results.push({ slideIndex: entry.slideIndex, success: false, error: message });
+          const files = buildNotesInjection(slideRelsXml, entry.text);
+          const existingPaths = new Set(listZipPaths(zip));
+          const newPaths = Object.keys(files).filter((p) => !existingPaths.has(p));
+          const modifiedBase64 = await updateZipFiles(zip, files);
+          if (newPaths.length > 0 && !files["[Content_Types].xml"]) {
+            const { zip: updatedZip } = await extractZipFiles(modifiedBase64);
+            await autoRegisterContentTypes(updatedZip, newPaths);
+            const finalBase64 = await updatedZip.generateAsync({ type: "base64" });
+            await reimportSlide(pool2, finalBase64, exported.slideId, exported.prevSlideId, target.ws);
+          } else {
+            await reimportSlide(pool2, modifiedBase64, exported.slideId, exported.prevSlideId, target.ws);
           }
+          results.push({ slideIndex: entry.slideIndex, success: true });
+        } catch (err) {
+          results.push({ slideIndex: entry.slideIndex, success: false, error: errorMessage(err) });
         }
-        localCopyCache.delete(target.presentationId);
-        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-        const text = JSON.stringify({ results }, null, 2) + (warning ?? "");
-        return { content: [{ type: "text", text }] };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
       }
-    }
+      localCopyCache.delete(target.presentationId);
+      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+      const text = JSON.stringify({ results }, null, 2) + (warning ?? "");
+      return { content: [{ type: "text", text }] };
+    })
   );
 }
 
