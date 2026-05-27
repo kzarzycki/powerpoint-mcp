@@ -9,6 +9,9 @@
 
 import { DOMParser } from '@xmldom/xmldom'
 import type JSZip from 'jszip'
+import { escapeXml } from './xml-helpers.ts'
+
+export { escapeXml } from './xml-helpers.ts'
 
 // ── OOXML constants ────────────────────────────────────────────
 
@@ -19,19 +22,6 @@ const NS_RELS = 'http://schemas.openxmlformats.org/package/2006/relationships'
 
 const REL_TYPE_NOTES_SLIDE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide'
 const REL_TYPE_SLIDE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide'
-export const NOTES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml'
-
-// ── Markdown → OOXML conversion ────────────────────────────────
-
-/** Escape XML special characters */
-export function escapeXml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
-}
 
 interface TextRun {
   text: string
