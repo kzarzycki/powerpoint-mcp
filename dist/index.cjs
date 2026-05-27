@@ -49911,6 +49911,7 @@ async function extractThemeFromZip(base643) {
   };
 }
 var NS_RELS2 = "http://schemas.openxmlformats.org/package/2006/relationships";
+var NS_R2 = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 var LAYOUT_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout";
 var EMU_PER_PT = 12700;
 function emuToPoints(emu) {
@@ -49990,20 +49991,46 @@ async function extractLayoutsFromZip(zip) {
   }
   return layouts;
 }
-async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
-  const zip = await import_jszip.default.loadAsync(zipBuffer);
-  const slideFiles = Object.keys(zip.files).filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p)).sort((a, b) => {
+function filenameSortedSlideFiles(zip) {
+  return Object.keys(zip.files).filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p)).sort((a, b) => {
     const na = parseInt(a.match(/slide(\d+)/)[1], 10);
     const nb = parseInt(b.match(/slide(\d+)/)[1], 10);
     return na - nb;
   });
-  const results = [];
+}
+async function orderedSlideFiles(zip, parser) {
+  const presFile = zip.file("ppt/presentation.xml");
+  const presRelsFile = zip.file("ppt/_rels/presentation.xml.rels");
+  if (!presFile || !presRelsFile) return filenameSortedSlideFiles(zip);
+  const presDoc = parser.parseFromString(await presFile.async("string"), "text/xml");
+  const presRelsDoc = parser.parseFromString(await presRelsFile.async("string"), "text/xml");
+  const rIdToTarget = /* @__PURE__ */ new Map();
+  const rels = presRelsDoc.getElementsByTagNameNS(NS_RELS2, "Relationship");
+  for (let i = 0; i < rels.length; i++) {
+    const id = rels[i].getAttribute("Id");
+    const target = rels[i].getAttribute("Target");
+    if (id && target) rIdToTarget.set(id, target.startsWith("ppt/") ? target : `ppt/${target}`);
+  }
+  const ordered = [];
+  const sldIds = presDoc.getElementsByTagNameNS(NS_P2, "sldId");
+  for (let idx = 0; idx < sldIds.length; idx++) {
+    const rId = sldIds[idx].getAttributeNS(NS_R2, "id");
+    if (!rId) continue;
+    const target = rIdToTarget.get(rId);
+    if (target) ordered.push(target);
+  }
+  return ordered.length > 0 ? ordered : filenameSortedSlideFiles(zip);
+}
+async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
+  const zip = await import_jszip.default.loadAsync(zipBuffer);
   const parser = new import_xmldom2.DOMParser();
+  const slideFiles = await orderedSlideFiles(zip, parser);
+  const results = [];
   const allowed = slideIndices ? new Set(slideIndices) : null;
   for (let i = 0; i < slideFiles.length; i++) {
     if (allowed && !allowed.has(i)) continue;
     const slideFile = slideFiles[i];
-    const slideNum = parseInt(slideFile.match(/slide(\d+)/)[1], 10);
+    const slideNum = parseInt(slideFile.match(/slide(\d+)\.xml$/)[1], 10);
     const xmlStr = await zip.file(slideFile).async("string");
     const doc = parser.parseFromString(xmlStr, "text/xml");
     let title = "";

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   autoRegisterContentTypes,
   escapeXml,
+  extractDeckText,
   extractLayoutsFromZip,
   extractParagraphs,
   extractSlideXmlFromZip,
@@ -545,6 +546,83 @@ describe('xml-helpers', () => {
       const layouts = await extractLayoutsFromZip(await buildZip(xml))
       expect(layouts[0]!.placeholders).toHaveLength(1)
       expect(layouts[0]!.placeholders[0]!.type).toBe('title')
+    })
+  })
+
+  describe('extractDeckText slide ordering', () => {
+    const NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main'
+    const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+    const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    const NS_PKG_RELS = 'http://schemas.openxmlformats.org/package/2006/relationships'
+    const REL_TYPE_SLIDE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide'
+
+    function titleSlideXml(titleText: string): string {
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="${NS_A}" xmlns:p="${NS_P}" xmlns:r="${NS_R}">
+  <p:cSld>
+    <p:spTree>
+      <p:sp>
+        <p:nvSpPr>
+          <p:cNvPr id="2" name="Title 1"/>
+          <p:cNvSpPr/>
+          <p:nvPr><p:ph type="title"/></p:nvPr>
+        </p:nvSpPr>
+        <p:spPr/>
+        <p:txBody>
+          <a:bodyPr/><a:lstStyle/>
+          <a:p><a:r><a:t>${titleText}</a:t></a:r></a:p>
+        </p:txBody>
+      </p:sp>
+    </p:spTree>
+  </p:cSld>
+</p:sld>`
+    }
+
+    /**
+     * Build a zip whose <p:sldIdLst> display order is slide3 first, then slide1
+     * (rId3 → slide3.xml, rId1 → slide1.xml). Filename sort would yield the
+     * opposite order, so this distinguishes display order from filename order.
+     */
+    async function buildOrderedZip(): Promise<Buffer> {
+      const zip = new JSZip()
+      zip.file('ppt/slides/slide1.xml', titleSlideXml('First by filename'))
+      zip.file('ppt/slides/slide3.xml', titleSlideXml('First by display order'))
+      zip.file(
+        'ppt/presentation.xml',
+        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:a="${NS_A}" xmlns:p="${NS_P}" xmlns:r="${NS_R}">
+  <p:sldIdLst>
+    <p:sldId id="256" r:id="rId3"/>
+    <p:sldId id="257" r:id="rId1"/>
+  </p:sldIdLst>
+</p:presentation>`,
+      )
+      zip.file(
+        'ppt/_rels/presentation.xml.rels',
+        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="${NS_PKG_RELS}">
+  <Relationship Id="rId1" Type="${REL_TYPE_SLIDE}" Target="slides/slide1.xml"/>
+  <Relationship Id="rId3" Type="${REL_TYPE_SLIDE}" Target="slides/slide3.xml"/>
+</Relationships>`,
+      )
+      return zip.generateAsync({ type: 'nodebuffer' })
+    }
+
+    it('reports slides in presentation display order, not filename order', async () => {
+      const buf = await buildOrderedZip()
+      const result = await extractDeckText(buf)
+      expect(result).toHaveLength(2)
+      expect(result[0]!.title).toBe('First by display order')
+      expect(result[1]!.title).toBe('First by filename')
+      expect(result[0]!.slide).toBe(0)
+    })
+
+    it('slideRange filter uses display order index', async () => {
+      const buf = await buildOrderedZip()
+      const result = await extractDeckText(buf, [0])
+      expect(result).toHaveLength(1)
+      expect(result[0]!.title).toBe('First by display order')
+      expect(result[0]!.slide).toBe(0)
     })
   })
 })
