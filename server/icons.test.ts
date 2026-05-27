@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildIndexFromManifest, nameToId, parseIconId, resetIndex, resetSvgCache, searchIcons } from './icons.ts'
+import { buildIndexFromManifest, nameToId, parseIconId, resetIndex, searchIcons } from './icons.ts'
 
 // Mock fs so loadStaticIndex() fails and we control the index via buildIndexFromManifest
 vi.mock('node:fs', () => ({
@@ -42,7 +42,6 @@ vi.stubGlobal('fetch', mockFetch)
 describe('icons', () => {
   afterEach(() => {
     resetIndex()
-    resetSvgCache()
     mockFetch.mockReset()
   })
 

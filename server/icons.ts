@@ -45,7 +45,6 @@ const DEFAULT_SIZE = 24
 // ---------------------------------------------------------------------------
 
 let cachedIndex: IconIndexEntry[] | null = null
-const svgCache = new Map<string, string>()
 
 // ---------------------------------------------------------------------------
 // Name conversion helpers
@@ -269,9 +268,4 @@ export function recolorSvg(svg: string, color: string): string {
     '$1 class="icon-color"$2',
   )
   return result
-}
-
-/** Reset SVG cache (for testing) */
-export function resetSvgCache(): void {
-  svgCache.clear()
 }
