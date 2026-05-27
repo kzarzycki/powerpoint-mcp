@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createServer as createHttpServer } from 'node:http'
 import { createServer as createHttpsServer } from 'node:https'
 import { homedir } from 'node:os'
-import { dirname, extname, join, resolve } from 'node:path'
+import { dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
@@ -237,6 +237,8 @@ async function handleMcpPost(req: IncomingMessage, res: ServerResponse): Promise
     } else if (!sessionId && isInitializeRequest(body)) {
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
+        enableDnsRebindingProtection: true,
+        allowedHosts: [`127.0.0.1:${MCP_HTTP_PORT}`, `localhost:${MCP_HTTP_PORT}`],
         onsessioninitialized: (sid) => {
           mcpHttpTransports.set(sid, transport)
           console.error(`MCP HTTP session initialized: ${sid}`)
@@ -353,7 +355,8 @@ function serveStatic(req: IncomingMessage, res: ServerResponse): void {
   console.error(`[bridge] GET ${rawUrl}`)
   const filePath = resolve(join(ADDIN_STATIC_DIR, urlPath))
 
-  if (!filePath.startsWith(ADDIN_STATIC_DIR)) {
+  const relToStaticDir = relative(ADDIN_STATIC_DIR, filePath)
+  if (relToStaticDir.startsWith('..') || resolve(ADDIN_STATIC_DIR, relToStaticDir) !== filePath) {
     res.writeHead(403, { 'Content-Type': 'text/plain' })
     res.end('403 Forbidden')
     return
@@ -451,7 +454,7 @@ if (bridgeActive) {
     throw err
   })
 
-  bridgeServer.listen(BRIDGE_PORT, () => {
+  bridgeServer.listen(BRIDGE_PORT, '127.0.0.1', () => {
     console.error('Bridge server running')
     console.error(`  ${bridgeScheme.toUpperCase()}: ${bridgeScheme}://localhost:${BRIDGE_PORT}`)
     console.error(`  ${bridgeWsScheme.toUpperCase()}:  ${bridgeWsScheme}://localhost:${BRIDGE_PORT}`)
@@ -505,7 +508,7 @@ if (httpActive) {
     }
     throw err
   })
-  mcpHttpServer.listen(MCP_HTTP_PORT, () => {
+  mcpHttpServer.listen(MCP_HTTP_PORT, '127.0.0.1', () => {
     console.error(`  MCP HTTP: http://localhost:${MCP_HTTP_PORT}/mcp`)
   })
 }

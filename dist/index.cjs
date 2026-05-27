@@ -3588,49 +3588,49 @@ var require_fast_uri = __commonJS({
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
-    function resolveComponent(base, relative, options, skipNormalization) {
+    function resolveComponent(base, relative2, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
         base = parse3(serialize(base, options), options);
-        relative = parse3(serialize(relative, options), options);
+        relative2 = parse3(serialize(relative2, options), options);
       }
       options = options || {};
-      if (!options.tolerant && relative.scheme) {
-        target.scheme = relative.scheme;
-        target.userinfo = relative.userinfo;
-        target.host = relative.host;
-        target.port = relative.port;
-        target.path = removeDotSegments(relative.path || "");
-        target.query = relative.query;
+      if (!options.tolerant && relative2.scheme) {
+        target.scheme = relative2.scheme;
+        target.userinfo = relative2.userinfo;
+        target.host = relative2.host;
+        target.port = relative2.port;
+        target.path = removeDotSegments(relative2.path || "");
+        target.query = relative2.query;
       } else {
-        if (relative.userinfo !== void 0 || relative.host !== void 0 || relative.port !== void 0) {
-          target.userinfo = relative.userinfo;
-          target.host = relative.host;
-          target.port = relative.port;
-          target.path = removeDotSegments(relative.path || "");
-          target.query = relative.query;
+        if (relative2.userinfo !== void 0 || relative2.host !== void 0 || relative2.port !== void 0) {
+          target.userinfo = relative2.userinfo;
+          target.host = relative2.host;
+          target.port = relative2.port;
+          target.path = removeDotSegments(relative2.path || "");
+          target.query = relative2.query;
         } else {
-          if (!relative.path) {
+          if (!relative2.path) {
             target.path = base.path;
-            if (relative.query !== void 0) {
-              target.query = relative.query;
+            if (relative2.query !== void 0) {
+              target.query = relative2.query;
             } else {
               target.query = base.query;
             }
           } else {
-            if (relative.path[0] === "/") {
-              target.path = removeDotSegments(relative.path);
+            if (relative2.path[0] === "/") {
+              target.path = removeDotSegments(relative2.path);
             } else {
               if ((base.userinfo !== void 0 || base.host !== void 0 || base.port !== void 0) && !base.path) {
-                target.path = "/" + relative.path;
+                target.path = "/" + relative2.path;
               } else if (!base.path) {
-                target.path = relative.path;
+                target.path = relative2.path;
               } else {
-                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative.path;
+                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative2.path;
               }
               target.path = removeDotSegments(target.path);
             }
-            target.query = relative.query;
+            target.query = relative2.query;
           }
           target.userinfo = base.userinfo;
           target.host = base.host;
@@ -3638,7 +3638,7 @@ var require_fast_uri = __commonJS({
         }
         target.scheme = base.scheme;
       }
-      target.fragment = relative.fragment;
+      target.fragment = relative2.fragment;
       return target;
     }
     function equal(uriA, uriB, options) {
@@ -52270,6 +52270,8 @@ async function handleMcpPost(req, res) {
     } else if (!sessionId && isInitializeRequest(body)) {
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => (0, import_node_crypto2.randomUUID)(),
+        enableDnsRebindingProtection: true,
+        allowedHosts: [`127.0.0.1:${MCP_HTTP_PORT}`, `localhost:${MCP_HTTP_PORT}`],
         onsessioninitialized: (sid) => {
           mcpHttpTransports.set(sid, transport);
           console.error(`MCP HTTP session initialized: ${sid}`);
@@ -52367,7 +52369,8 @@ function serveStatic(req, res) {
   const urlPath = rawUrl === "/" ? "/index.html" : rawUrl;
   console.error(`[bridge] GET ${rawUrl}`);
   const filePath = (0, import_node_path3.resolve)((0, import_node_path3.join)(ADDIN_STATIC_DIR, urlPath));
-  if (!filePath.startsWith(ADDIN_STATIC_DIR)) {
+  const relToStaticDir = (0, import_node_path3.relative)(ADDIN_STATIC_DIR, filePath);
+  if (relToStaticDir.startsWith("..") || (0, import_node_path3.resolve)(ADDIN_STATIC_DIR, relToStaticDir) !== filePath) {
     res.writeHead(403, { "Content-Type": "text/plain" });
     res.end("403 Forbidden");
     return;
@@ -52440,7 +52443,7 @@ if (bridgeActive) {
     }
     throw err;
   });
-  bridgeServer.listen(BRIDGE_PORT, () => {
+  bridgeServer.listen(BRIDGE_PORT, "127.0.0.1", () => {
     console.error("Bridge server running");
     console.error(`  ${bridgeScheme.toUpperCase()}: ${bridgeScheme}://localhost:${BRIDGE_PORT}`);
     console.error(`  ${bridgeWsScheme.toUpperCase()}:  ${bridgeWsScheme}://localhost:${BRIDGE_PORT}`);
@@ -52486,7 +52489,7 @@ if (httpActive) {
     }
     throw err;
   });
-  mcpHttpServer.listen(MCP_HTTP_PORT, () => {
+  mcpHttpServer.listen(MCP_HTTP_PORT, "127.0.0.1", () => {
     console.error(`  MCP HTTP: http://localhost:${MCP_HTTP_PORT}/mcp`);
   });
 }
