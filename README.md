@@ -160,7 +160,7 @@ HTTPS is required for PowerPoint Web and optional for desktop. To enable:
 2. `npm run setup-certs` to generate localhost certificates
 3. For **desktop**: `npm run sideload:https` and restart PowerPoint
 4. For **PowerPoint Web**: open a presentation at office.com, go to Home → Add-ins → Upload My Add-in, and upload `addin/manifest-https.xml`
-5. Start the server: `BRIDGE_TLS=1 npm start`
+5. Start the server: `BRIDGE_TLS=1 npm start -- --bridge`
 
 ## Platform Support
 
