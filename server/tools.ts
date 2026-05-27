@@ -166,6 +166,16 @@ export function buildInsertOptions(formatting?: string, targetSlideId?: string):
   return optionsParts.length > 0 ? `, { ${optionsParts.join(', ')} }` : ''
 }
 
+/**
+ * Convert a glob pattern (only `*` wildcard) into a case-insensitive anchored
+ * RegExp. Regex metacharacters in the pattern are escaped so a literal `.` or
+ * `(` matches itself rather than acting as a regex operator.
+ */
+export function globToRegExp(pattern: string): RegExp {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')
+  return new RegExp(`^${escaped}$`, 'i')
+}
+
 // ---------------------------------------------------------------------------
 // Tool registration
 // ---------------------------------------------------------------------------
@@ -873,7 +883,7 @@ export function registerTools(
 
         // Apply optional filters (post-processing, no extra Office.js calls)
         if (namePattern || shapeType) {
-          const nameRegex = namePattern ? new RegExp(`^${namePattern.replace(/\*/g, '.*')}$`, 'i') : null
+          const nameRegex = namePattern ? globToRegExp(namePattern) : null
           const typeLower = shapeType?.toLowerCase()
           for (const slide of result.slides) {
             slide.shapes = slide.shapes.filter((s) => {

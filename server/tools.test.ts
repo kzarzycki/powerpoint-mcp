@@ -5,7 +5,14 @@ import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WebSocket } from 'ws'
 import { ConnectionPool } from './bridge.ts'
-import { buildFormatShapeOps, buildInsertOptions, localCopyCache, parseSlideRange, registerTools } from './tools.ts'
+import {
+  buildFormatShapeOps,
+  buildInsertOptions,
+  globToRegExp,
+  localCopyCache,
+  parseSlideRange,
+  registerTools,
+} from './tools.ts'
 
 vi.mock('node:fs', () => ({ existsSync: vi.fn(() => true), readFileSync: vi.fn(), writeFileSync: vi.fn() }))
 
@@ -3080,6 +3087,21 @@ describe('MCP Tools', () => {
 
     it('returns empty string when no options', () => {
       expect(buildInsertOptions(undefined, undefined)).toBe('')
+    })
+  })
+
+  describe('globToRegExp', () => {
+    it('treats . as a literal, not a wildcard', () => {
+      expect(globToRegExp('Price.New').test('PriceXNew')).toBe(false)
+      expect(globToRegExp('Price.New').test('Price.New')).toBe(true)
+    })
+
+    it('treats parens as literals', () => {
+      expect(globToRegExp('Card_(1)').test('Card_(1)')).toBe(true)
+    })
+
+    it('translates * to a wildcard', () => {
+      expect(globToRegExp('Title*').test('TitleBar')).toBe(true)
     })
   })
 })

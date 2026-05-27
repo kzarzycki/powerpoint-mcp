@@ -50214,6 +50214,10 @@ function buildInsertOptions(formatting, targetSlideId) {
   if (targetSlideId) optionsParts.push(`targetSlideId: ${JSON.stringify(targetSlideId)}`);
   return optionsParts.length > 0 ? `, { ${optionsParts.join(", ")} }` : "";
 }
+function globToRegExp(pattern) {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`, "i");
+}
 function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
   async function getLocalCopyPath(connPool, target) {
     const filePath = target.filePath;
@@ -50768,7 +50772,7 @@ function registerTools(server, pool2, getSessionId, getActiveSessionCount) {
         const target = pool2.resolveTarget(presentationId);
         const result = await pool2.sendCommand("executeCode", { code }, target.ws);
         if (namePattern || shapeType) {
-          const nameRegex = namePattern ? new RegExp(`^${namePattern.replace(/\*/g, ".*")}$`, "i") : null;
+          const nameRegex = namePattern ? globToRegExp(namePattern) : null;
           const typeLower = shapeType?.toLowerCase();
           for (const slide of result.slides) {
             slide.shapes = slide.shapes.filter((s) => {
