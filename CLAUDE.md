@@ -10,7 +10,7 @@ Build a system that lets Claude Code manipulate **live, open** PowerPoint presen
 Claude Code  <--MCP STDIO/HTTP-->  Bridge Server (Node.js)  <--WS-->  PowerPoint Add-in (Office.js)
                                           |                                     |
                                     STDIO (default)                      WKWebView sandbox
-                                    or HTTP (:3001/mcp)                  Office.js API 1.1-1.9
+                                    or HTTP (:3001/mcp)                  Office.js API 1.1-1.8
                                     localhost:8080 (HTTP)                executes commands on
                                     serves add-in files + WS             live presentation
 ```

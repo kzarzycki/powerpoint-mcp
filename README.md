@@ -43,11 +43,24 @@ The extension auto-starts the bridge and auto-sideloads the add-in. Restart Powe
 git clone https://github.com/kzarzycki/powerpoint-mcp.git
 cd powerpoint-mcp
 npm install
-npm run sideload          # copies manifest to PowerPoint's add-in folder
-npm start -- --bridge     # starts the add-in bridge (HTTP/WS on :8080) so the add-in can connect
+npm run sideload              # copies manifest to PowerPoint's add-in folder
+npm start -- --http --bridge  # starts the MCP HTTP transport (:3001/mcp) + add-in bridge (:8080)
 ```
 
-Then restart PowerPoint, open a presentation, and click the bridge add-in in the ribbon.
+Then point your MCP client at the HTTP transport. Create or merge into the project's `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "powerpoint-mcp": {
+      "type": "http",
+      "url": "http://localhost:3001/mcp"
+    }
+  }
+}
+```
+
+Restart PowerPoint, open a presentation, and click the bridge add-in in the ribbon. For STDIO mode and other standalone options, see [`skills/powerpoint-mcp/references/setup.md`](skills/powerpoint-mcp/references/setup.md).
 
 ## Motivation
 
@@ -62,7 +75,7 @@ AI Assistant  <--MCP STDIO/HTTP-->  Bridge Server (Node.js)  <--WS/WSS-->  Power
                                            |                                       |
                                      STDIO (default)                      Desktop: WKWebView sandbox
                                      or HTTP (:3001/mcp)                  Web: browser iframe
-                                     localhost:8080 (HTTP)                Office.js API 1.1-1.10
+                                     localhost:8080 (HTTP)                Office.js API 1.1-1.8
                                      or :8443 (HTTPS)                    executes commands on
                                      serves add-in files + WS             live presentation
 ```

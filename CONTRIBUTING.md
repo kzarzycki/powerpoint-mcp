@@ -21,7 +21,9 @@ npm run sideload    # Sideload the add-in manifest
 server/
   index.ts      # Entrypoint: HTTP(S) + WS(S) + MCP servers, wiring
   bridge.ts     # ConnectionPool class — manages add-in WebSocket connections
-  tools.ts      # MCP tool definitions (list_presentations, inspect_deck, inspect_slide, etc.)
+  tools.ts      # registerTools — wires the grouped tool modules together
+  tools/        # MCP tool definitions, grouped: charts.ts, exec.ts, inspect.ts,
+                #   media.ts, notes.ts, slides.ts, text.ts, xml.ts (+ shared.ts)
   bridge.test.ts
   tools.test.ts
 addin/
@@ -70,7 +72,7 @@ npm run test:coverage # With coverage
 
 ## What's In Scope
 
-- Office.js capabilities within Requirement Sets 1.1-1.9
+- Office.js capabilities within Requirement Sets 1.1-1.8
 - MCP tool improvements
 - macOS support improvements
 - Documentation
