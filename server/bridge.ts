@@ -41,14 +41,6 @@ export class ConnectionPool {
     this.connections.set(presentationId, conn)
   }
 
-  remove(presentationId: string): void {
-    this.connections.delete(presentationId)
-  }
-
-  has(presentationId: string): boolean {
-    return this.connections.has(presentationId)
-  }
-
   entries(): IterableIterator<[string, AddinConnection]> {
     return this.connections.entries()
   }

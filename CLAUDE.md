@@ -42,7 +42,7 @@ For tool reference, code patterns, and usage — see the **powerpoint-mcp** skil
 - **HTTPS/WSS opt-in** - Set `BRIDGE_TLS=1` to use HTTPS/WSS (requires certs via `npm run setup-certs`)
 - **Add-in cannot host servers** - sandboxed in WKWebView, can only make outbound connections
 - **Limited image API** - Image insertion via Common API `setSelectedDataAsync` (`insert_image` tool); no shape-level `addPicture()` yet (BETA only)
-- **No charts** - Office.js cannot create charts
+- **Charts via OOXML** - Office.js has no chart API; charts are created by injecting chart OOXML (`edit_slide_chart`)
 - **No animations** - not exposed in stable APIs
 - **Solid fills only** - no gradients, effects, or shadows
 - **Points for positioning** - 1 point = 1/72 inch
