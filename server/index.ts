@@ -301,10 +301,21 @@ async function handleMcpDelete(req: IncomingMessage, res: ServerResponse): Promi
 function serveStatic(req: IncomingMessage, res: ServerResponse): void {
   const rawUrl = (req.url ?? '/').split('?')[0]
 
-  // Handle CORS preflight — including Chrome's Private Network Access (PNA) preflight.
-  // WAC (officeapps.live.com) fetches the manifest from localhost, which is a public→loopback
-  // request. Chrome sends an OPTIONS preflight with Access-Control-Request-Private-Network:true
-  // and only proceeds if the response includes Access-Control-Allow-Private-Network:true.
+  // /health is polled by the e2e harness via Node fetch (CORS does not apply there).
+  // It must NOT carry Access-Control-Allow-Origin / Access-Control-Allow-Private-Network,
+  // so a page on a public origin cannot read its body (which leaks the live connection count).
+  if (rawUrl === '/health' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ status: 'ok', connections: pool.size }))
+    return
+  }
+
+  // Permissive CORS + Private Network Access headers are scoped to the public add-in
+  // assets (HTML/JS/CSS/icons) and the manifest XML that WAC fetches cross-origin —
+  // they are NOT emitted blanket on every route (notably not on /health above).
+  // WAC (officeapps.live.com) fetches these from localhost, a public→loopback request.
+  // Chrome sends an OPTIONS preflight with Access-Control-Request-Private-Network:true and
+  // only proceeds if the response includes Access-Control-Allow-Private-Network:true.
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
@@ -313,41 +324,6 @@ function serveStatic(req: IncomingMessage, res: ServerResponse): void {
       'Access-Control-Allow-Private-Network': 'true',
     })
     res.end()
-    return
-  }
-
-  if (rawUrl === '/health' && req.method === 'GET') {
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ status: 'ok', connections: pool.size }))
-    return
-  }
-
-  if (rawUrl === '/api/test') {
-    let target: ReturnType<ConnectionPool['resolveTarget']>
-    try {
-      target = pool.resolveTarget()
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
-      res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: message }))
-      return
-    }
-    pool
-      .sendCommand(
-        'executeCode',
-        {
-          code: 'var c = context.presentation.slides.getCount(); await context.sync(); return c.value;',
-        },
-        target.ws,
-      )
-      .then((result) => {
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ slideCount: result }))
-      })
-      .catch((err: Error) => {
-        res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: err.message }))
-      })
     return
   }
 
