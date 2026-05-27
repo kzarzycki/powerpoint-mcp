@@ -52,6 +52,25 @@ describe('notes-helpers', () => {
       expect(result).toContain('<a:t>bold italic</a:t>')
     })
 
+    it('preserves a standalone asterisk in plain text', () => {
+      // The asterisk between "5" and "3" is unpaired and must survive.
+      const result = markdownToNotesXml('rate is 5 * 3')
+      const text = (result.match(/<a:t>(.*?)<\/a:t>/g) || []).map((m) => m.replace(/<\/?a:t>/g, '')).join('')
+      expect(text).toBe('rate is 5 * 3')
+    })
+
+    it('preserves a trailing asterisk (footnote marker)', () => {
+      const result = markdownToNotesXml('footnote*')
+      const text = (result.match(/<a:t>(.*?)<\/a:t>/g) || []).map((m) => m.replace(/<\/?a:t>/g, '')).join('')
+      expect(text).toBe('footnote*')
+    })
+
+    it('preserves an asterisk in a glob pattern', () => {
+      const result = markdownToNotesXml('glob *.png pattern')
+      const text = (result.match(/<a:t>(.*?)<\/a:t>/g) || []).map((m) => m.replace(/<\/?a:t>/g, '')).join('')
+      expect(text).toBe('glob *.png pattern')
+    })
+
     it('converts headings to bold paragraphs', () => {
       const result = markdownToNotesXml('## Section Title')
       expect(result).toContain('b="1"')

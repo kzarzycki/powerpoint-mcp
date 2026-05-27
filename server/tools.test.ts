@@ -654,6 +654,37 @@ describe('MCP Tools', () => {
       expect(parsed.success).toBe(true)
     })
 
+    it('escapes base64 data containing quotes so the generated code is valid JS', async () => {
+      const ws = mockWs()
+      pool.add('test.pptx', {
+        ws,
+        ready: true,
+        presentationId: 'test.pptx',
+        filePath: null,
+      })
+
+      const { client } = await setupMcpClient(pool)
+
+      // A pathological value containing a double quote and backslash that would
+      // break a naive "${base64Data}" interpolation.
+      const evil = 'abc"def\\ghi'
+      const toolPromise = client.callTool({
+        name: 'insert_image',
+        arguments: {
+          source: evil,
+          sourceType: 'base64',
+        },
+      })
+
+      const sentJson = await waitForSend(ws, 0)
+      const code: string = sentJson.params.code
+      // The emitted argument must be a valid JSON/JS string literal of the value.
+      expect(code).toContain(`setSelectedDataAsync(${JSON.stringify(evil)},`)
+
+      pool.handleResponse(sentJson.id, 'response', { success: true })
+      await toolPromise
+    })
+
     it('reads file and base64 encodes it', async () => {
       const { readFileSync } = await import('node:fs')
       vi.mocked(readFileSync).mockReturnValue(Buffer.from([0x89, 0x50, 0x4e, 0x47]))

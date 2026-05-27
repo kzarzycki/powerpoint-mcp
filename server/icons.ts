@@ -211,7 +211,9 @@ export async function searchIcons(query: string, top = 10, style?: 'regular' | '
   const isMono = style === 'regular'
   const isFilled = style === 'filled'
 
-  // If no style filter, return both variants for each match
+  // If no style filter, return both variants for each match. `scored` is
+  // already capped at `top` icons above, so each icon expands to 2 rows here
+  // (up to 2*top rows) — `top` means distinct icons, matching the style path.
   if (!isMono && !isFilled) {
     const results: IconSearchResult[] = []
     for (const { entry, score } of scored) {
@@ -232,7 +234,7 @@ export async function searchIcons(query: string, top = 10, style?: 'regular' | '
         svgUrl: buildSvgUrl(entry.snakeName, false),
       })
     }
-    return results.slice(0, top)
+    return results
   }
 
   return scored.map(({ entry, score }) => ({
@@ -260,9 +262,21 @@ export function recolorSvg(svg: string, color: string): string {
   // Inject a CSS style block after the opening <svg> tag to override all fills
   const styleTag = `<style>.icon-color{fill:${color}}</style>`
   let result = svg.replace(/(<svg[^>]*>)/, `$1${styleTag}`)
-  // Replace all fill attributes on path/circle/rect elements with class reference
-  result = result.replace(/(<(?:path|circle|rect|polygon|ellipse)[^>]*?)fill="[^"]*"/g, '$1class="icon-color"')
-  // For paths without fill attribute, add the class
+  const SHAPE = '(?:path|circle|rect|polygon|ellipse)'
+  // Element that already has a class AND a fill: merge icon-color into the
+  // existing class value and drop the fill, so we never emit two class attrs.
+  // Handle both attribute orders (class before fill, and fill before class).
+  result = result.replace(
+    new RegExp(`(<${SHAPE}[^>]*?)class="([^"]*)"([^>]*?)\\s*fill="[^"]*"`, 'g'),
+    '$1class="$2 icon-color"$3',
+  )
+  result = result.replace(
+    new RegExp(`(<${SHAPE}[^>]*?)fill="[^"]*"([^>]*?)\\s*class="([^"]*)"`, 'g'),
+    '$1$2class="$3 icon-color"',
+  )
+  // Classless element with a fill: replace the fill with the class reference.
+  result = result.replace(new RegExp(`(<${SHAPE}(?![^>]*class=)[^>]*?)fill="[^"]*"`, 'g'), '$1class="icon-color"')
+  // For elements without a fill attribute, add the class
   result = result.replace(
     /(<(?:path|circle|rect|polygon|ellipse)(?![^>]*class=)[^>]*?)(\/?>)/g,
     '$1 class="icon-color"$2',

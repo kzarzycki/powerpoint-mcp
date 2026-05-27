@@ -61,7 +61,7 @@ export async function checkForUpdate(options: VersionCheckOptions): Promise<Vers
  * Only compares major.minor.patch (ignores pre-release tags).
  */
 export function isNewer(latest: string, current: string): boolean {
-  const parse = (v: string) => v.replace(/^v/, '').split('-')[0].split('.').map(Number)
+  const parse = (v: string) => v.replace(/^v/, '').split(/[-+]/)[0].split('.').map(Number)
   const [lMajor = 0, lMinor = 0, lPatch = 0] = parse(latest)
   const [cMajor = 0, cMinor = 0, cPatch = 0] = parse(current)
 
