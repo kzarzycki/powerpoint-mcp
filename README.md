@@ -43,8 +43,8 @@ The extension auto-starts the bridge and auto-sideloads the add-in. Restart Powe
 git clone https://github.com/kzarzycki/powerpoint-mcp.git
 cd powerpoint-mcp
 npm install
-npm run sideload     # copies manifest to PowerPoint's add-in folder
-npm start            # starts MCP server (STDIO mode by default)
+npm run sideload          # copies manifest to PowerPoint's add-in folder
+npm start -- --bridge     # starts the add-in bridge (HTTP/WS on :8080) so the add-in can connect
 ```
 
 Then restart PowerPoint, open a presentation, and click the bridge add-in in the ribbon.
@@ -69,7 +69,7 @@ AI Assistant  <--MCP STDIO/HTTP-->  Bridge Server (Node.js)  <--WS/WSS-->  Power
 
 Two MCP transports are supported:
 - **STDIO** (default) — used by plugin installs and `--stdio` flag; the MCP client spawns the server process directly
-- **HTTP** — `localhost:3001/mcp`; used by `npm start` for standalone/development setups
+- **HTTP** — `127.0.0.1:3001/mcp`; enabled by the `--http` flag (e.g. `node server/index.ts --http --bridge` for development with `.mcp.json`)
 
 Three components in one repo:
 
@@ -148,11 +148,11 @@ PowerPoint MCP assumes a single-user, locally-trusted machine. Both network serv
 ## Troubleshooting
 
 **Add-in not appearing in PowerPoint**
-1. Run `npm run sideload` (or `npx powerpoint-mcp --sideload`) and restart PowerPoint
+1. Run `npm run sideload` and restart PowerPoint
 2. Check that the file exists: `~/Library/Containers/com.microsoft.Powerpoint/Data/Documents/wef/manifest.xml`
 
 **Add-in shows "Disconnected"**
-Make sure the bridge server is running. In plugin mode the server auto-starts with Claude Code — call any tool to verify. For standalone installs, run `npm start` and verify with `curl http://localhost:8080/health`. The add-in auto-reconnects with exponential backoff.
+Make sure the bridge server is running. In plugin mode the server auto-starts with Claude Code — call any tool to verify. For standalone installs, run `npm start -- --bridge` and verify with `curl http://127.0.0.1:8080/health`. The add-in auto-reconnects with exponential backoff.
 
 **Using HTTPS mode (required for PowerPoint Web)**
 HTTPS is required for PowerPoint Web and optional for desktop. To enable:
