@@ -401,27 +401,35 @@ export function registerInspectTools(
           await context.sync();
           return { base64: result.value, slideIndex: ${slideIndex}, slideId: slide.id };
         `
-      const target = pool.resolveTarget(presentationId)
-      const result = (await pool.sendCommand('executeCode', { code }, target.ws)) as {
-        base64: string
-        slideIndex: number
-        slideId: string
-      }
-      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
-      const description = `Slide ${result.slideIndex} (ID: ${result.slideId})${warning ?? ''}`
+      try {
+        const target = pool.resolveTarget(presentationId)
+        const result = (await pool.sendCommand('executeCode', { code }, target.ws)) as {
+          base64: string
+          slideIndex: number
+          slideId: string
+        }
+        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount())
+        const description = `Slide ${result.slideIndex} (ID: ${result.slideId})${warning ?? ''}`
 
-      return {
-        content: [
-          {
-            type: 'image' as const,
-            data: result.base64,
-            mimeType: 'image/png',
-          },
-          {
-            type: 'text' as const,
-            text: description,
-          },
-        ],
+        return {
+          content: [
+            {
+              type: 'image' as const,
+              data: result.base64,
+              mimeType: 'image/png',
+            },
+            {
+              type: 'text' as const,
+              text: description,
+            },
+          ],
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        if (message.includes('getImageAsBase64') || message.includes('not a function')) {
+          throw new Error(`${message} (This API requires PowerPoint 16.96+ with PowerPointApi 1.8 support)`)
+        }
+        throw err
       }
     }),
   )

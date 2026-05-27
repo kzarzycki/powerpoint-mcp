@@ -19,7 +19,7 @@ The plugin handles the MCP server, but PowerPoint still needs the add-in manifes
 
 ```bash
 # From the plugin's repo directory:
-node scripts/sideload.mjs
+node scripts/sideload.ts
 ```
 
 Then restart PowerPoint to load the add-in.

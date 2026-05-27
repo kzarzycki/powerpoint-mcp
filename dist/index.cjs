@@ -52710,23 +52710,31 @@ function registerInspectTools(server, pool2, getSessionId, getActiveSessionCount
           await context.sync();
           return { base64: result.value, slideIndex: ${slideIndex}, slideId: slide.id };
         `;
-      const target = pool2.resolveTarget(presentationId);
-      const result = await pool2.sendCommand("executeCode", { code }, target.ws);
-      const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
-      const description = `Slide ${result.slideIndex} (ID: ${result.slideId})${warning ?? ""}`;
-      return {
-        content: [
-          {
-            type: "image",
-            data: result.base64,
-            mimeType: "image/png"
-          },
-          {
-            type: "text",
-            text: description
-          }
-        ]
-      };
+      try {
+        const target = pool2.resolveTarget(presentationId);
+        const result = await pool2.sendCommand("executeCode", { code }, target.ws);
+        const warning = getConcurrentWarning(getSessionId(), target.presentationId, getActiveSessionCount());
+        const description = `Slide ${result.slideIndex} (ID: ${result.slideId})${warning ?? ""}`;
+        return {
+          content: [
+            {
+              type: "image",
+              data: result.base64,
+              mimeType: "image/png"
+            },
+            {
+              type: "text",
+              text: description
+            }
+          ]
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("getImageAsBase64") || message.includes("not a function")) {
+          throw new Error(`${message} (This API requires PowerPoint 16.96+ with PowerPointApi 1.8 support)`);
+        }
+        throw err;
+      }
     })
   );
   server.tool(
