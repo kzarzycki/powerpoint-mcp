@@ -909,7 +909,7 @@ export function registerTools(
     'screenshot_slide',
     'Slide screenshot (~1000 tokens): captures one slide as PNG image. Use to visually verify layout after changes. Do NOT loop over all slides — use preview_deck instead.',
     {
-      slideIndex: z.number().int().min(0).describe('Zero-based slide index from list_slides results'),
+      slideIndex: z.number().int().min(0).describe('Zero-based slide index from scan_slide results'),
       width: z
         .number()
         .int()
@@ -1326,7 +1326,7 @@ export function registerTools(
     'read_shape_paragraphs',
     "Read raw OOXML <a:p> paragraphs from a shape's text body. Returns the paragraph XML as a string — preserves all formatting (bold, colors, bullets, etc.) that textRange.text strips. Use with the /pptx skill's OOXML knowledge to understand and modify the XML.",
     {
-      slideIndex: z.number().int().min(0).describe('Zero-based slide index from list_slides results'),
+      slideIndex: z.number().int().min(0).describe('Zero-based slide index from scan_slide results'),
       shapeId: z.string().describe('Shape ID from inspect_slide results (e.g. "5")'),
       presentationId: z
         .string()
@@ -1422,7 +1422,7 @@ export function registerTools(
     'read_slide_xml',
     "Read the full raw OOXML of a slide, or filter to a specific shape. Returns the slide's ppt/slides/slide1.xml content. Use with the /pptx skill's OOXML knowledge to understand the XML structure.",
     {
-      slideIndex: z.number().int().min(0).describe('Zero-based slide index from list_slides results'),
+      slideIndex: z.number().int().min(0).describe('Zero-based slide index from scan_slide results'),
       shapeId: z
         .string()
         .optional()

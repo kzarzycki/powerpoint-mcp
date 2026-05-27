@@ -59,7 +59,7 @@ Script at `scripts/fetch-logo.sh` in the project directory. Searches by **name**
 ./scripts/fetch-logo.sh "Apache Iceberg" "Delta Lake" Dagster Trino MLflow
 
 # Company/vendor logos (Brandfetch — PNG, needs BRANDFETCH_CLIENT_ID env var)
-./scripts/fetch-logo.sh Xebia Confluent Fivetran Airbyte
+./scripts/fetch-logo.sh Acme Globex Initech Umbrella
 ./scripts/fetch-logo.sh --source bf "dbt Labs"  # force Brandfetch for company version
 
 # Options

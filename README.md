@@ -177,6 +177,21 @@ brew install node
 | `get_local_copy` | Returns a local file path for the presentation (passthrough for local, exports cloud files to temp .pptx) |
 | `search_fluent_icons` | Search Microsoft Fluent UI icons by keyword and insert as SVG |
 | `execute_officejs` | Runs arbitrary Office.js code inside the live presentation |
+| `add_slide` | Add a new slide from a named layout at a specific position, with placeholder text pre-filled |
+| `duplicate_slide` | Duplicate a slide within the same presentation; data stays server-side |
+| `read_deck_text` | Lightweight text extractor: slide titles and body text as plain strings (~20x smaller than inspect_slide) |
+| `read_shape_paragraphs` | Read raw OOXML `<a:p>` paragraphs from a shape's text body, preserving all formatting |
+| `edit_shape_paragraphs` | Replace paragraph content of a shape with raw OOXML `<a:p>` XML |
+| `read_slide_xml` | Read the full raw OOXML of a slide, or filter to a specific shape |
+| `edit_slide_xml` | Edit slide XML and reimport (xml mode or JS code mode for DOM manipulation) |
+| `read_slide_zip` | Read multiple files from the exported slide zip (slide XML, rels, chart XMLs, Content_Types) |
+| `edit_slide_zip` | Update multiple files in the slide zip and reimport in a single operation |
+| `edit_slide_chart` | Create a chart on a slide from structured data (column, bar, line, pie, doughnut, area) via OOXML |
+| `read_speaker_notes` | Read speaker notes from slides as plain text |
+| `edit_speaker_notes` | Set speaker notes on one or more slides; accepts markdown text |
+| `format_shapes` | Apply fill color and font formatting to multiple shapes on a slide in one call |
+| `search_text` | Search for text across all slides — like grep for slides; supports regex |
+| `verify_slides` | Run programmatic checks on a slide (overlaps, out-of-bounds, empty text, unused placeholders) |
 
 When multiple presentations are open, pass `presentationId` (from `list_presentations`) to target a specific one.
 
@@ -220,7 +235,7 @@ HTTPS is required for PowerPoint Web and optional for desktop. To enable:
 | Platform | Status |
 |----------|--------|
 | macOS | Supported (primary) |
-| PowerPoint Web | Supported — requires HTTPS mode, sideload via browser (all 23 tools work) |
+| PowerPoint Web | Supported — requires HTTPS mode, sideload via browser (all tools work) |
 | Windows | Untested — different sideloading path |
 | Linux | Not supported (no PowerPoint for Linux) |
 
