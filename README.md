@@ -9,6 +9,36 @@ Unlike file-based tools (python-pptx), PowerPoint MCP works with presentations t
 
 ## Installation
 
+### Codex Plugin
+
+This repository includes Codex plugin metadata in `.codex-plugin/` and Codex repo instructions in `AGENTS.md`.
+
+For local development:
+
+```bash
+git clone https://github.com/kzarzycki/powerpoint-mcp.git
+cd powerpoint-mcp
+npm install
+npm run build
+```
+
+The Codex plugin MCP config in `.mcp.json` uses the shared HTTP MCP endpoint:
+
+```json
+{
+  "mcpServers": {
+    "powerpoint-mcp": {
+      "type": "http",
+      "url": "http://localhost:3001/mcp"
+    }
+  }
+}
+```
+
+The Codex plugin ships a `SessionStart` hook in `hooks/hooks.json`. On session start it runs `scripts/start-http-bridge.sh`, which starts the built bridge with `node ./dist/index.cjs --http --bridge` if the HTTP MCP server or add-in bridge is not already healthy.
+
+Then restart PowerPoint, open a presentation, and click the bridge add-in in the ribbon. For manual local development, start the TypeScript source directly with `node --experimental-strip-types ./server/index.ts --http --bridge`.
+
 ### Claude Code Plugin (recommended)
 
 Zero-config install from the marketplace. MCP auto-starts, add-in auto-sideloads, skill included.
