@@ -26644,7 +26644,7 @@ var import_node_http = require("node:http");
 var import_node_https = require("node:https");
 var import_node_os2 = require("node:os");
 var import_node_path3 = require("node:path");
-var import_node_url2 = require("node:url");
+var import_node_url3 = require("node:url");
 
 // node_modules/zod/v3/helpers/util.js
 var util;
@@ -51904,6 +51904,7 @@ async function extractDeckText(zipBuffer, slideIndices, includeNotes) {
 var import_node_fs = require("node:fs");
 var import_node_os = require("node:os");
 var import_node_path = require("node:path");
+var import_node_url = require("node:url");
 var localCopyCache = /* @__PURE__ */ new Map();
 var themeCache = /* @__PURE__ */ new Map();
 var sessionConcurrentWarnings = /* @__PURE__ */ new Map();
@@ -51978,11 +51979,15 @@ function globToRegExp(pattern) {
   const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
   return new RegExp(`^${escaped}$`, "i");
 }
+function toLocalFilePath(filePath) {
+  return filePath.startsWith("file://") ? (0, import_node_url.fileURLToPath)(filePath) : filePath;
+}
 async function getLocalCopyPath(connPool, target) {
   const filePath = target.filePath;
   if (filePath && !filePath.startsWith("http")) {
-    if (!(0, import_node_fs.existsSync)(filePath)) throw new Error(`Local file not found: ${filePath}`);
-    return filePath;
+    const localPath = toLocalFilePath(filePath);
+    if (!(0, import_node_fs.existsSync)(localPath)) throw new Error(`Local file not found: ${localPath}`);
+    return localPath;
   }
   const revCode = `
     var p = context.presentation.properties;
@@ -52827,7 +52832,7 @@ var import_node_fs4 = require("node:fs");
 // server/icons.ts
 var import_node_fs3 = require("node:fs");
 var import_node_path2 = require("node:path");
-var import_node_url = require("node:url");
+var import_node_url2 = require("node:url");
 var import_meta = {};
 var MANIFEST_URL = "https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/fonts/FluentSystemIcons-Regular.json";
 var CDN_BASE = "https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/assets";
@@ -52863,7 +52868,7 @@ function buildIndexFromManifest(manifest) {
 }
 function loadStaticIndex() {
   try {
-    const dir = (0, import_node_path2.dirname)((0, import_node_url.fileURLToPath)(import_meta.url));
+    const dir = (0, import_node_path2.dirname)((0, import_node_url2.fileURLToPath)(import_meta.url));
     const raw = (0, import_node_fs3.readFileSync)((0, import_node_path2.join)(dir, "icon-index.json"), "utf-8");
     const data = JSON.parse(raw);
     return data.map((e) => ({
@@ -53397,19 +53402,24 @@ function registerSlideTools(server, pool2, getSessionId, getActiveSessionCount) 
           var masters = context.presentation.slideMasters;
           masters.load("items");
           await context.sync();
-          var master = masters.items[masters.items.length - 1];
-          master.layouts.load("items/id,items/name");
+          for (var m = 0; m < masters.items.length; m++) {
+            masters.items[m].layouts.load("items/id,items/name");
+          }
           await context.sync();
           var targetName = ${JSON.stringify(layoutName)}.toLowerCase();
           var layout = null;
-          for (var i = 0; i < master.layouts.items.length; i++) {
-            if (master.layouts.items[i].name.toLowerCase() === targetName) {
-              layout = master.layouts.items[i];
-              break;
+          for (var m = 0; m < masters.items.length && !layout; m++) {
+            var ml = masters.items[m].layouts.items;
+            for (var i = 0; i < ml.length; i++) {
+              if (ml[i].name.toLowerCase() === targetName) { layout = ml[i]; break; }
             }
           }
           if (!layout) {
-            var names = master.layouts.items.map(function(l) { return l.name; });
+            var names = [];
+            for (var m = 0; m < masters.items.length; m++) {
+              var ml2 = masters.items[m].layouts.items;
+              for (var i = 0; i < ml2.length; i++) { names.push(ml2[i].name); }
+            }
             throw new Error("Layout not found. Available: " + names.join(", "));
           }
           var slides = context.presentation.slides;
@@ -54148,7 +54158,7 @@ var import_meta2 = {};
 var BRIDGE_DEFAULT_HTTP_PORT = 8080;
 var BRIDGE_DEFAULT_HTTPS_PORT = 8443;
 var MCP_HTTP_PORT = Number(process.env.MCP_PORT) || 3001;
-var SCRIPT_DIR = typeof __dirname !== "undefined" ? __dirname : (0, import_node_path3.dirname)((0, import_node_url2.fileURLToPath)(import_meta2.url));
+var SCRIPT_DIR = typeof __dirname !== "undefined" ? __dirname : (0, import_node_path3.dirname)((0, import_node_url3.fileURLToPath)(import_meta2.url));
 var PROJECT_ROOT = (0, import_node_path3.resolve)(SCRIPT_DIR, "..");
 var BRIDGE_CERT_PATH = (0, import_node_path3.resolve)(PROJECT_ROOT, "certs", "localhost.pem");
 var BRIDGE_KEY_PATH = (0, import_node_path3.resolve)(PROJECT_ROOT, "certs", "localhost-key.pem");

@@ -71,8 +71,20 @@
       "description": "Insert an image onto a slide"
     },
     {
+      "name": "add_slide",
+      "description": "Add a new slide from a layout at a specific position, with placeholder text pre-filled"
+    },
+    {
       "name": "duplicate_slide",
       "description": "Duplicate a slide within the same presentation"
+    },
+    {
+      "name": "read_speaker_notes",
+      "description": "Read speaker notes from slides as plain text"
+    },
+    {
+      "name": "edit_speaker_notes",
+      "description": "Set speaker notes on one or more slides (accepts markdown)"
     },
     {
       "name": "verify_slides",

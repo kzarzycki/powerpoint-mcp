@@ -1,6 +1,7 @@
 import { existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { ConnectionPool } from '../bridge.ts'
 import type { ThemeInfo } from '../xml-helpers.ts'
 
@@ -139,6 +140,12 @@ export function globToRegExp(pattern: string): RegExp {
 // Cross-group Office.js helpers
 // ---------------------------------------------------------------------------
 
+// Office reports saved desktop decks as file:// URLs (percent-encoded).
+// Convert those to a real filesystem path; leave plain paths untouched.
+export function toLocalFilePath(filePath: string): string {
+  return filePath.startsWith('file://') ? fileURLToPath(filePath) : filePath
+}
+
 export async function getLocalCopyPath(
   connPool: ConnectionPool,
   target: { filePath: string | null; presentationId: string; ws: import('ws').WebSocket },
@@ -147,8 +154,9 @@ export async function getLocalCopyPath(
 
   // Local file — already on disk
   if (filePath && !filePath.startsWith('http')) {
-    if (!existsSync(filePath)) throw new Error(`Local file not found: ${filePath}`)
-    return filePath
+    const localPath = toLocalFilePath(filePath)
+    if (!existsSync(localPath)) throw new Error(`Local file not found: ${localPath}`)
+    return localPath
   }
 
   // Cloud file — check revision for cache validity
