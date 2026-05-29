@@ -54,7 +54,7 @@ For tool reference, code patterns, and usage — see the **powerpoint-mcp** skil
 ## Development Workflow
 
 ### MCP Dev Server
-- `.mcp.json` uses `"type": "http"` pointing to `http://localhost:3001/mcp` — the server must be running separately
+- `.mcp.json` uses `"type": "http"` pointing to `http://localhost:3001/mcp`; installed plugins start the server via the `SessionStart` hook, while source/dev runs still need a separately running server
 - **Start**: `nohup node --experimental-strip-types ./server/index.ts --http --bridge > /tmp/powerpoint-mcp.log 2>&1 &`
 - **Restart** (after code changes): `pkill -f "server/index.ts"; nohup node --experimental-strip-types ./server/index.ts --http --bridge > /tmp/powerpoint-mcp.log 2>&1 &`
 - No build step needed for dev — runs directly from TypeScript source

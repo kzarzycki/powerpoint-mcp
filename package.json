@@ -11,9 +11,12 @@
     "dist/",
     "addin/",
     ".claude-plugin/",
+    ".codex-plugin/",
     ".mcp.json",
+    ".mcp.stdio.json",
     "skills/",
     "scripts/",
+    "hooks/",
     "README.md",
     "LICENSE"
   ],
@@ -33,7 +36,8 @@
     "office-js",
     "live-editing",
     "presentation",
-    "claude"
+    "claude",
+    "codex"
   ],
   "engines": {
     "node": ">=24.0.0"

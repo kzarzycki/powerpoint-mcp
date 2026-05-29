@@ -1,0 +1,43 @@
+{
+  "name": "powerpoint-mcp",
+  "version": "0.6.0",
+  "description": "MCP bridge for live-editing open PowerPoint presentations via Office.js.",
+  "author": {
+    "name": "Krzysztof Zarzycki",
+    "email": "k.zarzycki@gmail.com",
+    "url": "https://github.com/kzarzycki"
+  },
+  "homepage": "https://github.com/kzarzycki/powerpoint-mcp#readme",
+  "repository": "https://github.com/kzarzycki/powerpoint-mcp",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "powerpoint",
+    "office-js",
+    "presentations",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "PowerPoint MCP",
+    "shortDescription": "Edit live PowerPoint decks from Codex.",
+    "longDescription": "PowerPoint MCP connects Codex to open PowerPoint presentations through a local Office.js bridge. It can inspect decks, add and format content, insert images and charts, edit OOXML, copy slides, capture screenshots, and verify slide layout issues while changes appear live in PowerPoint.",
+    "developerName": "Krzysztof Zarzycki",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write",
+      "MCP"
+    ],
+    "websiteURL": "https://github.com/kzarzycki/powerpoint-mcp",
+    "defaultPrompt": [
+      "Inspect my open PowerPoint deck.",
+      "Create a new slide in the current deck.",
+      "Review this slide for layout issues."
+    ],
+    "brandColor": "#B7472A",
+    "composerIcon": "./addin/assets/icon-80.png",
+    "logo": "./addin/assets/icon-80.png"
+  }
+}

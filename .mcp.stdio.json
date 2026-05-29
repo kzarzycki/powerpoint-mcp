@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "powerpoint-mcp": {
+      "command": "node",
+      "args": [
+        "./dist/index.cjs",
+        "--stdio",
+        "--bridge"
+      ]
+    }
+  }
+}
