@@ -104,19 +104,24 @@ export function registerSlideTools(
           var masters = context.presentation.slideMasters;
           masters.load("items");
           await context.sync();
-          var master = masters.items[masters.items.length - 1];
-          master.layouts.load("items/id,items/name");
+          for (var m = 0; m < masters.items.length; m++) {
+            masters.items[m].layouts.load("items/id,items/name");
+          }
           await context.sync();
           var targetName = ${JSON.stringify(layoutName)}.toLowerCase();
           var layout = null;
-          for (var i = 0; i < master.layouts.items.length; i++) {
-            if (master.layouts.items[i].name.toLowerCase() === targetName) {
-              layout = master.layouts.items[i];
-              break;
+          for (var m = 0; m < masters.items.length && !layout; m++) {
+            var ml = masters.items[m].layouts.items;
+            for (var i = 0; i < ml.length; i++) {
+              if (ml[i].name.toLowerCase() === targetName) { layout = ml[i]; break; }
             }
           }
           if (!layout) {
-            var names = master.layouts.items.map(function(l) { return l.name; });
+            var names = [];
+            for (var m = 0; m < masters.items.length; m++) {
+              var ml2 = masters.items[m].layouts.items;
+              for (var i = 0; i < ml2.length; i++) { names.push(ml2[i].name); }
+            }
             throw new Error("Layout not found. Available: " + names.join(", "));
           }
           var slides = context.presentation.slides;

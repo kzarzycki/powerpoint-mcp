@@ -12,8 +12,9 @@ jobs:
       contents: read
     steps:
       - name: Check conventional commit prefix
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
         run: |
-          TITLE="${{ github.event.pull_request.title }}"
           PATTERN="^(feat|fix|chore|refactor|ci|docs|build|test|perf)(\(.+\))?: .+"
           if [[ ! "$TITLE" =~ $PATTERN ]]; then
             echo "::error::PR title must follow Conventional Commits: type: description"
@@ -32,10 +33,10 @@ jobs:
       - name: Apply label from title prefix
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: ${{ github.event.pull_request.title }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
         run: |
-          TITLE="${{ github.event.pull_request.title }}"
-          PR=${{ github.event.pull_request.number }}
-          REPO=${{ github.repository }}
 
           if [[ "$TITLE" =~ ^feat ]]; then
             gh pr edit "$PR" --repo "$REPO" --add-label "enhancement"
