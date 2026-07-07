@@ -72,3 +72,20 @@ E02 (DeckModel IR) is the keystone — most of M1–M5 depends on it. It lands *
 - **M3:** `compose_slide` block set passes property tests (V9) — every generated layout satisfies the invariants; e2e screenshot pass on the golden deck.
 - **M4:** a corporate `.pptx` ingests to a valid brand pack; applying it and authoring a branded slide passes the `off_brand` gate; violation fixtures flip it red.
 - **M5:** `SKILL.md` contains no rule that is enforced in code (doc-drift lint green); the engineering-loop tooling can take a story file to a merged PR unattended on a sample story.
+
+## Session-feedback stories (2026-07)
+
+Mined from 39 real session transcripts ([feedback/session-analysis-2026-07.md](feedback/session-analysis-2026-07.md)); each story extends an existing epic and cites [verification methods](VERIFICATION.md). The same analysis added **CH23/CH24** to [CODE-HEALTH.md](CODE-HEALTH.md) (E00 scope) and confirmed E01, E08, E09 and the E02/E04/E10 gate architecture against field evidence. Two re-prioritizations: **E16-FB1 lands before M2** (it patches today's dominant failure mode until E07-FB1 ships), and applied-theme resolution (CH15 + CH24) must land before any E13/E14 brand work.
+
+| Story | Epic | What | Feedback | Verify |
+|-------|------|------|----------|--------|
+| **E01-FB1** | E01 | Add-in auto-reconnect + WS heartbeat + server-side session resume; agent never needs the user to reopen the task pane | F01 | V6, V5 |
+| **E01-FB2** | E01 | `bridge_health` doctor tool that names the failing layer (server / add-in socket / deck); single-instance port-conflict detection; fail-loud TLS misconfig; disconnect errors say what actually broke | F01, F08 | V6, V12, V1 |
+| **E07-FB1** | E07 | Typed shape lifecycle tools: `add_shape`/`add_textbox`, `set_shape_geometry` (move/resize), `delete_shapes` with post-state read-back + dry-run, `reorder_slides` — modeled on the edit_shape_paragraphs design | F02, F03 | V2, V3, V5 |
+| **E08-FB1** | E08 | Compact/cost-tiered reads: `inspect_layouts` compact mode (issue #98), cost-annotated tool descriptions steering scan-first, `read_slide_zip` default paths filter + size cap | F06 | V7, V1 |
+| **E08-FB2** | E08 | `screenshot_slide` `savePath` param + one-line text caption in the result + documented recommended width | F07 | V7, V1 |
+| **E10-FB1** | E10 | Visual-judge agent definition ships with the bridge screenshot tools in allowed-tools (the working subagent pattern), replacing the PNG hand-off | F13 | V8 |
+| **E12-FB1** | E12 | `insert_icon(id)` with server-side URL resolution against a validated index; icon preview grid for human selection | F10 | V2, V5 |
+| **E13-FB1** | E13 | Deck-level OOXML write path (presentation.xml: hide, sections, theme) — or an enforced, documented can't-do list so agents stop rediscovering the ceiling | F04 | V2, V4 |
+| **E15-FB1** | E15 | One addressing vocabulary: 1-indexed slide numbers everywhere (or dual echo), `slideIndex`/`slideRange`/`shapeId` unified, zod coercion of numeric strings | F11, F12 | V1, V11 |
+| **E16-FB1** | E16 | Interim skill content (front-loaded, before M2): copy-paste Office.js patterns — shape creation, fills, load/sync ceremony, batching discipline, known-missing APIs | F09 | V11 |

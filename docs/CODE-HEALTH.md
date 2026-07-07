@@ -2,7 +2,7 @@
 
 Confirmed by adversarial review (weaker-model-authored code, six review dimensions, each finding independently verified by a skeptic agent that tried to refute it). Two were rated **PLAUSIBLE** not certain (flagged). Feeds milestone **M0** ([ROADMAP.md](ROADMAP.md)); each maps to a story in epic **E00**. Severity: **major** = wrong output / data loss / security / silent failure reachable via the MCP tools; **minor** = efficiency or robustness.
 
-Total: **22** confirmed (14 major, 8 minor). Line numbers are as-of analysis; treat as approximate anchors.
+Total: **24** confirmed (16 major, 8 minor). CH01–CH22 from the adversarial code review; CH23–CH24 mined from real session transcripts ([feedback/session-analysis-2026-07.md](feedback/session-analysis-2026-07.md)) and verified against source. Line numbers are as-of analysis; treat as approximate anchors.
 
 ## Bridge & protocol
 
@@ -167,3 +167,19 @@ Total: **22** confirmed (14 major, 8 minor). Line numbers are as-of analysis; tr
 **Failure:** All buildChartXml tests use toContain on individual tags (e.g. chart-builder.test.ts:16-25) and never assert the output is well-formed XML or that data counts are internally consistent. buildChartXml emits the category ptCount from categories.length (chart-builder.ts:210) and the value ptCount from values.length independently (chart-builder.ts:214), with no check that they match. A series whose values array is shorter/longer than categories (e.g. categories=['Q1','Q2','Q3'], values=[100,150]) produces cat ptCount=3 but val ptCount=2 — a chart PowerPoint renders wrong or drops — and every test passes because none feeds mismatched lengths or parses the result. Similarly a non-finite value would emit `<c:v>NaN</c:v>`. Because charts are injected as raw OOXML (no Office.js chart API) and e2e never opens a chart, this class of malformed-but-plausible output has no test that can catch it.
 
 **Fix:** Add a test that parses buildChartXml output with an XML parser (well-formedness) and asserts every series' val ptCount equals the category ptCount; add a guard in buildChartXml that rejects (or pads) values.length !== categories.length and non-finite values.
+
+## Session-mined additions (2026-07)
+
+### CH23 · MAJOR — edit_slide_zip returns success for edits the reimport path silently discards (presentation.xml and every other deck-level part)
+`server/tools/xml.ts:141`
+
+**Failure:** The zip round-trip is single-slide: export is `slide.exportAsBase64()` (a one-slide package whose `presentation.xml` is synthesized and whose slide part is renamed `slide1.xml`), reimport is `insertSlidesFromBase64`, which cannot carry deck-level state into the host deck. `edit_slide_zip` accepts arbitrary zip paths with no validation and unconditionally returns `{success: true}` (tools/xml.ts:141-144), so an edit to `presentation.xml` — e.g. `<p:sldId show="0">` to hide a slide — reports success while the change is thrown away on reimport. Observed cost in the field: a hide-slide task failed across multiple turns with no error anywhere, was root-caused by an agent spelunking the export format, and the session ended in user frustration (F04 in the session analysis; sections, theme application and version tracking hit the same wall).
+
+**Fix:** Reject edits to paths the reimport cannot persist with a typed error that names the ceiling ("deck-level parts are regenerated on reimport; only slideN.xml content round-trips"), and document the export model in the tool description. Longer term E13-FB1 adds a real deck-level write path. Verify: **V2** (positive fixture: presentation.xml edit → typed error; negative: slide-part edit still round-trips), **V1**.
+
+### CH24 · MAJOR — add_slide resolves layouts by name across all masters — multi-master decks get the wrong layout (issue #120)
+`server/tools/slides.ts`
+
+**Failure:** Layout resolution takes the first name match across every master, so in decks with multiple masters that reuse layout names (corporate templates — user: "not so rare in my company case") `add_slide` inserts the wrong master's layout: placeholder text drops into wrong shapes and shapes get wrong semantic names. Filed as GitHub issue #120 (open). Related latent defect: `extractThemeFromZip` (xml-helpers.ts:348-360) grabs the first `ppt/theme/*` part, which is not necessarily the applied theme — any brand/contrast logic built on it (E13/E14) inherits wrong colors/fonts; extends CH15.
+
+**Fix:** Resolve layouts by (master, layout) id — or require/accept a master qualifier and error on ambiguous names; resolve the applied theme via the master's theme relationship instead of first-file. Verify: **V2** (multi-master fixture: ambiguous name → correct layout or typed ambiguity error; clean fixture unchanged), **V3**.
