@@ -51,6 +51,14 @@ For tool reference, code patterns, and usage — see the **powerpoint-mcp** skil
 
 - PR titles and commits follow Conventional Commits (`feat:`, `fix:`, `chore:`, etc.)
 
+## Work Tracking
+
+Roadmap, epics and stories live on **[project 2](https://github.com/users/kzarzycki/projects/2)** (linked to this repo), not in `docs/`. Milestones `M0`–`M5` carry exit criteria; epics are `type:epic` issues with stories as sub-issues; epic order is `blocked by` issue dependencies.
+
+Board fields and their option names — `Kind`: Epic/Story/Task/Bug · `Status`: Backlog/Todo/In progress/In review/Done · `Phase`: TRIAGED/SPEC/SPEC_APPROVED/PLAN/PLAN_APPROVED/IMPLEMENTED/BRANCH_APPROVED/GATES_GREEN/MERGED/PARKED · `Session`: text. Labels: `type:epic|story|task|bug`, `loop:needs-human`, `ready-for-agent`.
+
+Look option **ids** up at call time (they change whenever a field is edited); see the `github-project-board-setup` skill for the recipes. `docs/` keeps only what stays true regardless of which story is in flight — never mirror a story list into markdown.
+
 ## Development Workflow
 
 ### MCP Dev Server
