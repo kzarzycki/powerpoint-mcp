@@ -1,6 +1,6 @@
 # Code health — findings and remediation decisions
 
-Backlog from adversarial code review and session feedback. Evidence, severity, and release disposition are separate: a confirmed capability can be accepted under the local-trust policy; a proposed remedy can remain unproven. CH05 and CH10 retain their **PLAUSIBLE** flags. Feeds [E00](epics/E00.md) and the reliable-bridge release in [ROADMAP.md](ROADMAP.md).
+Backlog from adversarial code review and session feedback. Evidence, severity, and release disposition are separate: a confirmed capability can be accepted under the local-trust policy; a proposed remedy can remain unproven. CH05 and CH10 retain their **PLAUSIBLE** flags. Feeds the [E00 epic](https://github.com/kzarzycki/powerpoint-mcp/issues/125) and the reliable-bridge release.
 
 **24 findings** (16 originally rated major, 8 minor), not 24 reproduced defects. CH01–CH22 originate in the code review; CH23–CH24 in [session feedback](feedback/session-analysis-2026-07.md). Explicit verdicts below govern the challenged findings. Other entries retain their prior evidence and need a failing reproduction before implementation. Source line numbers are approximate anchors.
 
@@ -27,11 +27,11 @@ Backlog from adversarial code review and session feedback. Evidence, severity, a
 ### CH03 · MAJOR — One add-in runtime can open two WebSocket connections
 `addin/app.js:11-41,94-100`
 
-**Verdict:** reproduced by executing the actual `addin/app.js` in an isolated VM: the standalone fallback followed by delayed Office readiness constructs two sockets. Pilot story for the engineering loop ([E00-01](epics/E00.md)).
+**Verdict:** reproduced by executing the actual `addin/app.js` in an isolated VM: the standalone fallback followed by delayed Office readiness constructs two sockets. Pilot story for the engineering loop ([E00-01](https://github.com/kzarzycki/powerpoint-mcp/issues/127)).
 
 **Failure:** `Office.onReady` and the 3-second fallback both call `initWebSocket()` / `connect()`. The latter unconditionally constructs a socket. Executing the actual `addin/app.js` in an isolated VM with fallback first and Office readiness second produces two socket constructions. Real cold-start frequency is unmeasured. With no document URL, the two registrations receive different pool keys; with a saved URL, one entry replaces the other, so the pool count does not necessarily reveal both sockets. This proves duplicate connections, not duplicate execution of every command.
 
-**Remedy contract:** exactly one connection attempt may be in flight or open per runtime, regardless of readiness ordering, and no stale timer may add another. Reconnection after a closed socket must still work, with backoff preserved. Do not suppress reconnects by treating a closing or closed socket as live. Acceptance and live evidence are specified in [E00-01](epics/E00.md).
+**Remedy contract:** exactly one connection attempt may be in flight or open per runtime, regardless of readiness ordering, and no stale timer may add another. Reconnection after a closed socket must still work, with backoff preserved. Do not suppress reconnects by treating a closing or closed socket as live. Acceptance and live evidence are specified in [E00-01](https://github.com/kzarzycki/powerpoint-mcp/issues/127).
 
 ### CH04 · MINOR — Connection liveness after host suspension is unproven
 `server/index.ts:378-420`

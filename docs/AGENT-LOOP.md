@@ -7,7 +7,7 @@ The same discipline that makes *slides* verifiable makes the *codebase* verifiab
 ## The loop
 
 ```
-1. SELECT   pick the lowest-id unblocked story from ROADMAP/epics (deps satisfied)
+1. SELECT   pick the top unblocked story from the board (deps satisfied)
 2. BRANCH   <type>/<epic>-<slug>   (feat|fix|refactor|test|docs)
 3. PLAN     restate the story's goal + its cited V-methods as the acceptance test
 4. RED      write the failing test first (V2 negative fixture / V6 / V12 / V10) — watch it fail
