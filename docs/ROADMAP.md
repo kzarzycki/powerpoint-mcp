@@ -4,11 +4,13 @@ Six milestones, ~18 epics, sequenced so each builds on a verified foundation. Ep
 
 The through-line: **make the codebase trustworthy → build the deterministic quality gate → enforce it in the agent loop → make quality unconstructable-to-violate → make it on-brand → make the system self-maintaining.** Quality (priority 1) is addressed first and deepened at every milestone; token efficiency (2) and richness (3) ride on the same IR.
 
+**Release scope.** The first public relaunch is the **reliable bridge**: [E00](epics/E00.md) plus install and contributor readiness. M1–M5 stay the product direction, not launch prerequisites. Transport authentication and an add-in CSP are deferred while the product is loopback-only and single-user — see [CODE-HEALTH.md](CODE-HEALTH.md) CH17 and CH18.
+
 ## Milestones
 
 | M | Theme | Outcome | Epics |
 |---|-------|---------|-------|
-| **M0** | Trustworthy foundation | The confirmed bugs are gone; the bridge survives reconnect/sleep; both channels are authenticated; the security-critical server paths have tests. Nothing new is built on sand. | E00, E01 |
+| **M0** | Trustworthy foundation | Connection and command-outcome defects are fixed with live evidence; the security posture the release ships with is decided and documented; the security-critical server paths have tests. Nothing new is built on sand. | E00, E01 |
 | **M1** | DeckModel IR + deterministic gate | One normalized deck representation, populated identically by a live and an **offline** extractor; the deterministic linter stack runs headless in CI over golden decks. The always-on quality gate exists. | E02, E03, E04, E05, E06 |
 | **M2** | Enforced verify loop + efficiency | Every mutating tool is paired with a verifier; `quality_check` runs the tiered stack; the structured visual judge replaces free-text review; responses are token-lean. The loop *enforces* quality instead of asking for it. | E07, E08, E09, E10 |
 | **M3** | Quality by construction | A `compose_slide` engine with a constraint kernel emits common slide shapes that *cannot* violate the invariants. Reliability rises; token cost per slide drops. | E11, E12 |
@@ -19,7 +21,7 @@ The through-line: **make the codebase trustworthy → build the deterministic qu
 
 | Epic | Title | Milestone | Depends on | Verifies with |
 |------|-------|-----------|-----------|---------------|
-| **E00** | Code-health remediation (confirmed bugs) | M0 | — | V1, V2, V6, V12, V3 |
+| **E00** | Bridge foundation (connection, command outcome, release posture) | M0 | — | V1, V2, V6, V12, V3 |
 | **E01** | Bridge hardening, auth & error taxonomy | M0 | E00 | V6, V12, V1, V5 |
 | **E02** | DeckModel IR + dual (live/offline) extractors | M1 | E01 | V2, V10, V4, V1 |
 | **E03** | Quality-profile config | M1 | E02 | V10, V1 |
@@ -66,7 +68,7 @@ E02 (DeckModel IR) is the keystone — most of M1–M5 depends on it. It lands *
 
 ## Milestone exit criteria
 
-- **M0:** every CH## in [CODE-HEALTH.md](CODE-HEALTH.md) closed or explicitly deferred with reason; V6 + V12 green; e2e connection-resilience test passing.
+- **M0:** every CH## in [CODE-HEALTH.md](CODE-HEALTH.md) closed or explicitly deferred with reason; [E00](epics/E00.md) release gates met; V6 + V12 green; e2e connection-resilience test passing.
 - **M1:** `npm run gate` runs offline in CI and is red on a mutated rule (V4 mutation check); live and offline extractors produce equal IR on the golden decks.
 - **M2:** registry test passes (no mutating tool lacks a verifier); `quality_check` converges a seeded-defect golden deck to pass within N iterations using the mock judge; free-text `/review-slide-visual` retired.
 - **M3:** `compose_slide` block set passes property tests (V9) — every generated layout satisfies the invariants; e2e screenshot pass on the golden deck.

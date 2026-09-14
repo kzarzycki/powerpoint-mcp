@@ -40,4 +40,4 @@ Prose that has become code gets deleted from the skill, so guidance and behavior
 
 ## How to read these docs
 
-Start here, then [ARCHITECTURE.md](ARCHITECTURE.md) for the target system, [QUALITY-GATES.md](QUALITY-GATES.md) for the gate stack, [ROADMAP.md](ROADMAP.md) for the sequenced plan. [VERIFICATION.md](VERIFICATION.md) defines the reusable verification methods every task cites. [AGENT-LOOP.md](AGENT-LOOP.md) is the autonomous engineering loop that executes the roadmap. [CODE-HEALTH.md](CODE-HEALTH.md) is the confirmed-bug backlog. [INSPIRATIONS.md](INSPIRATIONS.md) records what we borrowed and from where.
+Start here, then [ARCHITECTURE.md](ARCHITECTURE.md) for the target system, [QUALITY-GATES.md](QUALITY-GATES.md) for the gate stack, [ROADMAP.md](ROADMAP.md) for the sequenced plan. [VERIFICATION.md](VERIFICATION.md) defines the reusable verification methods every task cites. [AGENT-LOOP.md](AGENT-LOOP.md) is the autonomous engineering loop that executes the roadmap. [CODE-HEALTH.md](CODE-HEALTH.md) holds the findings and remediation decisions. [INSPIRATIONS.md](INSPIRATIONS.md) records what we borrowed and from where.

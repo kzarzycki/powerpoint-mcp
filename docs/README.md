@@ -13,7 +13,7 @@ Design, roadmap, and specs for turning powerpoint-mcp into a system where AI age
 5. **[epics/](epics/)** — one file per epic: stories with per-story verification references.
 6. **[VERIFICATION.md](VERIFICATION.md)** — the reusable verification methods (V1–V13) every story cites.
 7. **[AGENT-LOOP.md](AGENT-LOOP.md)** — the autonomous engineering loop that executes the roadmap under gate enforcement.
-8. **[CODE-HEALTH.md](CODE-HEALTH.md)** — confirmed-bug backlog from adversarial code review (feeds M0).
+8. **[CODE-HEALTH.md](CODE-HEALTH.md)** — findings and remediation decisions from adversarial code review and session feedback (feeds M0).
 9. **[INSPIRATIONS.md](INSPIRATIONS.md)** — borrowed ideas mapped to epics, with sources and pitfalls avoided.
 
 ## How this was produced
@@ -22,4 +22,4 @@ Multi-agent analysis on Opus-class models: five subsystem mappers, a six-dimensi
 
 ## For an autonomous executor starting work
 
-Pick the lowest-id unblocked story from [ROADMAP.md](ROADMAP.md) → [epics/](epics/), then follow [AGENT-LOOP.md](AGENT-LOOP.md). A story's done-signal is its cited [verification methods](VERIFICATION.md) passing. Start at **M0 / E00** — the foundation must be trustworthy before anything is built on it.
+Start at **M0 / [E00](epics/E00.md)**, which carries the reliable-bridge release scope and its stories. Later epics have no story files yet; write one before executing. Follow [AGENT-LOOP.md](AGENT-LOOP.md). A story is done when its acceptance list is literally true.
