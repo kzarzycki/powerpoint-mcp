@@ -91,12 +91,15 @@ export function parseOmpOutput(raw: string): ReviewOutput {
         }
         if (record.type !== 'turn_end') continue
         for (const item of record.message?.content ?? []) if (item.type === 'text' && item.text) texts.push(item.text)
-        break
+        if (texts.length > 0) break
       } catch {
         // Continue looking for the final JSON event.
       }
     }
-    if (texts.length === 0) throw directError
+    if (texts.length === 0) {
+      const detail = directError instanceof Error ? directError.message : String(directError)
+      throw new Error(`${detail}; no final text in omp event stream. Tail: ${raw.slice(-600)}`)
+    }
     return parseReviewOutput(texts.reverse().join(''))
   }
 }

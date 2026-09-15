@@ -61,6 +61,7 @@ describe('engineering loop state', () => {
     const stream = [
       '{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"{\\"verdict\\""}}',
       '{"type":"turn_end","message":{"role":"assistant","content":[{"type":"thinking","thinking":"x"},{"type":"text","text":"{\\"verdict\\":\\"APPROVE\\",\\"findings\\":[]}"}]}}',
+      '{"type":"turn_end","message":{"role":"assistant","content":[{"type":"text","text":""}]}}',
       '{"type":"advisor_yielded"}',
     ].join('\n')
     expect(parseOmpOutput(stream)).toEqual({ verdict: 'APPROVE', findings: [] })
