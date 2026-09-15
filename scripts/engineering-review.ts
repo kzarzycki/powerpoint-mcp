@@ -78,7 +78,7 @@ function reviewPrompt(brief: string): string {
   ].join('\n')
 }
 
-function parseOmpOutput(raw: string): ReviewOutput {
+export function parseOmpOutput(raw: string): ReviewOutput {
   try {
     return parseReviewOutput(raw)
   } catch (directError) {

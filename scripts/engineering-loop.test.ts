@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { type LoopState, review } from './engineering-loop.ts'
-import { parseReviewOutput } from './engineering-review.ts'
+import { parseOmpOutput, parseReviewOutput } from './engineering-review.ts'
 import { createState, readState } from './loop-store.ts'
 
 function cleanEnvironment(): NodeJS.ProcessEnv {
@@ -55,6 +55,16 @@ describe('engineering loop state', () => {
     })
     expect(() => parseReviewOutput('{"verdict":"APPROVE","findings":[],"reviewer":"author"}')).toThrow()
     expect(() => parseReviewOutput('{"verdict":"APPROVE","findings":[3]}')).toThrow()
+  })
+
+  it('extracts the verdict from the omp json event stream', () => {
+    const stream = [
+      '{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"{\\"verdict\\""}}',
+      '{"type":"turn_end","message":{"role":"assistant","content":[{"type":"thinking","thinking":"x"},{"type":"text","text":"{\\"verdict\\":\\"APPROVE\\",\\"findings\\":[]}"}]}}',
+      '{"type":"advisor_yielded"}',
+    ].join('\n')
+    expect(parseOmpOutput(stream)).toEqual({ verdict: 'APPROVE', findings: [] })
+    expect(() => parseOmpOutput('{"type":"turn_start"}\n{"type":"advisor_yielded"}')).toThrow()
   })
 
   it('parks after three review rejections', () => {
