@@ -100,7 +100,13 @@ export function parseOmpOutput(raw: string): ReviewOutput {
       const detail = directError instanceof Error ? directError.message : String(directError)
       throw new Error(`${detail}; no final text in omp event stream. Tail: ${raw.slice(-600)}`)
     }
-    return parseReviewOutput(texts.reverse().join(''))
+    const joined = texts.reverse().join('')
+    try {
+      return parseReviewOutput(joined)
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      throw new Error(`${detail}; final omp text: ${joined.slice(0, 600)}`)
+    }
   }
 }
 
