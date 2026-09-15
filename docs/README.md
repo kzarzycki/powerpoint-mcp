@@ -28,7 +28,3 @@ These files hold what stays true regardless of which story is in flight: the tar
 ## How this was produced
 
 Multi-agent analysis on Opus-class models: five subsystem mappers, a six-dimension code review with per-finding adversarial verification (a skeptic tried to refute each bug), four web-research streams on similar projects, and a four-proposal architecture design panel scored by two independent judges. The synthesis and these documents were authored from those results. The confirmed findings, the winning architecture (pragmatic-incremental + the highest-value absorptions from the other three proposals), and the inspiration digest all trace back to that run.
-
-## For an autonomous executor starting work
-
-Start at **[E00](https://github.com/kzarzycki/powerpoint-mcp/issues/125)** (M0), which carries the reliable-bridge release scope and its stories. Later epics are placeholders — write the stories when the epic is picked up. Follow [AGENT-LOOP.md](AGENT-LOOP.md). A story is done when its acceptance list is literally true.
