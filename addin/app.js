@@ -12,7 +12,6 @@ var AsyncFunction = (async () => {}).constructor
 Office.onReady((info) => {
   officeReady = true
   console.log('Office.js ready:', info.host, info.platform)
-  updateStatus('connecting')
   initWebSocket()
 })
 
@@ -20,7 +19,6 @@ Office.onReady((info) => {
 setTimeout(() => {
   if (!officeReady) {
     console.log('Office.js not detected — standalone mode')
-    updateStatus('connecting')
     initWebSocket()
   }
 }, 3000)
@@ -36,6 +34,7 @@ function connect() {
     clearTimeout(reconnectTimer)
     reconnectTimer = null
   }
+  updateStatus('connecting')
 
   var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   var host = window.location.host

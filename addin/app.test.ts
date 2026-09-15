@@ -8,6 +8,7 @@ interface Harness {
   sockets: FakeSocket[]
   timers: Map<number, () => void>
   delays: number[]
+  status: { textContent: string; className: string }
   ready: (info?: Record<string, string>) => void
   runTimer: () => void
 }
@@ -38,7 +39,8 @@ function harness(): Harness {
   const delays: number[] = []
   let nextTimer = 1
   let ready: ((info?: Record<string, string>) => void) | undefined
-  const document = { getElementById: () => ({ textContent: '', className: '' }) }
+  const status = { textContent: '', className: '' }
+  const document = { getElementById: (id: string) => (id === 'status' ? status : { textContent: '', className: '' }) }
   const office = {
     onReady: (callback: (info?: Record<string, string>) => void) => {
       ready = callback
@@ -80,6 +82,7 @@ function harness(): Harness {
     sockets,
     timers,
     delays,
+    status,
     ready: (info = { host: 'PowerPoint', platform: 'mac' }) => ready?.(info),
     runTimer: () => {
       const [id, callback] = timers.entries().next().value ?? []
@@ -124,6 +127,15 @@ describe('add-in WebSocket ownership', () => {
     connect()
     h.sockets[0].open()
     connect()
+    expect(h.sockets).toHaveLength(1)
+  })
+
+  it('keeps Connected when Office ready fires after the fallback socket opened', () => {
+    const h = harness()
+    h.runTimer()
+    h.sockets[0].open()
+    h.ready()
+    expect(h.status.className).toBe('status connected')
     expect(h.sockets).toHaveLength(1)
   })
 
