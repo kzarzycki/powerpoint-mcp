@@ -155,6 +155,8 @@ Backlog from adversarial code review and session feedback. Evidence, severity, a
 ### CH19 · MINOR — parseJsonBody buffers unbounded request bodies before any auth/session check
 `server/index.ts:208`
 
+**Verdict:** confirmed in source. `parseJsonBody` (`server/index.ts:208`) pushes every `data` chunk into an array and concatenates on `end` with no size check; no reproduction is needed to see it. Whether a real client can be made to send such a body is a separate question and does not change the fix.
+
 **Failure:** handleMcpPost calls `parseJsonBody` (index.ts:208-221) which concatenates all `data` chunks into memory with no size cap, and this happens (index.ts:232) before the session/initialize gate at index.ts:235-258. A local client (or a browser hitting the correct Host) can POST a multi-gigabyte body to /mcp and the server buffers the whole thing into `chunks` before rejecting, exhausting memory / crashing the process — a pre-auth memory DoS. Lower severity because :3001 is loopback-bound, but it is reachable by any local process and by same-origin add-in pages.
 
 **Remedy contract:** enforce a byte limit before concatenation and JSON parsing. Derive the limit from supported HTTP requests, including base64 images; do not choose an arbitrary 1–4 MB or 32 MiB cap. Oversized requests must stop accumulating memory, produce a documented client-visible failure, and leave the server responsive. Cover chunked bodies, disconnect during upload, and legitimate near-limit operations. Do not promise an HTTP 413 after destroying the response socket.
