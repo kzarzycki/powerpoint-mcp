@@ -24,7 +24,3 @@ Design and specs for turning powerpoint-mcp into a system where AI agents build 
 | Stories | [`type:story`](https://github.com/kzarzycki/powerpoint-mcp/issues?q=is%3Aissue+label%3Atype%3Astory) — one engineering-loop iteration each |
 
 These files hold what stays true regardless of which story is in flight: the target system, the gate stack, the verification vocabulary, the findings ledger. Anything with a status belongs on the board.
-
-## How this was produced
-
-Multi-agent analysis on Opus-class models: five subsystem mappers, a six-dimension code review with per-finding adversarial verification (a skeptic tried to refute each bug), four web-research streams on similar projects, and a four-proposal architecture design panel scored by two independent judges. The synthesis and these documents were authored from those results. The confirmed findings, the winning architecture (pragmatic-incremental + the highest-value absorptions from the other three proposals), and the inspiration digest all trace back to that run.
