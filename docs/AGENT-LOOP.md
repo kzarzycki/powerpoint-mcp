@@ -1,59 +1,72 @@
-# Autonomous engineering loop
+# Repository engineering loop
 
-How this project builds itself: an Opus-class agent takes a story from the roadmap and lands it as a merged PR, with quality enforced by gates so the human reviews a verdict, not a diff.
+Every story runs in one isolated sibling worktree and has one exclusive remote claim.
+The executable adapter is:
 
-The same discipline that makes *slides* verifiable makes the *codebase* verifiable: every story has a machine-checkable done-signal (a cited [verification method](VERIFICATION.md)). The loop's job is to reach that signal.
-
-## The loop
-
-```
-1. SELECT   pick the top unblocked story from the board (deps satisfied)
-2. BRANCH   <type>/<epic>-<slug>   (feat|fix|refactor|test|docs)
-3. PLAN     restate the story's goal + its cited V-methods as the acceptance test
-4. RED      write the failing test first (V2 negative fixture / V6 / V12 / V10) — watch it fail
-5. GREEN    implement the minimum to pass; keep the change surgical (touch only what the story needs)
-6. VERIFY   run every cited V-method in cost order (V1 → V2/V3/V9 → V4/V7 → V6 → V8 → V5 if applicable)
-7. SELF-REVIEW  fork a fresh-eyes reviewer subagent (code + diff, no author context) → must return no blocking finding
-8. BUILD    npm run build; stage dist/index.cjs (V13)
-9. PR       Conventional-Commit title; body = the gate report + one-paragraph summary
-10. CI      wait for green; if red, back to step 5 (fix forward, never merge red)
-11. MERGE   squash-merge; delete branch; mark story done; back to 1
+```sh
+AGENT_SESSION=codex:<session-id> npm run loop -- claim --issue <url-or-number> --branch <slug>
 ```
 
-Steps 4–7 are the quality core. **Red-green is mandatory**: the negative case must demonstrably fail before the fix, or the test proves nothing. **Self-review by a fresh agent** is mandatory because an author goes blind to their own work — the same reason slide review is forked.
+`scripts/engineering-loop.ts` stores the claim and append-only phase history under
+`refs/heads/loop-state/issue-<n>`. The claim is created on `origin` with create-only
+semantics; a second session cannot overwrite it. The board and issue comments are
+projections for people, not the lock. A failed claim writes a local rejected-claim
+record and does not change the winning owner.
 
-## Gates that make human review minimal
+The claim command creates `../powerpoint-mcp--issue-<n>` from `origin/main` on
+`loop/issue-<n>-<slug>`. Work never starts in the shared checkout. There is no
+automatic stale-claim takeover: the owner or maintainer must resume or explicitly
+park an abandoned claim.
 
-The human is not asked to read the implementation. They're shown, in the PR body:
+## Fixed phases
 
-- the **story goal** and which V-methods gated it,
-- the **gate report** (V1 suite result, V4 golden-deck report if quality-relevant, V5 e2e status, V8/self-review verdict),
-- a **one-paragraph** change summary and a change manifest (files touched, tools added/changed).
+1. **TRIAGED** — claim the issue and create its sibling worktree.
+2. **SPEC** — write the issue-bounded spec, then run the standalone review:
+   `npm run loop:review -- --cwd <worktree> --brief-file <brief> --output <verdict>`.
+3. **SPEC_APPROVED** — approval is recorded with reviewer, findings and artifact hash.
+4. **PLAN** → **PLAN_APPROVED** — write and independently review the ordered
+   implementation plan.
+5. **IMPLEMENTED** → **BRANCH_APPROVED** — implement, then review the complete diff
+   from a fresh context. A rejected review leaves the phase in place for correction.
+6. **GATES_GREEN** — run all required mechanical gates and record command, output and
+   exit code.
+7. **MERGED** — only after the story PR is green, the required evidence is attached,
+   and the executing agent squashes the exact story branch.
 
-If every cited gate is green, the default is merge. The human intervenes only on: an escape-hatch (`execute_officejs`) surface change, a security-relevant change (V12), a schema/breaking-API change, or a gate the agent had to mark `warn`/override with justification.
+Every review gate has three attempts. The attempt is reserved before the review runs,
+so a crashed reviewer consumes an attempt rather than silently resetting the budget.
+The third rejection changes the story to **PARKED**. No gate is weakened.
+Rejections and later approvals remain in the append-only history.
 
-## Guardrails for autonomous execution
+## Project gates
 
-- **One story per PR.** Small, reviewable, revertable. If a story needs >~400 changed lines, split it.
-- **Never merge red.** A failing cited gate blocks merge. Fix forward or revert; do not disable the gate to go green.
-- **Never weaken a gate to pass.** Adding coverage requires the mutation check (a bad input must turn it red). Lowering a threshold is a config change that itself needs justification + V10.
-- **Migration behind the suite.** IR/tool refactors land tool-by-tool; the full suite stays green after each step (per [ARCHITECTURE.md](ARCHITECTURE.md) migration discipline).
-- **Escape hatch is sacred.** Do not remove `execute_officejs`; promote patterns into typed tools alongside it.
-- **Blocked?** If a story can't reach its done-signal (e.g. needs live PowerPoint the runner lacks, or an upstream epic isn't done), stop and surface it — don't fake the gate or mark it done.
-- **Live-dependent stories.** Stories whose only proof is V5 (real Office.js behavior) run on the self-hosted macOS runner or locally; if unavailable, land the offline-verifiable part (V4) and leave the V5 acceptance explicitly pending, flagged for the human.
+The contributor runs these with Node 24 (`mise exec node@24.18.0 -- ...`):
 
-## Roles (who runs what model)
+- `npm run check` — Biome, TypeScript and the complete Vitest suite.
+- `npm run build` followed by `git diff --exit-code dist/index.cjs` — committed bundle
+  parity.
+- `npm run test:e2e` for stories that exercise PowerPoint Web or the full MCP path.
+- Live Office evidence for desktop/add-in stories: a disposable deck, cold launch,
+  taskpane open, bridge `/health`, MCP `list_presentations`, taskpane close/reopen,
+  and the same connection/presentation capture after recovery.
 
-- **Executor** (Opus-class): runs the loop for one story end to end.
-- **Reviewer** (fresh fork, step 7): independent code review; no author context.
-- **Visual judge** (vision subagent): only for stories that change slide output, as the V8 gate.
-- **Orchestrator** (optional): assigns unblocked stories to parallel executors when the dependency graph allows, respecting epic ordering.
+The fake Office host and `/health` endpoint do not prove Office.js behavior. Missing
+PowerPoint, Microsoft 365 credentials, or a disposable deck is an explicit blocked
+live gate, not a reason to substitute a weaker check.
 
-## Definition of done (every story)
+## Review and landing
 
-1. All cited V-methods pass.
-2. Fresh-eyes self-review returns no blocking finding.
-3. `npm run check` + `npm run build`/dist parity green (V1, V13).
-4. PR merged; roadmap story marked done; any newly-unblocked stories noted.
+`engineering-review.ts` invokes the local `omp` CLI only. It does not import
+Flowbench, Python, Omnigent or a daemon. It accepts only strict JSON:
+`{"verdict":"APPROVE"|"REVISE","findings":[string]}`. Non-zero, timed-out,
+empty or malformed reviewer output fails closed.
 
-If any of these is not literally true, the story is not done — regardless of how complete the code looks.
+The executing agent may squash-merge ordinary loop PRs after the exact branch passes
+the independent branch review, all required checks, CI and live evidence. Security
+changes, `execute_officejs` changes, breaking APIs and gate exceptions still require
+owner approval. Red CI is a failed gate; fix forward, retry within the cap, or park.
+
+The issue comment and phase history are the human-facing record. `.loop/` files are
+temporary worktree inputs and are not a second source of truth. A story is not done
+until its PR is merged, its branch is removed, and every named acceptance criterion
+has evidence.
