@@ -25,7 +25,7 @@ export interface RunReviewOptions {
   timeoutMs?: number
 }
 
-const DEFAULT_TIMEOUT_MS = 120_000
+const DEFAULT_TIMEOUT_MS = 300_000
 
 /** Parse the reviewer's JSON response, rejecting anything outside the review contract. */
 export function parseReviewOutput(raw: string): ReviewOutput {
@@ -78,6 +78,29 @@ function reviewPrompt(brief: string): string {
   ].join('\n')
 }
 
+function parseOmpOutput(raw: string): ReviewOutput {
+  try {
+    return parseReviewOutput(raw)
+  } catch (directError) {
+    const texts: string[] = []
+    for (const line of raw.split(/\r?\n/).reverse()) {
+      try {
+        const record = JSON.parse(line) as {
+          type?: string
+          message?: { content?: Array<{ type?: string; text?: string }> }
+        }
+        if (record.type !== 'turn_end') continue
+        for (const item of record.message?.content ?? []) if (item.type === 'text' && item.text) texts.push(item.text)
+        break
+      } catch {
+        // Continue looking for the final JSON event.
+      }
+    }
+    if (texts.length === 0) throw directError
+    return parseReviewOutput(texts.reverse().join(''))
+  }
+}
+
 /** Run the local omp reviewer and parse its fail-closed JSON response. */
 export function runReview(options: RunReviewOptions): ReviewResult {
   const { cwd, brief, model, timeoutMs = DEFAULT_TIMEOUT_MS } = options
@@ -87,6 +110,8 @@ export function runReview(options: RunReviewOptions): ReviewResult {
 
   const omp = process.env.OMP_BIN?.trim() || 'omp'
   const args = [
+    '--mode',
+    'json',
     '-p',
     reviewPrompt(brief),
     '--no-session',
@@ -108,22 +133,18 @@ export function runReview(options: RunReviewOptions): ReviewResult {
   const completed = spawnSync(omp, args, {
     cwd,
     encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
     timeout: timeoutMs,
-    maxBuffer: 1024 * 1024,
+    maxBuffer: 4 * 1024 * 1024,
   })
-
-  if (completed.error) {
-    throw new Error(`Review command failed: ${completed.error.message}`)
-  }
+  if (completed.error) throw new Error(`Review command failed: ${completed.error.message}`)
   if (completed.status !== 0) {
     const detail = completed.stderr.trim()
     throw new Error(`Review command exited with status ${completed.status}${detail ? `: ${detail}` : ''}`)
   }
-  if (completed.signal) {
-    throw new Error(`Review command terminated by ${completed.signal}`)
-  }
+  if (completed.signal) throw new Error(`Review command terminated by ${completed.signal}`)
 
-  const parsed = parseReviewOutput(completed.stdout)
+  const parsed = parseOmpOutput(completed.stdout)
   return {
     ...parsed,
     reviewer: `omp:${model ?? 'default'}`,

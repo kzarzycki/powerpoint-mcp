@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { type LoopState, review } from './engineering-loop.ts'
 import { parseReviewOutput } from './engineering-review.ts'
 import { createState, readState } from './loop-store.ts'
 
@@ -54,5 +55,41 @@ describe('engineering loop state', () => {
     })
     expect(() => parseReviewOutput('{"verdict":"APPROVE","findings":[],"reviewer":"author"}')).toThrow()
     expect(() => parseReviewOutput('{"verdict":"APPROVE","findings":[3]}')).toThrow()
+  })
+
+  it('parks after three review rejections', () => {
+    const { first } = repository()
+    const state: LoopState = {
+      issue: 126,
+      issueUrl: 'https://github.com/kzarzycki/powerpoint-mcp/issues/126',
+      owner: 'test:owner',
+      claimNonce: 'test',
+      branch: 'loop/test',
+      worktree: first,
+      phase: 'SPEC',
+      attempts: { spec: 0, plan: 0, branch: 0, checks: 0, live: 0 },
+      artifacts: {},
+      reviews: [],
+      gates: [],
+      events: [],
+      updatedAt: new Date().toISOString(),
+    }
+    createState(first, 126, state)
+    const result = join(first, 'review.json')
+    writeFileSync(result, '{"verdict":"REVISE","findings":["not ready"],"reviewer":"test"}')
+    const previous = process.env.AGENT_SESSION
+    process.env.AGENT_SESSION = 'test:owner'
+    try {
+      review(first, 126, 'spec', result, false, result)
+      review(first, 126, 'spec', result, false, result)
+      const parked = review(first, 126, 'spec', result, false, result)
+      expect(parked.phase).toBe('PARKED')
+      expect(parked.attempts.spec).toBe(3)
+      expect(parked.reviews.filter((item) => item.verdict === 'REVISE')).toHaveLength(3)
+      expect(parked.events.filter((item) => item.kind === 'REVIEW_REJECTED')).toHaveLength(3)
+    } finally {
+      if (previous === undefined) delete process.env.AGENT_SESSION
+      else process.env.AGENT_SESSION = previous
+    }
   })
 })
