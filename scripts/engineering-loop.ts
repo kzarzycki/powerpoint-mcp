@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import { execFileSync, spawnSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { basename, dirname, resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { parseReviewOutput, type ReviewResult, runReview } from './engineering-review.ts'
 import { createState, readState, type StateResult, updateState } from './loop-store.ts'
 
@@ -29,7 +29,6 @@ export interface LoopEvent {
   detail: string
   attempt?: number
 }
-
 export interface LoopState {
   issue: number
   issueUrl: string
@@ -39,8 +38,17 @@ export interface LoopState {
   worktree: string
   phase: Phase
   attempts: Record<Gate, number>
-  artifacts: Partial<Record<'spec' | 'plan', { path: string; sha256: string }>>
-  reviews: Array<{ gate: Gate; verdict: 'APPROVE' | 'REVISE'; reviewer: string; findings: string[]; at: string }>
+  artifacts: Partial<Record<'spec' | 'plan', { path: string }>>
+  implementation?: { head: string }
+  merge?: { pr: string; commit: string }
+  reviews: Array<{
+    gate: Gate
+    verdict: 'APPROVE' | 'REVISE'
+    reviewer: string
+    findings: string[]
+    at: string
+    source: 'omp' | 'file'
+  }>
   gates: Array<{ gate: Gate; command: string; exitCode: number; output: string; at: string }>
   events: LoopEvent[]
   updatedAt: string
@@ -48,7 +56,6 @@ export interface LoopState {
 
 const MAX_ATTEMPTS = 3
 const EMPTY_ATTEMPTS: Record<Gate, number> = { spec: 0, plan: 0, branch: 0, checks: 0, live: 0 }
-
 function now(): string {
   return new Date().toISOString()
 }
@@ -57,11 +64,18 @@ function session(): string {
   if (!value) throw new Error('AGENT_SESSION is required for loop mutations')
   return value
 }
+function cleanEnvironment(): NodeJS.ProcessEnv {
+  const removed = new Set(['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_PREFIX'])
+  return Object.fromEntries(Object.entries(process.env).filter(([key]) => !removed.has(key)))
+}
 function git(cwd: string, args: string[]): string {
-  return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
+  return execFileSync('git', args, { cwd, encoding: 'utf8', env: cleanEnvironment() }).trim()
 }
 function root(cwd: string): string {
   return git(cwd, ['rev-parse', '--show-toplevel'])
+}
+function workspaceRoot(cwd: string): string {
+  return dirname(resolve(cwd, git(cwd, ['rev-parse', '--git-common-dir'])))
 }
 function issueNumber(value: string): number {
   const match = value.match(/(?:issues\/|#)?(\d+)(?:$|[^\d])/)
@@ -79,9 +93,6 @@ function slug(value: string): string {
   if (!result) throw new Error('branch slug is empty')
   return result
 }
-function sha256(path: string): string {
-  return createHash('sha256').update(readFileSync(path)).digest('hex')
-}
 function output(result: StateResult<LoopState>): LoopState {
   return result.value
 }
@@ -91,6 +102,7 @@ function load(cwd: string, issue: number): StateResult<LoopState> {
   return state
 }
 function update(cwd: string, state: StateResult<LoopState>, value: LoopState): StateResult<LoopState> {
+  if (session() !== value.owner) throw new Error(`issue #${value.issue} is owned by ${value.owner}`)
   value.updatedAt = now()
   return updateState(cwd, value.issue, state.oid, value)
 }
@@ -100,7 +112,7 @@ function event(value: LoopState, kind: string, detail: string, attempt?: number)
 }
 function comment(issue: string, body: string): void {
   const result = spawnSync('gh', ['issue', 'comment', issue, '--body', body], { encoding: 'utf8' })
-  if (result.status !== 0) throw new Error(`GitHub issue comment failed: ${result.stderr || result.stdout}`)
+  if (result.status !== 0) console.error(`GitHub issue comment failed: ${result.stderr || result.stdout}`)
 }
 function record(
   cwd: string,
@@ -115,10 +127,9 @@ function record(
 function requirePhase(value: LoopState, expected: Phase): void {
   if (value.phase !== expected) throw new Error(`issue #${value.issue} is ${value.phase}; expected ${expected}`)
 }
-function gate(value: LoopState, name: Gate): number {
+function nextAttempt(value: LoopState, name: Gate): number {
   const next = value.attempts[name] + 1
   if (next > MAX_ATTEMPTS) throw new Error(`${name} gate is exhausted; issue is ${value.phase}`)
-  value.attempts[name] = next
   return next
 }
 function parseArgs(args: string[]): { command: string; values: Record<string, string>; flags: Set<string> } {
@@ -148,7 +159,7 @@ export function claim(cwd: string, rawIssue: string, branchSlug: string, publish
   const url = issueUrl(rawIssue, issue)
   const repo = root(cwd)
   const branch = `loop/issue-${issue}-${slug(branchSlug)}`
-  const worktree = resolve(dirname(repo), `${basename(repo)}--issue-${issue}`)
+  const worktree = resolve(workspaceRoot(cwd), `powerpoint-mcp--issue-${issue}`)
   const value: LoopState = {
     issue,
     issueUrl: url,
@@ -178,6 +189,9 @@ export function claim(cwd: string, rawIssue: string, branchSlug: string, publish
         2,
       ),
     )
+    const winner = readState<LoopState>(repo, issue)
+    if (winner && publish)
+      comment(url, `engineering-loop: claim rejected — ${value.owner} lost to ${winner.value.owner}`)
     throw error
   }
   try {
@@ -212,11 +226,29 @@ export function setArtifact(
   }
   const artifactPath = resolve(cwd, path)
   if (!existsSync(artifactPath)) throw new Error(`artifact does not exist: ${artifactPath}`)
-  value.artifacts[kind] = { path: artifactPath, sha256: sha256(artifactPath) }
+  value.artifacts[kind] = { path: artifactPath }
   event(value, `${kind.toUpperCase()}_WRITTEN`, `${kind}=${artifactPath}`)
   return output(record(cwd, current, value, publish))
 }
-
+export function markImplemented(cwd: string, issue: number, publish = true): LoopState {
+  const current = load(cwd, issue)
+  const value = output(current)
+  if (value.phase !== 'PLAN_APPROVED' && value.phase !== 'IMPLEMENTED')
+    throw new Error(`issue #${issue} is ${value.phase}; expected PLAN_APPROVED`)
+  value.implementation = { head: git(value.worktree, ['rev-parse', 'HEAD']) }
+  value.phase = 'IMPLEMENTED'
+  event(value, 'IMPLEMENTED', `branch head=${value.implementation.head}`)
+  return output(record(cwd, current, value, publish))
+}
+export function markMerged(cwd: string, issue: number, pr: string, commit: string, publish = true): LoopState {
+  const current = load(cwd, issue)
+  const value = output(current)
+  requirePhase(value, 'GATES_GREEN')
+  value.merge = { pr, commit }
+  value.phase = 'MERGED'
+  event(value, 'MERGED', `pr=${pr} commit=${commit}`)
+  return output(record(cwd, current, value, publish))
+}
 export function review(
   cwd: string,
   issue: number,
@@ -225,6 +257,7 @@ export function review(
   publish = true,
   resultPath?: string,
 ): LoopState {
+  if (kind === 'checks') throw new Error('checks are recorded with the checks command, not a reviewer verdict')
   const current = load(cwd, issue)
   const value = output(current)
   const expected: Record<Gate, Phase> = {
@@ -235,8 +268,7 @@ export function review(
     live: 'GATES_GREEN',
   }
   requirePhase(value, expected[kind])
-  const attempt = gate(value, kind)
-  record(cwd, current, event(value, 'REVIEW_RESERVED', `${kind} attempt ${attempt}`, attempt), false)
+  const attempt = nextAttempt(value, kind)
   let result: ReviewResult
   try {
     if (resultPath) {
@@ -246,23 +278,24 @@ export function review(
         ...parseReviewOutput(JSON.stringify({ verdict: raw.verdict, findings: raw.findings })),
         reviewer: raw.reviewer,
       }
-    } else {
-      result = runReview({ cwd: value.worktree, brief: readFileSync(resolve(cwd, briefPath), 'utf8') })
-    }
+    } else result = runReview({ cwd: value.worktree, brief: readFileSync(resolve(cwd, briefPath), 'utf8') })
   } catch (error) {
-    const failed = output(load(cwd, issue))
-    event(failed, 'REVIEW_FAILED', `${kind}: ${error instanceof Error ? error.message : String(error)}`, attempt)
-    record(cwd, load(cwd, issue), failed, publish)
+    const failed = load(cwd, issue)
+    const failedValue = output(failed)
+    event(failedValue, 'REVIEW_FAILED', `${kind}: ${error instanceof Error ? error.message : String(error)}`)
+    record(cwd, failed, failedValue, publish)
     throw error
   }
   const latest = load(cwd, issue)
   const reviewed = output(latest)
+  reviewed.attempts[kind] = attempt
   reviewed.reviews.push({
     gate: kind,
     verdict: result.verdict,
     reviewer: result.reviewer,
     findings: result.findings,
     at: now(),
+    source: resultPath ? 'file' : 'omp',
   })
   if (result.verdict === 'APPROVE') {
     const next: Record<Gate, Phase> = {
@@ -283,17 +316,20 @@ export function review(
   }
   return output(record(cwd, latest, reviewed, publish))
 }
-
 export function recordGate(cwd: string, issue: number, command: string, publish = true): LoopState {
   const current = load(cwd, issue)
   const value = output(current)
   requirePhase(value, 'BRANCH_APPROVED')
-  const attempt = gate(value, 'checks')
+  const attempt = nextAttempt(value, 'checks')
   const result = spawnSync('mise', ['exec', 'node@24.18.0', '--', 'sh', '-lc', command], {
     cwd: value.worktree,
     encoding: 'utf8',
+    maxBuffer: 2 * 1024 * 1024,
   })
-  const text = `${result.stdout ?? ''}${result.stderr ?? ''}`.slice(-12000)
+  const text = `${result.stdout ?? ''}${result.stderr ?? ''}${result.error ? `\n${result.error.message}` : ''}`.slice(
+    -12000,
+  )
+  value.attempts.checks = attempt
   value.gates.push({ gate: 'checks', command, exitCode: result.status ?? 1, output: text, at: now() })
   event(
     value,
@@ -308,7 +344,6 @@ export function recordGate(cwd: string, issue: number, command: string, publish 
   }
   return output(record(cwd, current, value, publish))
 }
-
 export function recordLive(cwd: string, issue: number, evidencePath: string, publish = true): LoopState {
   const current = load(cwd, issue)
   const value = output(current)
@@ -319,16 +354,8 @@ export function recordLive(cwd: string, issue: number, evidencePath: string, pub
   return output(record(cwd, current, value, publish))
 }
 
-export function recordReviewFailure(cwd: string, issue: number, kind: Gate, reason: string, publish = true): LoopState {
-  const current = load(cwd, issue)
-  const value = output(current)
-  event(value, 'REVIEW_FAILED', `${kind}: ${reason}`)
-  return output(record(cwd, current, value, publish))
-}
-
 export async function main(args = process.argv.slice(2)): Promise<void> {
-  const parsed = parseArgs(args)
-  const { command, values, flags } = parsed
+  const { command, values, flags } = parseArgs(args)
   const cwd = resolve(values.cwd ?? process.cwd())
   const publish = !flags.has('no-github')
   const issue = values.issue ? issueNumber(values.issue) : undefined
@@ -341,20 +368,20 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     console.log(JSON.stringify(setArtifact(cwd, issue, command, required(values, 'file'), publish), null, 2))
     return
   }
+  if (command === 'implemented') {
+    console.log(JSON.stringify(markImplemented(cwd, issue, publish), null, 2))
+    return
+  }
+  if (command === 'merged') {
+    console.log(
+      JSON.stringify(markMerged(cwd, issue, required(values, 'pr'), required(values, 'commit'), publish), null, 2),
+    )
+    return
+  }
   if (command === 'review') {
     console.log(
       JSON.stringify(
         review(cwd, issue, required(values, 'gate') as Gate, required(values, 'brief'), publish, values.result),
-        null,
-        2,
-      ),
-    )
-    return
-  }
-  if (command === 'review-failed') {
-    console.log(
-      JSON.stringify(
-        recordReviewFailure(cwd, issue, required(values, 'gate') as Gate, required(values, 'reason'), publish),
         null,
         2,
       ),
@@ -380,8 +407,7 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   }
   throw new Error(`unknown command: ${command}`)
 }
-
-if (import.meta.url === `file://${process.argv[1]}`)
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : error)
     process.exitCode = 1

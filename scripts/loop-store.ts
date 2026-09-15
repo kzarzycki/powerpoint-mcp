@@ -78,7 +78,9 @@ function commitState<T>(cwd: string, value: T, parent?: string): string {
 
 export function readState<T>(cwd: string, issue: number, remote = 'origin'): StateResult<T> | null {
   const oid = readRemoteOid(cwd, issue, remote)
-  return oid ? { oid, value: readCommit<T>(cwd, oid) } : null
+  if (!oid) return null
+  git(cwd, ['fetch', '--no-tags', remote, refFor(issue)])
+  return { oid, value: readCommit<T>(cwd, oid) }
 }
 
 export function createState<T>(cwd: string, issue: number, value: T, remote = 'origin'): StateResult<T> {
@@ -109,7 +111,7 @@ export function updateState<T>(
   const oid = commitState(cwd, value, expectedOid)
   const ref = refFor(issue)
   try {
-    git(cwd, ['push', '--no-verify', remote, `${oid}:${ref}`])
+    git(cwd, ['push', '--no-verify', `--force-with-lease=${ref}:${expectedOid}`, remote, `${oid}:${ref}`])
   } catch (error) {
     throw new Error(`state update lost for issue #${issue}: ${error instanceof Error ? error.message : String(error)}`)
   }

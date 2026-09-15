@@ -40,6 +40,7 @@ describe('engineering loop state', () => {
     const { first, second } = repository()
     const value = { issue: 126, owner: 'test:first' }
     expect(createState(first, 126, value).value).toEqual(value)
+    expect(readState(second, 126)?.value).toEqual(value)
     expect(() => createState(second, 126, { issue: 126, owner: 'test:second' })).toThrow(
       /exclusive claim failed|exclusive claim lost/,
     )
