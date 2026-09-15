@@ -1,11 +1,19 @@
-Command: mise exec node@24.18.0 -- npx vitest run addin/app.test.ts
-Source state: addin/app.js with single-flight socket and reconnect-timer ownership.
+Command: mise exec node@24.18.0 -- npx vitest run addin/app.test.ts --reporter=verbose
+Source: addin/app.js with single-flight socket and reconnect-timer ownership.
 
-Result: 6 tests passed.
-- Office ready before fallback: one socket.
-- Office ready after fallback: one socket.
-- No Office-ready callback: one socket.
-- Duplicate connect while connecting/open: one socket.
-- Closed socket reconnects from its scheduled timer with the existing backoff range,
-  then resets to the base delay after a successful open.
-- A captured stale timer adds no socket after a replacement connection exists.
+
+ RUN  v4.1.10 /Users/zarz/dev/agents/mcp/powerpoint-mcp--issue-126--issue-127
+
+ ✓ addin/app.test.ts > add-in WebSocket ownership > Office ready before fallback opens one socket 2ms
+ ✓ addin/app.test.ts > add-in WebSocket ownership > Office ready after fallback opens one socket 1ms
+ ✓ addin/app.test.ts > add-in WebSocket ownership > plain browser without ready callback opens one socket 0ms
+ ✓ addin/app.test.ts > add-in WebSocket ownership > does not add a socket while one is connecting or open 1ms
+ ✓ addin/app.test.ts > add-in WebSocket ownership > uses exponential backoff plus jitter, caps before jitter, and resets after open 1ms
+ ✓ addin/app.test.ts > add-in WebSocket ownership > cancels the pending reconnect timer when connect runs first 1ms
+ ✓ addin/app.test.ts > add-in WebSocket ownership > ignores a captured stale timer after a replacement socket exists 1ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  12:36:11
+   Duration  112ms (transform 15ms, setup 0ms, import 22ms, tests 6ms, environment 0ms)
+

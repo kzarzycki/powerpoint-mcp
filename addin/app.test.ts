@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 interface Harness {
   context: Record<string, unknown>
   sockets: FakeSocket[]
-  timers: Array<() => void>
+  timers: Map<number, () => void>
   delays: number[]
   ready: (info?: Record<string, string>) => void
   runTimer: () => void
@@ -30,10 +30,13 @@ class FakeSocket {
   }
 }
 
+const JITTER = 0.25
+
 function harness(): Harness {
   const sockets: FakeSocket[] = []
-  const timers: Array<() => void> = []
+  const timers = new Map<number, () => void>()
   const delays: number[] = []
+  let nextTimer = 1
   let ready: ((info?: Record<string, string>) => void) | undefined
   const document = { getElementById: () => ({ textContent: '', className: '' }) }
   const office = {
@@ -58,13 +61,15 @@ function harness(): Harness {
     window: { location: { protocol: 'http:', host: 'localhost:8080', origin: 'http://localhost:8080' } },
     document,
     console: { log: () => undefined, error: () => undefined },
+    Math: Object.assign(Object.create(Math), { random: () => JITTER }),
     setTimeout: (callback: () => void, delay: number) => {
-      timers.push(callback)
+      const id = nextTimer++
+      timers.set(id, callback)
       delays.push(delay)
-      return timers.length - 1
+      return id
     },
     clearTimeout: (id: number) => {
-      timers[id] = () => undefined
+      timers.delete(id)
     },
     PowerPoint: undefined,
   }
@@ -77,8 +82,9 @@ function harness(): Harness {
     delays,
     ready: (info = { host: 'PowerPoint', platform: 'mac' }) => ready?.(info),
     runTimer: () => {
-      timers.shift()?.()
-      delays.shift()
+      const [id, callback] = timers.entries().next().value ?? []
+      if (id !== undefined) timers.delete(id)
+      callback?.()
     },
   }
 }
@@ -121,26 +127,39 @@ describe('add-in WebSocket ownership', () => {
     expect(h.sockets).toHaveLength(1)
   })
 
-  it('reconnects from the timer with backoff and resets after open', () => {
+  it('uses exponential backoff plus jitter, caps before jitter, and resets after open', () => {
+    const h = harness()
+    h.runTimer()
+    const jitter = Math.floor(JITTER * 1000)
+    const expected = [500, 1000, 2000, 4000, 8000, 16000, 30000].map((delay) => delay + jitter)
+    for (const delay of expected) {
+      h.sockets.at(-1)?.close()
+      expect(h.delays.at(-1)).toBe(delay)
+      h.runTimer()
+    }
+    h.sockets.at(-1)?.open()
+    h.sockets.at(-1)?.close()
+    expect(h.delays.at(-1)).toBe(500 + jitter)
+    h.runTimer()
+    expect(h.sockets).toHaveLength(expected.length + 2)
+  })
+
+  it('cancels the pending reconnect timer when connect runs first', () => {
     const h = harness()
     h.runTimer()
     h.sockets[0].close()
-    expect(h.delays.at(-1)).toBeGreaterThanOrEqual(500)
-    expect(h.delays.at(-1)).toBeLessThan(1500)
-    h.runTimer()
-    h.sockets[1].open()
-    h.sockets[1].close()
-    expect(h.delays.at(-1)).toBeGreaterThanOrEqual(500)
-    expect(h.delays.at(-1)).toBeLessThan(1500)
-    h.runTimer()
-    expect(h.sockets).toHaveLength(3)
+    expect(h.timers.size).toBe(1)
+    const connect = h.context.connect as () => void
+    connect()
+    expect(h.timers.size).toBe(0)
+    expect(h.sockets).toHaveLength(2)
   })
 
   it('ignores a captured stale timer after a replacement socket exists', () => {
     const h = harness()
     h.runTimer()
     h.sockets[0].close()
-    const stale = h.timers.at(-1)
+    const stale = [...h.timers.values()].at(-1)
     const connect = h.context.connect as () => void
     connect()
     stale?.()
