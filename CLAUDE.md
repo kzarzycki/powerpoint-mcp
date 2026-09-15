@@ -54,7 +54,7 @@ Roadmap, epics and stories live on [GitHub project 2](https://github.com/users/k
 - Hierarchy: milestone (`M0`–`M5`, exit criteria in the description) → epic (`type:epic` issue) → story/task/bug (sub-issues of the epic). Order between epics is `blocked by` issue dependencies, not prose.
 - Board fields: `Kind` Epic/Story/Task/Bug · `Status` Backlog/Todo/In progress/In review/Done · `Phase` TRIAGED/SPEC/SPEC_APPROVED/PLAN/PLAN_APPROVED/IMPLEMENTED/BRANCH_APPROVED/GATES_GREEN/MERGED/PARKED · `Session` text. `Status` is the human column, `Phase` is the loop position — update both.
 - Labels: `type:epic|story|task|bug`, `loop:needs-human`, `ready-for-agent`.
-- Issue and milestone bodies follow the templates in `~/.agents/writing-style.md` → "Tickets and specs". They are written for the owner to accept; implementer facts go in the final "For the implementer" section.
+- Issue and milestone bodies follow the templates in the `github-project-board-setup` skill (`references/templates.md`). They are written for the owner to accept; implementer facts go in the final "For the implementer" section.
 - Option ids change whenever a field is edited — resolve them at call time. Recipes: the `github-project-board-setup` skill.
 - `docs/` holds what stays true regardless of which story is in flight: `VISION.md`, `ARCHITECTURE.md`, `QUALITY-GATES.md`, `VERIFICATION.md`, `AGENT-LOOP.md`, and the findings ledger `CODE-HEALTH.md` (CHxx ids referenced from issues).
 
