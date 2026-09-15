@@ -12,6 +12,6 @@
     "resolveJsonModule": true,
     "isolatedModules": true
   },
-  "include": ["server/**/*.ts", "e2e/**/*.ts"],
+  "include": ["server/**/*.ts", "e2e/**/*.ts", "scripts/**/*.ts"],
   "exclude": ["node_modules"]
 }

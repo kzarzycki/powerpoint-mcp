@@ -57,6 +57,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "e2e:setup-profile": "node --experimental-strip-types e2e/setup-profile.ts",
+    "loop": "node --experimental-strip-types scripts/engineering-loop.ts",
+    "loop:review": "node --experimental-strip-types scripts/engineering-review.ts",
     "check": "biome check . && tsc --noEmit && vitest run",
     "version": "bash scripts/sync-version.sh",
     "release": "bash scripts/release.sh",

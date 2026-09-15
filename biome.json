@@ -1,7 +1,14 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
   "files": {
-    "includes": ["server/**/*.ts", "addin/**/*.js", "e2e/**/*.ts", "!.claude"]
+    "includes": [
+      "server/**/*.ts",
+      "addin/**/*.js",
+      "e2e/**/*.ts",
+      "scripts/engineering-*.ts",
+      "scripts/loop-store.ts",
+      "!.claude"
+    ]
   },
   "formatter": {
     "indentStyle": "space",
