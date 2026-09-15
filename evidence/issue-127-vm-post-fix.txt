@@ -1,0 +1,20 @@
+Command: mise exec node@24.18.0 -- npx vitest run addin/app.test.ts --reporter=verbose
+Source: addin/app.js with single-flight socket, reconnect-timer ownership and connecting status set only when a connection starts.
+
+
+ RUN  v4.1.10 /Users/zarz/dev/agents/mcp/powerpoint-mcp--issue-126--issue-127
+
+ ✓ addin/app.test.ts > add-in WebSocket ownership > Office ready before fallback opens one socket 3ms
+ ✓ addin/app.test.ts > add-in WebSocket ownership > Office ready after fallback opens one socket 1ms
+ ✓ addin/app.test.ts > add-in WebSocket ownership > plain browser without ready callback opens one socket 0ms
+ ✓ addin/app.test.ts > add-in WebSocket ownership > does not add a socket while one is connecting or open 0ms
+ ✓ addin/app.test.ts > add-in WebSocket ownership > keeps Connected when Office ready fires after the fallback socket opened 0ms
+ ✓ addin/app.test.ts > add-in WebSocket ownership > uses exponential backoff plus jitter, caps before jitter, and resets after open 1ms
+ ✓ addin/app.test.ts > add-in WebSocket ownership > cancels the pending reconnect timer when connect runs first 0ms
+ ✓ addin/app.test.ts > add-in WebSocket ownership > ignores a captured stale timer after a replacement socket exists 0ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  12:50:39
+   Duration  126ms (transform 20ms, setup 0ms, import 28ms, tests 7ms, environment 0ms)
+

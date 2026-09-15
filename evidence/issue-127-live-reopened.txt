@@ -1,0 +1,23 @@
+Issue #127 live gate — taskpane close/reopen observation
+
+Operator reported closing the PowerPoint MCP taskpane with its X and reopening it in /tmp/issue127-disposable.pptx.
+
+Post-reopen bridge observation:
+GET http://127.0.0.1:8080/health
+{"status":"ok","connections":1}
+
+MCP tools/call list_presentations:
+[
+  {
+    "presentationId": "/tmp/issue127-disposable.pptx",
+    "filePath": "/tmp/issue127-disposable.pptx",
+    "ready": true
+  }
+]
+
+Socket log observation:
+No Add-in WebSocket disconnected/connected pair occurred after the original disposable-deck connection:
+[2026-09-15T12:58:44.929Z] Add-in WebSocket connected
+[2026-09-15T12:58:44.933Z] Add-in ready: /tmp/issue127-disposable.pptx
+
+Result: post-reopen state has one connection and one ready presentation, with no duplicate socket. The bridge log does not demonstrate WebView teardown/recreation for this taskpane close/reopen; that lifecycle behavior is a separate macOS observation, not claimed as a reconnect pass.
