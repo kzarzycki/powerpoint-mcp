@@ -1,0 +1,16 @@
+Command: mise exec node@24.18.0 -- npx vitest run addin/app.test.ts --reporter=verbose
+Baseline: `git show origin/main:addin/app.js` copied over addin/app.js; the shipped addin/app.test.ts was unchanged.
+
+ RUN  v4.1.10 /Users/zarz/dev/agents/mcp/powerpoint-mcp--issue-126--issue-127
+
+ ✓ Office ready before fallback opens one socket
+ × Office ready after fallback opens one socket
+   → expected [ Array(2) ] to have a length of 1 but got 2
+ ✓ plain browser without ready callback opens one socket
+ × does not add a socket while one is connecting or open
+   → expected [ WebSocket{ …(5) }, …(2) ] to have a length of 1 but got 3
+ ✓ reconnects from the timer with backoff and resets after open
+ × ignores a captured stale timer after a replacement socket exists
+   → expected [ WebSocket{ …(5) }, …(2) ] to have a length of 2 but got 3
+
+Test Files 1 failed; Tests 3 failed, 3 passed.

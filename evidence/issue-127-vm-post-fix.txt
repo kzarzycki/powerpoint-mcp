@@ -1,0 +1,11 @@
+Command: mise exec node@24.18.0 -- npx vitest run addin/app.test.ts
+Source state: addin/app.js with single-flight socket and reconnect-timer ownership.
+
+Result: 6 tests passed.
+- Office ready before fallback: one socket.
+- Office ready after fallback: one socket.
+- No Office-ready callback: one socket.
+- Duplicate connect while connecting/open: one socket.
+- Closed socket reconnects from its scheduled timer with the existing backoff range,
+  then resets to the base delay after a successful open.
+- A captured stale timer adds no socket after a replacement connection exists.

@@ -7,6 +7,7 @@ interface Harness {
   context: Record<string, unknown>
   sockets: FakeSocket[]
   timers: Array<() => void>
+  delays: number[]
   ready: (info?: Record<string, string>) => void
   runTimer: () => void
 }
@@ -21,11 +22,9 @@ class FakeSocket {
   send(message: string): void {
     this.sent.push(message)
   }
-
   open(): void {
     this.onopen?.()
   }
-
   close(): void {
     this.onclose?.()
   }
@@ -34,6 +33,7 @@ class FakeSocket {
 function harness(): Harness {
   const sockets: FakeSocket[] = []
   const timers: Array<() => void> = []
+  const delays: number[] = []
   let ready: ((info?: Record<string, string>) => void) | undefined
   const document = { getElementById: () => ({ textContent: '', className: '' }) }
   const office = {
@@ -58,8 +58,9 @@ function harness(): Harness {
     window: { location: { protocol: 'http:', host: 'localhost:8080', origin: 'http://localhost:8080' } },
     document,
     console: { log: () => undefined, error: () => undefined },
-    setTimeout: (callback: () => void) => {
+    setTimeout: (callback: () => void, delay: number) => {
       timers.push(callback)
+      delays.push(delay)
       return timers.length - 1
     },
     clearTimeout: (id: number) => {
@@ -73,8 +74,12 @@ function harness(): Harness {
     context,
     sockets,
     timers,
+    delays,
     ready: (info = { host: 'PowerPoint', platform: 'mac' }) => ready?.(info),
-    runTimer: () => timers.shift()?.(),
+    runTimer: () => {
+      timers.shift()?.()
+      delays.shift()
+    },
   }
 }
 
@@ -116,14 +121,29 @@ describe('add-in WebSocket ownership', () => {
     expect(h.sockets).toHaveLength(1)
   })
 
-  it('reconnects a closed socket and ignores its stale timer', () => {
+  it('reconnects from the timer with backoff and resets after open', () => {
     const h = harness()
     h.runTimer()
     h.sockets[0].close()
+    expect(h.delays.at(-1)).toBeGreaterThanOrEqual(500)
+    expect(h.delays.at(-1)).toBeLessThan(1500)
+    h.runTimer()
+    h.sockets[1].open()
+    h.sockets[1].close()
+    expect(h.delays.at(-1)).toBeGreaterThanOrEqual(500)
+    expect(h.delays.at(-1)).toBeLessThan(1500)
+    h.runTimer()
+    expect(h.sockets).toHaveLength(3)
+  })
+
+  it('ignores a captured stale timer after a replacement socket exists', () => {
+    const h = harness()
+    h.runTimer()
+    h.sockets[0].close()
+    const stale = h.timers.at(-1)
     const connect = h.context.connect as () => void
     connect()
-    expect(h.sockets).toHaveLength(2)
-    h.runTimer()
+    stale?.()
     expect(h.sockets).toHaveLength(2)
   })
 })
