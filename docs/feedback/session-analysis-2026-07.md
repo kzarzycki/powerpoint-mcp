@@ -9,7 +9,7 @@ What real usage says about powerpoint-mcp, mined from every Claude Code session 
 
 ## Top 10
 
-Ranked by severity × frequency × impact on the stated goals (quality > token/time efficiency > richness). Roadmap column: existing epic/CH item it lands in, or the new story added to [ROADMAP.md](../ROADMAP.md) / [CODE-HEALTH.md](../CODE-HEALTH.md) in this change.
+Ranked by severity × frequency × impact on the stated goals (quality > token/time efficiency > richness). Roadmap column: the epic or CH item it lands in — epics and stories are issues on the [project board](https://github.com/users/kzarzycki/projects/2); code-health items live in [CODE-HEALTH.md](../CODE-HEALTH.md).
 
 ### 1. F01 — Bridge/add-in instability with no auto-recovery (bug, high, 8 sessions)
 
@@ -125,7 +125,7 @@ The visual-reviewer agents couldn't reach the bridge, so the main agent rendered
 
 - **Confirmed, no change**: E01+CH01–CH04 as top priority (F01); E09 mutate↔verify (F03); E02/E04/E09/E10 gate architecture (F05); E08 token layer (F06).
 - **Re-prioritized**: E16's skill content can't wait for M5 — the interim Office.js pattern story (E16-FB1) is front-loaded; theme-resolution correctness (CH15+CH24) must land before E13/E14 brand work.
-- **New stories** in [ROADMAP.md § Session-feedback stories](../ROADMAP.md): E01-FB1, E01-FB2, E07-FB1, E08-FB1, E08-FB2, E10-FB1, E12-FB1, E13-FB1, E15-FB1, E16-FB1.
+- **New stories** on the board, one issue each: E01-FB1, E01-FB2, E07-FB1, E08-FB1, E08-FB2, E10-FB1, E12-FB1, E13-FB1, E15-FB1, E16-FB1.
 - **New code-health items** in [CODE-HEALTH.md](../CODE-HEALTH.md): CH23 (edit_slide_zip silent drop), CH24 (add_slide layout-by-name, #120).
 
 ## Appendix A — adversarial verification
