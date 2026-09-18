@@ -100,13 +100,13 @@ export function registerInspectTools(
 
   server.tool(
     'inspect_layouts',
-    'Returns slide layouts with names, OOXML type (e.g. blank, twoObj, secHead), indices (for slides.add({ layoutIndex })), and detailed placeholders. Use `fields` to control which data is returned. By default reads all layouts from OOXML (complete list, requires file access — may take a moment on first call for cloud files). Set usedOnly to return only layouts assigned to existing slides (fast, Office.js only, no file access).',
+    'Returns slide layouts with names, OOXML type (e.g. blank, twoObj, secHead), master/layout indices, and detailed placeholders. Use `fields` to control which data is returned. By default reads all layouts from every slide master in OOXML (complete list, requires file access — may take a moment on first call for cloud files). Layouts sharing a name across different masters are distinguished by `masterIndex`. Set usedOnly to return only layouts assigned to existing slides (fast, Office.js only, no file access).',
     {
       fields: z
         .string()
         .optional()
         .describe(
-          'Comma-separated layout fields to include. Placeholders sub-fields in parens. Default: "index,name,type,usedBySlides,placeholders(type,idx,name)". All placeholder fields: type,idx,name,description,sz,left,top,width,height.',
+          'Comma-separated layout fields to include. Placeholders sub-fields in parens. Default: "index,masterIndex,name,type,usedBySlides,placeholders(type,idx,name)". All placeholder fields: type,idx,name,description,sz,left,top,width,height.',
         ),
       usedOnly: z
         .boolean()
@@ -121,7 +121,7 @@ export function registerInspectTools(
     },
     withTool(async ({ fields, usedOnly, presentationId }) => {
       // Parse fields spec: "index,name,placeholders(type,idx,name)" → { layout: Set, placeholder: Set }
-      const DEFAULT_FIELDS = 'index,name,type,usedBySlides,placeholders(type,idx,name)'
+      const DEFAULT_FIELDS = 'index,masterIndex,name,type,usedBySlides,placeholders(type,idx,name)'
       const fieldSpec = fields ?? DEFAULT_FIELDS
       const phMatch = fieldSpec.match(/placeholders\(([^)]+)\)/)
       const phFields = phMatch ? new Set(phMatch[1]!.split(',').map((f) => f.trim())) : null

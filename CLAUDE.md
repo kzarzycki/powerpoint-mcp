@@ -61,7 +61,7 @@ Roadmap, epics and stories live on [GitHub project 2](https://github.com/users/k
 ## Development Workflow
 
 ### Runtime
-- Node `>=24` (`package.json` engines). An older Node still installs with an `EBADENGINE` warning, and local results can then differ from CI — switch to Node 24 before anything else. The repo has no version-manager pin file, so the check is `node --version`.
+- Node `>=24` (`package.json` engines), pinned exactly in `.nvmrc` (`nvm use`). An older Node still installs with an `EBADENGINE` warning, and local results can then differ from CI — switch to Node 24 before anything else.
 
 ### MCP Dev Server
 - `.mcp.json` uses `"type": "http"` pointing to `http://localhost:3001/mcp`; installed plugins start the server via the `SessionStart` hook, while source/dev runs still need a separately running server
@@ -82,6 +82,7 @@ Roadmap, epics and stories live on [GitHub project 2](https://github.com/users/k
 - After pushing, wait for CI to pass before calling the PR ready.
 - Squash merge; delete the branch after merge.
 - Note: `AGENTS.md` is a symlink to `CLAUDE.md` — edits land in `CLAUDE.md`.
+- **Authoritative review**: the engineering loop's independent branch review (`loop review --gate branch`, see `docs/AGENT-LOOP.md`) is the review of record for loop stories — a separate `omp` process with no author context, run against the actual diff. There is no automated per-PR CI review job; it was removed as redundant with the loop review and was going stale/ignored (issue #162). PRs outside the loop get the same fresh-eyes treatment by running `npm run loop:review` manually, or a human review.
 
 ### Code Quality
 - TDD (red-green): failing test first, then implement.

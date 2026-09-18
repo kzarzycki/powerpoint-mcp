@@ -57,14 +57,14 @@ export function registerSlideTools(
 
       const target = pool.resolveTarget(presentationId)
 
-      // Step 1: Get layout placeholder idx→name map from OOXML
+      // Step 1: Read all layouts (every master) from OOXML, and confirm the
+      // requested name exists before round-tripping to Office.js.
       const localPath = await getLocalCopyPath(pool, target)
       const fileData = readFileSync(localPath)
       const zip = await JSZip.loadAsync(fileData)
       const layouts = await extractLayoutsFromZip(zip)
       const targetLower = layoutName.toLowerCase()
-      const layoutInfo = layouts.find((l) => l.name.toLowerCase() === targetLower)
-      if (!layoutInfo) {
+      if (!layouts.some((l) => l.name.toLowerCase() === targetLower)) {
         const available = layouts
           .filter((l) => !l.name.startsWith('_'))
           .map((l) => l.name)
@@ -80,26 +80,12 @@ export function registerSlideTools(
         }
       }
 
-      // Build idx→name map from layout placeholders
-      const idxToName = new Map<string, string>()
-      for (const ph of layoutInfo.placeholders) {
-        if (ph.idx !== undefined && ph.name) {
-          idxToName.set(String(ph.idx), ph.name)
-        }
-      }
-
-      // Warn about unknown placeholder names in the input
-      const warnings: string[] = []
-      if (placeholders) {
-        const layoutNames = new Set(layoutInfo.placeholders.map((ph) => ph.name).filter(Boolean))
-        for (const key of Object.keys(placeholders)) {
-          if (!layoutNames.has(key)) {
-            warnings.push(`Placeholder "${key}" not found in layout "${layoutInfo.name}"`)
-          }
-        }
-      }
-
-      // Step 2: Add slide via Office.js (find layout, add, moveTo)
+      // Step 2: Add slide via Office.js (find layout, add, moveTo). Multiple
+      // masters can share a layout name (#120), so the search here — not a
+      // second independent OOXML name search — is the single source of
+      // truth for which layout was actually inserted. It reports back the
+      // matched master/layout position so step 3 can look up the *same*
+      // layout's placeholder metadata by identity, not by re-matching name.
       const addCode = `
           var masters = context.presentation.slideMasters;
           masters.load("items");
@@ -110,10 +96,17 @@ export function registerSlideTools(
           await context.sync();
           var targetName = ${JSON.stringify(layoutName)}.toLowerCase();
           var layout = null;
+          var matchedMasterIndex = -1;
+          var matchedLayoutIndex = -1;
           for (var m = 0; m < masters.items.length && !layout; m++) {
             var ml = masters.items[m].layouts.items;
             for (var i = 0; i < ml.length; i++) {
-              if (ml[i].name.toLowerCase() === targetName) { layout = ml[i]; break; }
+              if (ml[i].name.toLowerCase() === targetName) {
+                layout = ml[i];
+                matchedMasterIndex = m;
+                matchedLayoutIndex = i;
+                break;
+              }
             }
           }
           if (!layout) {
@@ -141,13 +134,43 @@ export function registerSlideTools(
           for (var k = 0; k < slides.items.length; k++) {
             if (slides.items[k].id === newSlide.id) { finalIndex = k; break; }
           }
-          return { slideIndex: finalIndex, slideId: newSlide.id, slideCount: slides.items.length, layoutName: layout.name };
+          return { slideIndex: finalIndex, slideId: newSlide.id, slideCount: slides.items.length, layoutName: layout.name, masterIndex: matchedMasterIndex, layoutIndexInMaster: matchedLayoutIndex };
         `
       const addResult = (await pool.sendCommand('executeCode', { code: addCode }, target.ws)) as {
         slideIndex: number
         slideId: string
         slideCount: number
         layoutName: string
+        masterIndex: number
+        layoutIndexInMaster: number
+      }
+
+      // Resolve the exact OOXML layout Office.js selected, by identity — not
+      // by re-searching by name, which is what let #120 silently mix
+      // placeholder metadata from the wrong master. Name-match is kept only
+      // as a defensive fallback for a malformed/mismatched file.
+      const layoutInfo =
+        layouts.find(
+          (l) => l.masterIndex === addResult.masterIndex && l.layoutIndexInMaster === addResult.layoutIndexInMaster,
+        ) ?? layouts.find((l) => l.name.toLowerCase() === targetLower)!
+
+      // Build idx→name map from the matched layout's placeholders
+      const idxToName = new Map<string, string>()
+      for (const ph of layoutInfo.placeholders) {
+        if (ph.idx !== undefined && ph.name) {
+          idxToName.set(String(ph.idx), ph.name)
+        }
+      }
+
+      // Warn about unknown placeholder names in the input
+      const warnings: string[] = []
+      if (placeholders) {
+        const layoutNames = new Set(layoutInfo.placeholders.map((ph) => ph.name).filter(Boolean))
+        for (const key of Object.keys(placeholders)) {
+          if (!layoutNames.has(key)) {
+            warnings.push(`Placeholder "${key}" not found in layout "${layoutInfo.name}"`)
+          }
+        }
       }
 
       // Step 3: Export slide XML to get shape id → ph idx mapping

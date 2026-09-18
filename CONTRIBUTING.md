@@ -3,13 +3,15 @@
 ## Prerequisites
 
 - macOS with PowerPoint for Mac installed
-- Node.js >= 24
+- Node.js >= 24 — the repo pins the exact version contributors and CI use in `.nvmrc`. With [nvm](https://github.com/nvm-sh/nvm) installed, `nvm use` in the repo root selects it (`nvm install` first on a fresh machine).
 
 ## Development Setup
 
 ```bash
 git clone https://github.com/kzarzycki/powerpoint-mcp.git
 cd powerpoint-mcp
+nvm use             # Selects the pinned Node version from .nvmrc (nvm install if not yet installed)
+node --version       # Confirm it matches .nvmrc / CI
 npm install
 npm run sideload    # Sideload the add-in manifest
 # Restart PowerPoint after sideloading

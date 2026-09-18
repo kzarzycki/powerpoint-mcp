@@ -414,106 +414,177 @@ export interface PlaceholderInfo {
 
 export interface LayoutInfo {
   index: number
+  /** Zero-based master ordinal (presentation order when available). Distinguishes layouts that share a name across masters — see #120. */
+  masterIndex: number
+  /** Zero-based position of this layout within its own master's layout list. Together with masterIndex, matches Office.js's masters.items[m].layouts.items[i] enumeration. */
+  layoutIndexInMaster: number
   name: string
   type?: string // <p:sldLayout type="...">, e.g. "blank", "twoObj", "secHead"
   placeholders: PlaceholderInfo[]
   usedBySlides?: number[]
 }
 
-export async function extractLayoutsFromZip(zip: JSZip): Promise<LayoutInfo[]> {
-  // Find the first slide master's rels to get layout order
-  const masterRelsPath = 'ppt/slideMasters/_rels/slideMaster1.xml.rels'
-  const masterRelsFile = zip.file(masterRelsPath)
-  if (!masterRelsFile) throw new Error('No slide master rels found')
-  const masterRelsXml = await masterRelsFile.async('string')
-  const relsDoc = new DOMParser().parseFromString(masterRelsXml, 'text/xml')
+/** One slide master's layout-rels file, in presentation order when resolvable. */
+interface OrderedMasterRels {
+  masterIndex: number
+  masterRelsPath: string
+}
 
-  // Collect layout targets in document order (this determines layoutIndex)
-  const layoutTargets: string[] = []
-  const rels = relsDoc.getElementsByTagNameNS(NS_RELS, 'Relationship')
-  for (let i = 0; i < rels.length; i++) {
-    const rel = rels[i]!
-    if (rel.getAttribute('Type') === LAYOUT_TYPE) {
-      const target = rel.getAttribute('Target') ?? ''
-      // Target is relative like "../slideLayouts/slideLayout1.xml"
-      const resolved = target.replace('..', 'ppt')
-      layoutTargets.push(resolved)
+function filenameSortedMasterRelsFiles(zip: JSZip): string[] {
+  return Object.keys(zip.files)
+    .filter((f) => /^ppt\/slideMasters\/_rels\/slideMaster\d+\.xml\.rels$/.test(f))
+    .sort((a, b) => {
+      const na = Number.parseInt(a.match(/slideMaster(\d+)/)![1]!, 10)
+      const nb = Number.parseInt(b.match(/slideMaster(\d+)/)![1]!, 10)
+      return na - nb
+    })
+}
+
+/**
+ * Resolve every slide master's rels file, ordered by <p:sldMasterIdLst> +
+ * presentation.xml.rels when both are present (matches Office.js's own
+ * masters.items enumeration order). Falls back to ascending numeric
+ * slideMasterN.xml.rels filename order — the only signal available to unit
+ * tests and to files without a presentation.xml part.
+ */
+async function resolveOrderedMasterRelsPaths(zip: JSZip, parser: DOMParser): Promise<OrderedMasterRels[]> {
+  const presFile = zip.file('ppt/presentation.xml')
+  const presRelsFile = zip.file('ppt/_rels/presentation.xml.rels')
+  if (presFile && presRelsFile) {
+    const presDoc = parser.parseFromString(await presFile.async('string'), 'text/xml')
+    const presRelsDoc = parser.parseFromString(await presRelsFile.async('string'), 'text/xml')
+
+    const rIdToTarget = new Map<string, string>()
+    const presRels = presRelsDoc.getElementsByTagNameNS(NS_RELS, 'Relationship')
+    for (let i = 0; i < presRels.length; i++) {
+      const id = presRels[i]!.getAttribute('Id')
+      const target = presRels[i]!.getAttribute('Target')
+      if (id && target) rIdToTarget.set(id, target.startsWith('ppt/') ? target : `ppt/${target}`)
     }
+
+    const ordered: OrderedMasterRels[] = []
+    const sldMasterIds = presDoc.getElementsByTagNameNS(NS_P, 'sldMasterId')
+    for (let idx = 0; idx < sldMasterIds.length; idx++) {
+      const rId = sldMasterIds[idx]!.getAttributeNS(NS_R, 'id')
+      const masterPath = rId ? rIdToTarget.get(rId) : undefined
+      if (!masterPath) continue
+      const fileName = masterPath.split('/').pop()!
+      const relsPath = masterPath.replace(fileName, `_rels/${fileName}.rels`)
+      if (zip.file(relsPath)) ordered.push({ masterIndex: idx, masterRelsPath: relsPath })
+    }
+    if (ordered.length > 0) return ordered
   }
 
-  // Parse each layout XML for name, type, and placeholders
+  return filenameSortedMasterRelsFiles(zip).map((masterRelsPath, masterIndex) => ({ masterIndex, masterRelsPath }))
+}
+
+export async function extractLayoutsFromZip(zip: JSZip): Promise<LayoutInfo[]> {
+  const parser = new DOMParser()
+  const masterRelsEntries = await resolveOrderedMasterRelsPaths(zip, parser)
+  if (masterRelsEntries.length === 0) throw new Error('No slide master rels found')
+
   const layouts: LayoutInfo[] = []
-  for (let i = 0; i < layoutTargets.length; i++) {
-    const layoutFile = zip.file(layoutTargets[i]!)
-    if (!layoutFile) continue
-    const layoutXml = await layoutFile.async('string')
-    const doc = new DOMParser().parseFromString(layoutXml, 'text/xml')
+  let flatIndex = 0
+  for (const { masterIndex, masterRelsPath } of masterRelsEntries) {
+    const masterRelsFile = zip.file(masterRelsPath)
+    if (!masterRelsFile) continue
+    const masterRelsXml = await masterRelsFile.async('string')
+    const relsDoc = parser.parseFromString(masterRelsXml, 'text/xml')
 
-    // Layout type from <p:sldLayout type="...">
-    const sldLayout = doc.getElementsByTagNameNS(NS_P, 'sldLayout')[0]
-    const layoutType = sldLayout?.getAttribute('type') ?? undefined
-
-    // Name from <p:cSld name="...">
-    const cSld = doc.getElementsByTagNameNS(NS_P, 'cSld')[0]
-    const name = cSld?.getAttribute('name') ?? `Layout ${i}`
-
-    // Iterate shapes top-down, extract placeholder metadata
-    const placeholders: PlaceholderInfo[] = []
-    const shapes = doc.getElementsByTagNameNS(NS_P, 'sp')
-    for (let j = 0; j < shapes.length; j++) {
-      const shape = shapes[j]!
-      const nvSpPr = shape.getElementsByTagNameNS(NS_P, 'nvSpPr')[0]
-      if (!nvSpPr) continue
-      const nvPr = nvSpPr.getElementsByTagNameNS(NS_P, 'nvPr')[0]
-      if (!nvPr) continue
-      const ph = nvPr.getElementsByTagNameNS(NS_P, 'ph')[0]
-      if (!ph) continue // not a placeholder shape
-
-      const phType = ph.getAttribute('type') || 'obj'
-
-      // Skip utility placeholders — auto-filled by PowerPoint, not agent-relevant
-      if (phType === 'sldNum' || phType === 'ftr' || phType === 'dt' || phType === 'hdr') continue
-
-      const info: PlaceholderInfo = { type: phType }
-
-      const idxStr = ph.getAttribute('idx')
-      if (idxStr) info.idx = Number.parseInt(idxStr, 10)
-      const szStr = ph.getAttribute('sz')
-      if (szStr) info.sz = szStr
-
-      // Shape name and description from <p:cNvPr>
-      const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P, 'cNvPr')[0]
-      if (cNvPr) {
-        const shapeName = cNvPr.getAttribute('name')
-        if (shapeName) info.name = shapeName
-        const descr = cNvPr.getAttribute('descr')
-        if (descr) info.description = descr
+    // Collect layout targets in document order (this determines layoutIndexInMaster)
+    const layoutTargets: string[] = []
+    const rels = relsDoc.getElementsByTagNameNS(NS_RELS, 'Relationship')
+    for (let i = 0; i < rels.length; i++) {
+      const rel = rels[i]!
+      if (rel.getAttribute('Type') === LAYOUT_TYPE) {
+        const target = rel.getAttribute('Target') ?? ''
+        // Target is relative like "../slideLayouts/slideLayout1.xml"
+        const resolved = target.replace('..', 'ppt')
+        layoutTargets.push(resolved)
       }
-
-      // Position/size from <p:spPr><a:xfrm>
-      const spPr = shape.getElementsByTagNameNS(NS_P, 'spPr')[0]
-      const xfrm = spPr?.getElementsByTagNameNS(NS_A, 'xfrm')[0]
-      if (xfrm) {
-        const off = xfrm.getElementsByTagNameNS(NS_A, 'off')[0]
-        const ext = xfrm.getElementsByTagNameNS(NS_A, 'ext')[0]
-        if (off) {
-          const x = off.getAttribute('x')
-          const y = off.getAttribute('y')
-          if (x) info.left = emuToPoints(Number.parseInt(x, 10))
-          if (y) info.top = emuToPoints(Number.parseInt(y, 10))
-        }
-        if (ext) {
-          const cx = ext.getAttribute('cx')
-          const cy = ext.getAttribute('cy')
-          if (cx) info.width = emuToPoints(Number.parseInt(cx, 10))
-          if (cy) info.height = emuToPoints(Number.parseInt(cy, 10))
-        }
-      }
-
-      placeholders.push(info)
     }
 
-    layouts.push({ index: i, name, ...(layoutType ? { type: layoutType } : {}), placeholders })
+    // Parse each layout XML for name, type, and placeholders
+    for (let i = 0; i < layoutTargets.length; i++) {
+      const layoutFile = zip.file(layoutTargets[i]!)
+      if (!layoutFile) continue
+      const layoutXml = await layoutFile.async('string')
+      const doc = parser.parseFromString(layoutXml, 'text/xml')
+
+      // Layout type from <p:sldLayout type="...">
+      const sldLayout = doc.getElementsByTagNameNS(NS_P, 'sldLayout')[0]
+      const layoutType = sldLayout?.getAttribute('type') ?? undefined
+
+      // Name from <p:cSld name="...">
+      const cSld = doc.getElementsByTagNameNS(NS_P, 'cSld')[0]
+      const name = cSld?.getAttribute('name') ?? `Layout ${i}`
+
+      // Iterate shapes top-down, extract placeholder metadata
+      const placeholders: PlaceholderInfo[] = []
+      const shapes = doc.getElementsByTagNameNS(NS_P, 'sp')
+      for (let j = 0; j < shapes.length; j++) {
+        const shape = shapes[j]!
+        const nvSpPr = shape.getElementsByTagNameNS(NS_P, 'nvSpPr')[0]
+        if (!nvSpPr) continue
+        const nvPr = nvSpPr.getElementsByTagNameNS(NS_P, 'nvPr')[0]
+        if (!nvPr) continue
+        const ph = nvPr.getElementsByTagNameNS(NS_P, 'ph')[0]
+        if (!ph) continue // not a placeholder shape
+
+        const phType = ph.getAttribute('type') || 'obj'
+
+        // Skip utility placeholders — auto-filled by PowerPoint, not agent-relevant
+        if (phType === 'sldNum' || phType === 'ftr' || phType === 'dt' || phType === 'hdr') continue
+
+        const info: PlaceholderInfo = { type: phType }
+
+        const idxStr = ph.getAttribute('idx')
+        if (idxStr) info.idx = Number.parseInt(idxStr, 10)
+        const szStr = ph.getAttribute('sz')
+        if (szStr) info.sz = szStr
+
+        // Shape name and description from <p:cNvPr>
+        const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P, 'cNvPr')[0]
+        if (cNvPr) {
+          const shapeName = cNvPr.getAttribute('name')
+          if (shapeName) info.name = shapeName
+          const descr = cNvPr.getAttribute('descr')
+          if (descr) info.description = descr
+        }
+
+        // Position/size from <p:spPr><a:xfrm>
+        const spPr = shape.getElementsByTagNameNS(NS_P, 'spPr')[0]
+        const xfrm = spPr?.getElementsByTagNameNS(NS_A, 'xfrm')[0]
+        if (xfrm) {
+          const off = xfrm.getElementsByTagNameNS(NS_A, 'off')[0]
+          const ext = xfrm.getElementsByTagNameNS(NS_A, 'ext')[0]
+          if (off) {
+            const x = off.getAttribute('x')
+            const y = off.getAttribute('y')
+            if (x) info.left = emuToPoints(Number.parseInt(x, 10))
+            if (y) info.top = emuToPoints(Number.parseInt(y, 10))
+          }
+          if (ext) {
+            const cx = ext.getAttribute('cx')
+            const cy = ext.getAttribute('cy')
+            if (cx) info.width = emuToPoints(Number.parseInt(cx, 10))
+            if (cy) info.height = emuToPoints(Number.parseInt(cy, 10))
+          }
+        }
+
+        placeholders.push(info)
+      }
+
+      layouts.push({
+        index: flatIndex,
+        masterIndex,
+        layoutIndexInMaster: i,
+        name,
+        ...(layoutType ? { type: layoutType } : {}),
+        placeholders,
+      })
+      flatIndex++
+    }
   }
 
   return layouts

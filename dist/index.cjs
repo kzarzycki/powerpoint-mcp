@@ -53006,77 +53006,124 @@ var EMU_PER_PT = 12700;
 function emuToPoints(emu) {
   return Math.round(emu / EMU_PER_PT * 100) / 100;
 }
-async function extractLayoutsFromZip(zip) {
-  const masterRelsPath = "ppt/slideMasters/_rels/slideMaster1.xml.rels";
-  const masterRelsFile = zip.file(masterRelsPath);
-  if (!masterRelsFile) throw new Error("No slide master rels found");
-  const masterRelsXml = await masterRelsFile.async("string");
-  const relsDoc = new import_xmldom.DOMParser().parseFromString(masterRelsXml, "text/xml");
-  const layoutTargets = [];
-  const rels = relsDoc.getElementsByTagNameNS(NS_RELS, "Relationship");
-  for (let i = 0; i < rels.length; i++) {
-    const rel = rels[i];
-    if (rel.getAttribute("Type") === LAYOUT_TYPE) {
-      const target = rel.getAttribute("Target") ?? "";
-      const resolved = target.replace("..", "ppt");
-      layoutTargets.push(resolved);
+function filenameSortedMasterRelsFiles(zip) {
+  return Object.keys(zip.files).filter((f) => /^ppt\/slideMasters\/_rels\/slideMaster\d+\.xml\.rels$/.test(f)).sort((a, b) => {
+    const na = Number.parseInt(a.match(/slideMaster(\d+)/)[1], 10);
+    const nb = Number.parseInt(b.match(/slideMaster(\d+)/)[1], 10);
+    return na - nb;
+  });
+}
+async function resolveOrderedMasterRelsPaths(zip, parser) {
+  const presFile = zip.file("ppt/presentation.xml");
+  const presRelsFile = zip.file("ppt/_rels/presentation.xml.rels");
+  if (presFile && presRelsFile) {
+    const presDoc = parser.parseFromString(await presFile.async("string"), "text/xml");
+    const presRelsDoc = parser.parseFromString(await presRelsFile.async("string"), "text/xml");
+    const rIdToTarget = /* @__PURE__ */ new Map();
+    const presRels = presRelsDoc.getElementsByTagNameNS(NS_RELS, "Relationship");
+    for (let i = 0; i < presRels.length; i++) {
+      const id = presRels[i].getAttribute("Id");
+      const target = presRels[i].getAttribute("Target");
+      if (id && target) rIdToTarget.set(id, target.startsWith("ppt/") ? target : `ppt/${target}`);
     }
+    const ordered = [];
+    const sldMasterIds = presDoc.getElementsByTagNameNS(NS_P, "sldMasterId");
+    for (let idx = 0; idx < sldMasterIds.length; idx++) {
+      const rId = sldMasterIds[idx].getAttributeNS(NS_R, "id");
+      const masterPath = rId ? rIdToTarget.get(rId) : void 0;
+      if (!masterPath) continue;
+      const fileName = masterPath.split("/").pop();
+      const relsPath = masterPath.replace(fileName, `_rels/${fileName}.rels`);
+      if (zip.file(relsPath)) ordered.push({ masterIndex: idx, masterRelsPath: relsPath });
+    }
+    if (ordered.length > 0) return ordered;
   }
+  return filenameSortedMasterRelsFiles(zip).map((masterRelsPath, masterIndex) => ({ masterIndex, masterRelsPath }));
+}
+async function extractLayoutsFromZip(zip) {
+  const parser = new import_xmldom.DOMParser();
+  const masterRelsEntries = await resolveOrderedMasterRelsPaths(zip, parser);
+  if (masterRelsEntries.length === 0) throw new Error("No slide master rels found");
   const layouts = [];
-  for (let i = 0; i < layoutTargets.length; i++) {
-    const layoutFile = zip.file(layoutTargets[i]);
-    if (!layoutFile) continue;
-    const layoutXml = await layoutFile.async("string");
-    const doc = new import_xmldom.DOMParser().parseFromString(layoutXml, "text/xml");
-    const sldLayout = doc.getElementsByTagNameNS(NS_P, "sldLayout")[0];
-    const layoutType = sldLayout?.getAttribute("type") ?? void 0;
-    const cSld = doc.getElementsByTagNameNS(NS_P, "cSld")[0];
-    const name = cSld?.getAttribute("name") ?? `Layout ${i}`;
-    const placeholders = [];
-    const shapes = doc.getElementsByTagNameNS(NS_P, "sp");
-    for (let j = 0; j < shapes.length; j++) {
-      const shape = shapes[j];
-      const nvSpPr = shape.getElementsByTagNameNS(NS_P, "nvSpPr")[0];
-      if (!nvSpPr) continue;
-      const nvPr = nvSpPr.getElementsByTagNameNS(NS_P, "nvPr")[0];
-      if (!nvPr) continue;
-      const ph = nvPr.getElementsByTagNameNS(NS_P, "ph")[0];
-      if (!ph) continue;
-      const phType = ph.getAttribute("type") || "obj";
-      if (phType === "sldNum" || phType === "ftr" || phType === "dt" || phType === "hdr") continue;
-      const info = { type: phType };
-      const idxStr = ph.getAttribute("idx");
-      if (idxStr) info.idx = Number.parseInt(idxStr, 10);
-      const szStr = ph.getAttribute("sz");
-      if (szStr) info.sz = szStr;
-      const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P, "cNvPr")[0];
-      if (cNvPr) {
-        const shapeName = cNvPr.getAttribute("name");
-        if (shapeName) info.name = shapeName;
-        const descr = cNvPr.getAttribute("descr");
-        if (descr) info.description = descr;
+  let flatIndex = 0;
+  for (const { masterIndex, masterRelsPath } of masterRelsEntries) {
+    const masterRelsFile = zip.file(masterRelsPath);
+    if (!masterRelsFile) continue;
+    const masterRelsXml = await masterRelsFile.async("string");
+    const relsDoc = parser.parseFromString(masterRelsXml, "text/xml");
+    const layoutTargets = [];
+    const rels = relsDoc.getElementsByTagNameNS(NS_RELS, "Relationship");
+    for (let i = 0; i < rels.length; i++) {
+      const rel = rels[i];
+      if (rel.getAttribute("Type") === LAYOUT_TYPE) {
+        const target = rel.getAttribute("Target") ?? "";
+        const resolved = target.replace("..", "ppt");
+        layoutTargets.push(resolved);
       }
-      const spPr = shape.getElementsByTagNameNS(NS_P, "spPr")[0];
-      const xfrm = spPr?.getElementsByTagNameNS(NS_A, "xfrm")[0];
-      if (xfrm) {
-        const off = xfrm.getElementsByTagNameNS(NS_A, "off")[0];
-        const ext = xfrm.getElementsByTagNameNS(NS_A, "ext")[0];
-        if (off) {
-          const x = off.getAttribute("x");
-          const y = off.getAttribute("y");
-          if (x) info.left = emuToPoints(Number.parseInt(x, 10));
-          if (y) info.top = emuToPoints(Number.parseInt(y, 10));
-        }
-        if (ext) {
-          const cx = ext.getAttribute("cx");
-          const cy = ext.getAttribute("cy");
-          if (cx) info.width = emuToPoints(Number.parseInt(cx, 10));
-          if (cy) info.height = emuToPoints(Number.parseInt(cy, 10));
-        }
-      }
-      placeholders.push(info);
     }
-    layouts.push({ index: i, name, ...layoutType ? { type: layoutType } : {}, placeholders });
+    for (let i = 0; i < layoutTargets.length; i++) {
+      const layoutFile = zip.file(layoutTargets[i]);
+      if (!layoutFile) continue;
+      const layoutXml = await layoutFile.async("string");
+      const doc = parser.parseFromString(layoutXml, "text/xml");
+      const sldLayout = doc.getElementsByTagNameNS(NS_P, "sldLayout")[0];
+      const layoutType = sldLayout?.getAttribute("type") ?? void 0;
+      const cSld = doc.getElementsByTagNameNS(NS_P, "cSld")[0];
+      const name = cSld?.getAttribute("name") ?? `Layout ${i}`;
+      const placeholders = [];
+      const shapes = doc.getElementsByTagNameNS(NS_P, "sp");
+      for (let j = 0; j < shapes.length; j++) {
+        const shape = shapes[j];
+        const nvSpPr = shape.getElementsByTagNameNS(NS_P, "nvSpPr")[0];
+        if (!nvSpPr) continue;
+        const nvPr = nvSpPr.getElementsByTagNameNS(NS_P, "nvPr")[0];
+        if (!nvPr) continue;
+        const ph = nvPr.getElementsByTagNameNS(NS_P, "ph")[0];
+        if (!ph) continue;
+        const phType = ph.getAttribute("type") || "obj";
+        if (phType === "sldNum" || phType === "ftr" || phType === "dt" || phType === "hdr") continue;
+        const info = { type: phType };
+        const idxStr = ph.getAttribute("idx");
+        if (idxStr) info.idx = Number.parseInt(idxStr, 10);
+        const szStr = ph.getAttribute("sz");
+        if (szStr) info.sz = szStr;
+        const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P, "cNvPr")[0];
+        if (cNvPr) {
+          const shapeName = cNvPr.getAttribute("name");
+          if (shapeName) info.name = shapeName;
+          const descr = cNvPr.getAttribute("descr");
+          if (descr) info.description = descr;
+        }
+        const spPr = shape.getElementsByTagNameNS(NS_P, "spPr")[0];
+        const xfrm = spPr?.getElementsByTagNameNS(NS_A, "xfrm")[0];
+        if (xfrm) {
+          const off = xfrm.getElementsByTagNameNS(NS_A, "off")[0];
+          const ext = xfrm.getElementsByTagNameNS(NS_A, "ext")[0];
+          if (off) {
+            const x = off.getAttribute("x");
+            const y = off.getAttribute("y");
+            if (x) info.left = emuToPoints(Number.parseInt(x, 10));
+            if (y) info.top = emuToPoints(Number.parseInt(y, 10));
+          }
+          if (ext) {
+            const cx = ext.getAttribute("cx");
+            const cy = ext.getAttribute("cy");
+            if (cx) info.width = emuToPoints(Number.parseInt(cx, 10));
+            if (cy) info.height = emuToPoints(Number.parseInt(cy, 10));
+          }
+        }
+        placeholders.push(info);
+      }
+      layouts.push({
+        index: flatIndex,
+        masterIndex,
+        layoutIndexInMaster: i,
+        name,
+        ...layoutType ? { type: layoutType } : {},
+        placeholders
+      });
+      flatIndex++;
+    }
   }
   return layouts;
 }
@@ -53825,10 +53872,10 @@ function registerInspectTools(server, pool2, getSessionId, getActiveSessionCount
   );
   server.tool(
     "inspect_layouts",
-    "Returns slide layouts with names, OOXML type (e.g. blank, twoObj, secHead), indices (for slides.add({ layoutIndex })), and detailed placeholders. Use `fields` to control which data is returned. By default reads all layouts from OOXML (complete list, requires file access \u2014 may take a moment on first call for cloud files). Set usedOnly to return only layouts assigned to existing slides (fast, Office.js only, no file access).",
+    "Returns slide layouts with names, OOXML type (e.g. blank, twoObj, secHead), master/layout indices, and detailed placeholders. Use `fields` to control which data is returned. By default reads all layouts from every slide master in OOXML (complete list, requires file access \u2014 may take a moment on first call for cloud files). Layouts sharing a name across different masters are distinguished by `masterIndex`. Set usedOnly to return only layouts assigned to existing slides (fast, Office.js only, no file access).",
     {
       fields: external_exports3.string().optional().describe(
-        'Comma-separated layout fields to include. Placeholders sub-fields in parens. Default: "index,name,type,usedBySlides,placeholders(type,idx,name)". All placeholder fields: type,idx,name,description,sz,left,top,width,height.'
+        'Comma-separated layout fields to include. Placeholders sub-fields in parens. Default: "index,masterIndex,name,type,usedBySlides,placeholders(type,idx,name)". All placeholder fields: type,idx,name,description,sz,left,top,width,height.'
       ),
       usedOnly: external_exports3.boolean().optional().describe(
         "If true, return only layouts currently assigned to slides (fast, Office.js only). Default: false (all layouts from OOXML)."
@@ -53836,7 +53883,7 @@ function registerInspectTools(server, pool2, getSessionId, getActiveSessionCount
       presentationId: external_exports3.string().optional().describe("Target presentation ID from list_presentations. Optional when only one presentation is connected.")
     },
     withTool(async ({ fields, usedOnly, presentationId }) => {
-      const DEFAULT_FIELDS = "index,name,type,usedBySlides,placeholders(type,idx,name)";
+      const DEFAULT_FIELDS = "index,masterIndex,name,type,usedBySlides,placeholders(type,idx,name)";
       const fieldSpec = fields ?? DEFAULT_FIELDS;
       const phMatch = fieldSpec.match(/placeholders\(([^)]+)\)/);
       const phFields = phMatch ? new Set(phMatch[1].split(",").map((f) => f.trim())) : null;
@@ -54707,8 +54754,7 @@ function registerSlideTools(server, pool2, getSessionId, getActiveSessionCount) 
       const zip = await import_jszip4.default.loadAsync(fileData);
       const layouts = await extractLayoutsFromZip(zip);
       const targetLower = layoutName.toLowerCase();
-      const layoutInfo = layouts.find((l) => l.name.toLowerCase() === targetLower);
-      if (!layoutInfo) {
+      if (!layouts.some((l) => l.name.toLowerCase() === targetLower)) {
         const available = layouts.filter((l) => !l.name.startsWith("_")).map((l) => l.name).join(", ");
         return {
           content: [
@@ -54720,21 +54766,6 @@ function registerSlideTools(server, pool2, getSessionId, getActiveSessionCount) 
           isError: true
         };
       }
-      const idxToName = /* @__PURE__ */ new Map();
-      for (const ph of layoutInfo.placeholders) {
-        if (ph.idx !== void 0 && ph.name) {
-          idxToName.set(String(ph.idx), ph.name);
-        }
-      }
-      const warnings = [];
-      if (placeholders) {
-        const layoutNames = new Set(layoutInfo.placeholders.map((ph) => ph.name).filter(Boolean));
-        for (const key of Object.keys(placeholders)) {
-          if (!layoutNames.has(key)) {
-            warnings.push(`Placeholder "${key}" not found in layout "${layoutInfo.name}"`);
-          }
-        }
-      }
       const addCode = `
           var masters = context.presentation.slideMasters;
           masters.load("items");
@@ -54745,10 +54776,17 @@ function registerSlideTools(server, pool2, getSessionId, getActiveSessionCount) 
           await context.sync();
           var targetName = ${JSON.stringify(layoutName)}.toLowerCase();
           var layout = null;
+          var matchedMasterIndex = -1;
+          var matchedLayoutIndex = -1;
           for (var m = 0; m < masters.items.length && !layout; m++) {
             var ml = masters.items[m].layouts.items;
             for (var i = 0; i < ml.length; i++) {
-              if (ml[i].name.toLowerCase() === targetName) { layout = ml[i]; break; }
+              if (ml[i].name.toLowerCase() === targetName) {
+                layout = ml[i];
+                matchedMasterIndex = m;
+                matchedLayoutIndex = i;
+                break;
+              }
             }
           }
           if (!layout) {
@@ -54776,9 +54814,27 @@ function registerSlideTools(server, pool2, getSessionId, getActiveSessionCount) 
           for (var k = 0; k < slides.items.length; k++) {
             if (slides.items[k].id === newSlide.id) { finalIndex = k; break; }
           }
-          return { slideIndex: finalIndex, slideId: newSlide.id, slideCount: slides.items.length, layoutName: layout.name };
+          return { slideIndex: finalIndex, slideId: newSlide.id, slideCount: slides.items.length, layoutName: layout.name, masterIndex: matchedMasterIndex, layoutIndexInMaster: matchedLayoutIndex };
         `;
       const addResult = await pool2.sendCommand("executeCode", { code: addCode }, target.ws);
+      const layoutInfo = layouts.find(
+        (l) => l.masterIndex === addResult.masterIndex && l.layoutIndexInMaster === addResult.layoutIndexInMaster
+      ) ?? layouts.find((l) => l.name.toLowerCase() === targetLower);
+      const idxToName = /* @__PURE__ */ new Map();
+      for (const ph of layoutInfo.placeholders) {
+        if (ph.idx !== void 0 && ph.name) {
+          idxToName.set(String(ph.idx), ph.name);
+        }
+      }
+      const warnings = [];
+      if (placeholders) {
+        const layoutNames = new Set(layoutInfo.placeholders.map((ph) => ph.name).filter(Boolean));
+        for (const key of Object.keys(placeholders)) {
+          if (!layoutNames.has(key)) {
+            warnings.push(`Placeholder "${key}" not found in layout "${layoutInfo.name}"`);
+          }
+        }
+      }
       const exported = await exportSlide(pool2, addResult.slideIndex, target.ws);
       const { xmlString } = await extractSlideXmlFromZip(exported.base64);
       const doc = parseSlideXml(xmlString);
