@@ -20,7 +20,8 @@ export const PHASES = [
   'PARKED',
 ] as const
 export type Phase = (typeof PHASES)[number]
-export type Gate = 'spec' | 'plan' | 'branch' | 'checks' | 'live'
+export type Gate = 'spec' | 'plan' | 'branch' | 'checks'
+export type ReviewGate = 'spec' | 'plan' | 'branch'
 
 export interface LoopEvent {
   at: string
@@ -41,21 +42,39 @@ export interface LoopState {
   artifacts: Partial<Record<'spec' | 'plan', { path: string }>>
   implementation?: { head: string }
   merge?: { pr: string; commit: string }
+  live?: { status: 'evidence' | 'waived'; detail: string; at: string }
   reviews: Array<{
-    gate: Gate
+    gate: ReviewGate
     verdict: 'APPROVE' | 'REVISE'
     reviewer: string
     findings: string[]
     at: string
     source: 'omp' | 'file'
   }>
-  gates: Array<{ gate: Gate; command: string; exitCode: number; output: string; at: string }>
+  gates: Array<{ gate: 'checks'; command: string; exitCode: number; output: string; at: string }>
   events: LoopEvent[]
   updatedAt: string
 }
 
 const MAX_ATTEMPTS = 3
-const EMPTY_ATTEMPTS: Record<Gate, number> = { spec: 0, plan: 0, branch: 0, checks: 0, live: 0 }
+const GATE_TIMEOUT_MS = 20 * 60_000
+const EMPTY_ATTEMPTS: Record<Gate, number> = { spec: 0, plan: 0, branch: 0, checks: 0 }
+const KNOWN_VALUE_KEYS = new Set([
+  'cwd',
+  'issue',
+  'branch',
+  'file',
+  'pr',
+  'gate',
+  'brief',
+  'result',
+  'model',
+  'command',
+  'evidence',
+  'waive',
+])
+const KNOWN_FLAG_KEYS = new Set(['no-github'])
+
 function now(): string {
   return new Date().toISOString()
 }
@@ -73,9 +92,6 @@ function git(cwd: string, args: string[]): string {
 }
 function root(cwd: string): string {
   return git(cwd, ['rev-parse', '--show-toplevel'])
-}
-function workspaceRoot(cwd: string): string {
-  return dirname(resolve(cwd, git(cwd, ['rev-parse', '--git-common-dir'])))
 }
 function issueNumber(value: string): number {
   const match = value.match(/(?:issues\/|#)?(\d+)(?:$|[^\d])/)
@@ -127,6 +143,15 @@ function record(
 function requirePhase(value: LoopState, expected: Phase): void {
   if (value.phase !== expected) throw new Error(`issue #${value.issue} is ${value.phase}; expected ${expected}`)
 }
+function requireImplementationHead(value: LoopState, cwd: string, action: string): string {
+  if (!value.implementation) throw new Error(`issue #${value.issue} has no recorded implementation head`)
+  const head = git(cwd, ['rev-parse', 'HEAD'])
+  if (head !== value.implementation.head)
+    throw new Error(
+      `worktree HEAD ${head} has moved past the recorded implementation head ${value.implementation.head}; run 'implemented' again before ${action}`,
+    )
+  return head
+}
 function nextAttempt(value: LoopState, name: Gate): number {
   const next = value.attempts[name] + 1
   if (next > MAX_ATTEMPTS) throw new Error(`${name} gate is exhausted; issue is ${value.phase}`)
@@ -138,13 +163,17 @@ function parseArgs(args: string[]): { command: string; values: Record<string, st
   const flags = new Set<string>()
   for (let index = 0; index < rest.length; index += 1) {
     const token = rest[index]
-    if (!token.startsWith('--')) continue
+    if (!token.startsWith('--')) throw new Error(`unexpected argument: ${token}`)
     const key = token.slice(2)
     const next = rest[index + 1]
     if (next && !next.startsWith('--')) {
+      if (!KNOWN_VALUE_KEYS.has(key)) throw new Error(`unknown option: --${key}`)
       values[key] = next
       index += 1
-    } else flags.add(key)
+    } else {
+      if (!KNOWN_FLAG_KEYS.has(key)) throw new Error(`unknown flag: --${key}`)
+      flags.add(key)
+    }
   }
   return { command, values, flags }
 }
@@ -159,7 +188,7 @@ export function claim(cwd: string, rawIssue: string, branchSlug: string, publish
   const url = issueUrl(rawIssue, issue)
   const repo = root(cwd)
   const branch = `loop/issue-${issue}-${slug(branchSlug)}`
-  const worktree = resolve(workspaceRoot(cwd), `powerpoint-mcp--issue-${issue}`)
+  const worktree = resolve(dirname(repo), `powerpoint-mcp--issue-${issue}`)
   const value: LoopState = {
     issue,
     issueUrl: url,
@@ -195,6 +224,7 @@ export function claim(cwd: string, rawIssue: string, branchSlug: string, publish
     throw error
   }
   try {
+    git(repo, ['fetch', '--no-tags', 'origin', 'main'])
     git(repo, ['worktree', 'add', '-b', branch, worktree, 'origin/main'])
   } catch (error) {
     value.phase = 'PARKED'
@@ -240,34 +270,39 @@ export function markImplemented(cwd: string, issue: number, publish = true): Loo
   event(value, 'IMPLEMENTED', `branch head=${value.implementation.head}`)
   return output(record(cwd, current, value, publish))
 }
-export function markMerged(cwd: string, issue: number, pr: string, commit: string, publish = true): LoopState {
+export function markMerged(cwd: string, issue: number, pr: string, publish = true): LoopState {
   const current = load(cwd, issue)
   const value = output(current)
   requirePhase(value, 'GATES_GREEN')
-  value.merge = { pr, commit }
+  if (!value.implementation) throw new Error(`issue #${issue} has no recorded implementation head`)
+  if (!value.live)
+    throw new Error(
+      `issue #${issue} has no recorded live evidence or waiver; run 'live --evidence <path>' or 'live --waive <reason>' first`,
+    )
+  value.merge = { pr, commit: value.implementation.head }
   value.phase = 'MERGED'
-  event(value, 'MERGED', `pr=${pr} commit=${commit}`)
+  event(value, 'MERGED', `pr=${pr} commit=${value.implementation.head}`)
   return output(record(cwd, current, value, publish))
 }
 export function review(
   cwd: string,
   issue: number,
-  kind: Gate,
-  briefPath: string,
+  kind: ReviewGate,
+  briefPath: string | undefined,
   publish = true,
   resultPath?: string,
+  model?: string,
 ): LoopState {
-  if (kind === 'checks') throw new Error('checks are recorded with the checks command, not a reviewer verdict')
+  if (!briefPath && !resultPath) throw new Error('--brief is required unless --result is provided')
   const current = load(cwd, issue)
   const value = output(current)
-  const expected: Record<Gate, Phase> = {
+  const expected: Record<ReviewGate, Phase> = {
     spec: 'SPEC',
     plan: 'PLAN',
     branch: 'IMPLEMENTED',
-    checks: 'BRANCH_APPROVED',
-    live: 'GATES_GREEN',
   }
   requirePhase(value, expected[kind])
+  if (kind === 'branch') requireImplementationHead(value, value.worktree, 'reviewing')
   const attempt = nextAttempt(value, kind)
   let result: ReviewResult
   try {
@@ -278,7 +313,8 @@ export function review(
         ...parseReviewOutput(JSON.stringify({ verdict: raw.verdict, findings: raw.findings })),
         reviewer: raw.reviewer,
       }
-    } else result = runReview({ cwd: value.worktree, brief: readFileSync(resolve(cwd, briefPath), 'utf8') })
+    } else
+      result = runReview({ cwd: value.worktree, brief: readFileSync(resolve(cwd, briefPath as string), 'utf8'), model })
   } catch (error) {
     const failed = load(cwd, issue)
     const failedValue = output(failed)
@@ -298,12 +334,10 @@ export function review(
     source: resultPath ? 'file' : 'omp',
   })
   if (result.verdict === 'APPROVE') {
-    const next: Record<Gate, Phase> = {
+    const next: Record<ReviewGate, Phase> = {
       spec: 'SPEC_APPROVED',
       plan: 'PLAN_APPROVED',
       branch: 'BRANCH_APPROVED',
-      checks: 'GATES_GREEN',
-      live: 'GATES_GREEN',
     }
     reviewed.phase = next[kind]
     event(reviewed, 'REVIEW_APPROVED', `${kind} approved by ${result.reviewer}`, attempt)
@@ -320,15 +354,23 @@ export function recordGate(cwd: string, issue: number, command: string, publish 
   const current = load(cwd, issue)
   const value = output(current)
   requirePhase(value, 'BRANCH_APPROVED')
-  const attempt = nextAttempt(value, 'checks')
+  requireImplementationHead(value, value.worktree, 'checks')
   const result = spawnSync('mise', ['exec', 'node@24.18.0', '--', 'sh', '-lc', command], {
     cwd: value.worktree,
     encoding: 'utf8',
     maxBuffer: 2 * 1024 * 1024,
+    timeout: GATE_TIMEOUT_MS,
   })
   const text = `${result.stdout ?? ''}${result.stderr ?? ''}${result.error ? `\n${result.error.message}` : ''}`.slice(
     -12000,
   )
+  if (result.error || result.signal) {
+    const detail = result.error?.message ?? `terminated by ${result.signal}`
+    event(value, 'GATE_INFRA_FAILED', `checks: ${detail}`)
+    record(cwd, current, value, publish)
+    throw new Error(`checks command failed to run: ${detail}`)
+  }
+  const attempt = nextAttempt(value, 'checks')
   value.attempts.checks = attempt
   value.gates.push({ gate: 'checks', command, exitCode: result.status ?? 1, output: text, at: now() })
   event(
@@ -350,7 +392,17 @@ export function recordLive(cwd: string, issue: number, evidencePath: string, pub
   requirePhase(value, 'GATES_GREEN')
   const path = resolve(cwd, evidencePath)
   if (!existsSync(path)) throw new Error(`live evidence does not exist: ${path}`)
+  value.live = { status: 'evidence', detail: path, at: now() }
   event(value, 'LIVE_EVIDENCE', `operator evidence=${path}; live Office prerequisite must be attested`)
+  return output(record(cwd, current, value, publish))
+}
+export function waiveLive(cwd: string, issue: number, reason: string, publish = true): LoopState {
+  const current = load(cwd, issue)
+  const value = output(current)
+  requirePhase(value, 'GATES_GREEN')
+  if (!reason.trim()) throw new Error('a live gate waiver requires a reason')
+  value.live = { status: 'waived', detail: reason, at: now() }
+  event(value, 'LIVE_WAIVED', `operator waived the live gate: ${reason}`)
   return output(record(cwd, current, value, publish))
 }
 
@@ -373,19 +425,14 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     return
   }
   if (command === 'merged') {
-    console.log(
-      JSON.stringify(markMerged(cwd, issue, required(values, 'pr'), required(values, 'commit'), publish), null, 2),
-    )
+    console.log(JSON.stringify(markMerged(cwd, issue, required(values, 'pr'), publish), null, 2))
     return
   }
   if (command === 'review') {
-    console.log(
-      JSON.stringify(
-        review(cwd, issue, required(values, 'gate') as Gate, required(values, 'brief'), publish, values.result),
-        null,
-        2,
-      ),
-    )
+    const gate = required(values, 'gate')
+    if (gate !== 'spec' && gate !== 'plan' && gate !== 'branch')
+      throw new Error(`--gate must be spec, plan or branch (got ${gate})`)
+    console.log(JSON.stringify(review(cwd, issue, gate, values.brief, publish, values.result, values.model), null, 2))
     return
   }
   if (command === 'checks') {
@@ -393,7 +440,15 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     return
   }
   if (command === 'live') {
-    console.log(JSON.stringify(recordLive(cwd, issue, required(values, 'evidence'), publish), null, 2))
+    console.log(
+      JSON.stringify(
+        values.waive
+          ? waiveLive(cwd, issue, values.waive, publish)
+          : recordLive(cwd, issue, required(values, 'evidence'), publish),
+        null,
+        2,
+      ),
+    )
     return
   }
   const state = output(load(cwd, issue))

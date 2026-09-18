@@ -31,10 +31,12 @@ function refFor(issue: number): string {
 }
 
 function stable(value: unknown): string {
+  if (value === undefined) throw new Error('cannot serialize undefined value into loop state')
   if (value === null || typeof value !== 'object') return JSON.stringify(value)
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`
   const record = value as Record<string, unknown>
-  return `{${Object.keys(record)
+  const keys = Object.keys(record).filter((key) => record[key] !== undefined)
+  return `{${keys
     .sort()
     .map((key) => `${JSON.stringify(key)}:${stable(record[key])}`)
     .join(',')}}`

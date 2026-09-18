@@ -11,31 +11,45 @@ The adapter stores append-only phase history under
 `refs/heads/loop-state/issue-<n>`. Creation is remote and exclusive; a losing session
 cannot overwrite the winner. The board and issue comments are human-facing
 projections, not the lock. A losing claim leaves a local audit record and, when
-publishing is enabled, an issue comment naming the winner.
+publishing is enabled, an issue comment naming the winner. `AGENT_SESSION` must be
+set for every mutating command in this document, not only `claim` — `spec`, `plan`,
+`implemented`, `review`, `checks`, `live` and `merged` all write state.
 
-The claim creates `../powerpoint-mcp--issue-<n>` from `origin/main` on
-`loop/issue-<n>-<slug>`. Work never starts in the shared checkout.
+The claim creates `../powerpoint-mcp--issue-<n>` as a sibling of the repository root
+from `origin/main` on `loop/issue-<n>-<slug>`. This is a loop-internal namespace,
+distinct from the `<type>/<short-description>` convention CLAUDE.md uses for PR
+branches. Work never starts in the shared checkout.
 
 ## Fixed phases
 
 1. **TRIAGED** — claim the issue and create its sibling worktree.
 2. **SPEC** — write it with `loop spec --issue <n> --file <spec>`, then run the
    standalone reviewer: `npm run loop:review -- --cwd <worktree> --brief-file <brief>
-   --output <verdict>`. Record that verdict with `loop review --gate spec --result
-   <verdict>` before revising the artifact.
+   --output <verdict> [--model <name>]`. Record that verdict with `loop review --gate
+   spec --result <verdict>` before revising the artifact.
 3. **SPEC_APPROVED** — the recorded reviewer verdict permits planning.
 4. **PLAN** → **PLAN_APPROVED** — write and independently review the ordered plan.
 5. **IMPLEMENTED** → **BRANCH_APPROVED** — run `loop implemented`, then review the
    complete branch from fresh context.
 6. **GATES_GREEN** — run `loop checks --command '<gates>'`; command, output and exit
-   code are recorded. `loop live --evidence <file>` records live evidence.
-7. **MERGED** — after the exact story PR is green, run `loop merged --pr <url>
-   --commit <sha>` for the squash merge.
+   code are recorded. `loop live --evidence <file>` records live evidence for
+   desktop/add-in stories; other stories run `loop live --waive '<reason>'` instead —
+   `merged` requires one of the two.
+7. **MERGED** — after the exact story PR is green, run `loop merged --pr <url>`; the
+   merge commit is always the recorded implementation head, never an operator-supplied
+   SHA.
 
-Each review and mechanical gate has three attempts. A `REVISE` or failed gate counts
-against the limit; the third failure parks the story. Reviewer output that is missing,
-malformed or times out fails closed and does not become an approval. No gate is
-weakened. Rejections and later approvals remain in the append-only history.
+Each review and mechanical gate has three attempts. A `REVISE` or a genuine failing
+exit code counts against the limit; the third failure parks the story. Reviewer
+output that is missing, malformed or times out (`REVIEW_FAILED`) and a gate command
+that fails to start or is killed by its timeout (`GATE_INFRA_FAILED`) both fail closed
+without consuming an attempt — they are infrastructure failures, not content
+rejections, and the command should be retried. No gate is weakened. Rejections and
+later approvals remain in the append-only history.
+
+This tooling only writes issue comments; it does not update the GitHub Project
+`Status`/`Phase`/`Session` fields CLAUDE.md describes. Keep those in sync by hand
+until a follow-up wires them.
 
 ## Project gates
 

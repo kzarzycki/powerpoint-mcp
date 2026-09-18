@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { type LoopState, review } from './engineering-loop.ts'
+import { claim, type LoopState, review } from './engineering-loop.ts'
 import { parseOmpOutput, parseReviewOutput } from './engineering-review.ts'
-import { createState, readState } from './loop-store.ts'
+import { createState, readState, updateState } from './loop-store.ts'
 
 function cleanEnvironment(): NodeJS.ProcessEnv {
   return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')))
@@ -48,6 +48,33 @@ describe('engineering loop state', () => {
     expect(readState(first, 126)?.value).toEqual(value)
   })
 
+  it('rejects a stale compare-and-swap update after a concurrent write', () => {
+    const { first, second } = repository()
+    const initial = { issue: 126, owner: 'test:first', step: 0 }
+    const created = createState(first, 126, initial)
+    const readByB = readState<typeof initial>(second, 126)
+    if (!readByB) throw new Error('expected state to exist')
+    updateState(second, 126, readByB.oid, { ...readByB.value, step: 1 })
+    expect(() => updateState(first, 126, created.oid, { ...initial, step: 2 })).toThrow(
+      /state conflict|state update lost/,
+    )
+    expect(readState(first, 126)?.value).toEqual({ ...initial, step: 1 })
+  })
+
+  it('creates the story worktree as a sibling of the repo, not nested inside it', () => {
+    const { first } = repository()
+    const previous = process.env.AGENT_SESSION
+    process.env.AGENT_SESSION = 'test:sibling'
+    try {
+      const state = claim(first, '9001', 'sibling-check', false)
+      expect(state.worktree).toBe(join(dirname(realpathSync(first)), 'powerpoint-mcp--issue-9001'))
+      expect(existsSync(state.worktree)).toBe(true)
+    } finally {
+      if (previous === undefined) delete process.env.AGENT_SESSION
+      else process.env.AGENT_SESSION = previous
+    }
+  })
+
   it('keeps review parsing fail-closed', () => {
     expect(parseReviewOutput('{"verdict":"REVISE","findings":["missing test"]}')).toEqual({
       verdict: 'REVISE',
@@ -78,7 +105,7 @@ describe('engineering loop state', () => {
       branch: 'loop/test',
       worktree: first,
       phase: 'SPEC',
-      attempts: { spec: 0, plan: 0, branch: 0, checks: 0, live: 0 },
+      attempts: { spec: 0, plan: 0, branch: 0, checks: 0 },
       artifacts: {},
       reviews: [],
       gates: [],
