@@ -1,4 +1,5 @@
 import { ADDIN_CONNECT_TIMEOUT, E2E_BRIDGE_HEALTH, HEALTH_POLL_INTERVAL } from '../config.ts'
+import { fetchLoopbackJson } from './loopback-fetch.ts'
 
 interface HealthResponse {
   status: string
@@ -15,12 +16,9 @@ export async function waitForAddinConnection(timeoutMs = ADDIN_CONNECT_TIMEOUT):
 
   while (Date.now() - start < timeoutMs) {
     try {
-      const res = await fetch(E2E_BRIDGE_HEALTH, { signal: AbortSignal.timeout(2000) })
-      if (res.ok) {
-        const body = (await res.json()) as HealthResponse
-        lastConnections = body.connections
-        if (lastConnections >= 1) return
-      }
+      const body = await fetchLoopbackJson<HealthResponse>(E2E_BRIDGE_HEALTH, 2000)
+      lastConnections = body.connections
+      if (lastConnections >= 1) return
     } catch {
       // Bridge not responding yet
     }
