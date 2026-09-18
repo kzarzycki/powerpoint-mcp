@@ -64,8 +64,9 @@ until a follow-up wires them.
 
 Run these with Node 24 (`mise exec node@24.18.0 -- ...`). `loop checks` runs the
 command through this same prefix by default; on a host without `mise`, set
-`LOOP_GATE_RUNNER` to a space-separated replacement (e.g. a plain `node` shim), or
-every checks attempt fails closed as `GATE_INFRA_FAILED`.
+`LOOP_GATE_RUNNER` to a space-separated replacement prefix, or to an empty string
+to run the command directly with no prefix — otherwise every checks attempt fails
+closed as `GATE_INFRA_FAILED`.
 
 - `npm run check` — Biome, TypeScript and the complete Vitest suite.
 - `npm run build` followed by `git diff --exit-code dist/index.cjs` — bundle parity.

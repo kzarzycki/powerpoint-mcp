@@ -264,13 +264,19 @@ export function setArtifact(
 export function markImplemented(cwd: string, issue: number, publish = true): LoopState {
   const current = load(cwd, issue)
   const value = output(current)
-  if (value.phase !== 'PLAN_APPROVED' && value.phase !== 'IMPLEMENTED' && value.phase !== 'BRANCH_APPROVED')
-    throw new Error(`issue #${issue} is ${value.phase}; expected PLAN_APPROVED, IMPLEMENTED or BRANCH_APPROVED`)
+  const reopenable: Phase[] = ['PLAN_APPROVED', 'IMPLEMENTED', 'BRANCH_APPROVED', 'GATES_GREEN']
+  if (!reopenable.includes(value.phase))
+    throw new Error(`issue #${issue} is ${value.phase}; expected one of ${reopenable.join(', ')}`)
   const head = git(value.worktree, ['rev-parse', 'HEAD'])
-  const reopened = value.phase === 'BRANCH_APPROVED' && value.implementation?.head !== head
+  const wasApproved = value.phase === 'BRANCH_APPROVED' || value.phase === 'GATES_GREEN'
+  const reopened = wasApproved && value.implementation?.head !== head
+  const fromPhase = value.phase
   value.implementation = { head }
-  if (value.phase !== 'BRANCH_APPROVED' || reopened) value.phase = 'IMPLEMENTED'
-  event(value, 'IMPLEMENTED', `branch head=${head}${reopened ? '; reopened for re-review after BRANCH_APPROVED' : ''}`)
+  if (!wasApproved || reopened) {
+    value.phase = 'IMPLEMENTED'
+    if (reopened) value.live = undefined
+  }
+  event(value, 'IMPLEMENTED', `branch head=${head}${reopened ? `; reopened for re-review after ${fromPhase}` : ''}`)
   return output(record(cwd, current, value, publish))
 }
 export function markMerged(cwd: string, issue: number, pr: string, publish = true): LoopState {
@@ -353,17 +359,19 @@ export function review(
   }
   return output(record(cwd, latest, reviewed, publish))
 }
-function gateRunner(): string[] {
+function gateCommand(command: string): { bin: string; args: string[] } {
   const override = process.env.LOOP_GATE_RUNNER
-  return override ? override.split(' ').filter(Boolean) : ['mise', 'exec', 'node@24.18.0', '--']
+  const prefix = override === undefined ? ['mise', 'exec', 'node@24.18.0', '--'] : override.split(' ').filter(Boolean)
+  const [bin, ...prefixArgs] = [...prefix, 'sh']
+  return { bin, args: [...prefixArgs, '-lc', command] }
 }
 export function recordGate(cwd: string, issue: number, command: string, publish = true): LoopState {
   const current = load(cwd, issue)
   const value = output(current)
   requirePhase(value, 'BRANCH_APPROVED')
   requireImplementationHead(value, value.worktree, 'checks')
-  const [runner, ...runnerArgs] = gateRunner()
-  const result = spawnSync(runner, [...runnerArgs, 'sh', '-lc', command], {
+  const { bin, args } = gateCommand(command)
+  const result = spawnSync(bin, args, {
     cwd: value.worktree,
     encoding: 'utf8',
     maxBuffer: 2 * 1024 * 1024,

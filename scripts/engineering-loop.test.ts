@@ -18,7 +18,15 @@ import { parseOmpOutput, parseReviewOutput } from './engineering-review.ts'
 import { createState, readState, updateState } from './loop-store.ts'
 
 function cleanEnvironment(): NodeJS.ProcessEnv {
-  return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')))
+  const inherited = Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
+  // Temporary repositories must not depend on a host or CI identity.
+  return {
+    ...Object.fromEntries(inherited),
+    GIT_AUTHOR_NAME: 'test',
+    GIT_AUTHOR_EMAIL: 'test@example.com',
+    GIT_COMMITTER_NAME: 'test',
+    GIT_COMMITTER_EMAIL: 'test@example.com',
+  }
 }
 
 function git(cwd: string, args: string[]): string {
@@ -43,6 +51,10 @@ function repository(): { first: string; second: string } {
   const second = join(base, 'second')
   git(base, ['clone', remote, first])
   git(base, ['clone', remote, second])
+  for (const clone of [first, second]) {
+    git(clone, ['config', 'user.name', 'test'])
+    git(clone, ['config', 'user.email', 'test@example.com'])
+  }
   return { first, second }
 }
 
@@ -69,7 +81,14 @@ function claimToImplemented(cwd: string, issue: number): LoopState {
 function claimToGatesGreen(cwd: string, issue: number): LoopState {
   claimToImplemented(cwd, issue)
   review(cwd, issue, 'branch', undefined, false, approveFile(cwd))
-  return recordGate(cwd, issue, 'true', false)
+  const previousRunner = process.env.LOOP_GATE_RUNNER
+  process.env.LOOP_GATE_RUNNER = ''
+  try {
+    return recordGate(cwd, issue, 'true', false)
+  } finally {
+    if (previousRunner === undefined) delete process.env.LOOP_GATE_RUNNER
+    else process.env.LOOP_GATE_RUNNER = previousRunner
+  }
 }
 
 describe('engineering loop state', () => {
@@ -200,7 +219,7 @@ describe('engineering loop state', () => {
       expect(afterInfra?.attempts.checks).toBe(0)
       expect(afterInfra?.phase).toBe('BRANCH_APPROVED')
 
-      delete process.env.LOOP_GATE_RUNNER
+      process.env.LOOP_GATE_RUNNER = ''
       const afterFail = recordGate(first, issue, 'exit 1', false)
       expect(afterFail.attempts.checks).toBe(1)
       expect(afterFail.phase).toBe('BRANCH_APPROVED')
@@ -233,6 +252,32 @@ describe('engineering loop state', () => {
       git(worktree, ['commit', '--allow-empty', '-m', 'fix after branch review'])
       const reopened = markImplemented(first, issue, false)
       expect(reopened.phase).toBe('IMPLEMENTED')
+    } finally {
+      if (previous === undefined) delete process.env.AGENT_SESSION
+      else process.env.AGENT_SESSION = previous
+    }
+  })
+
+  it('reopens a gates-green story to IMPLEMENTED and invalidates stale live evidence when HEAD moved', () => {
+    const { first } = repository()
+    const previous = process.env.AGENT_SESSION
+    process.env.AGENT_SESSION = 'test:reopen-green'
+    try {
+      const issue = 206
+      const gatesGreen = claimToGatesGreen(first, issue)
+      const evidence = join(gatesGreen.worktree, 'evidence.txt')
+      writeFileSync(evidence, 'live evidence')
+      recordLive(first, issue, evidence, false)
+
+      const idempotent = markImplemented(first, issue, false)
+      expect(idempotent.phase).toBe('GATES_GREEN')
+      expect(idempotent.live?.status).toBe('evidence')
+
+      git(gatesGreen.worktree, ['commit', '--allow-empty', '-m', 'fix after checks'])
+      const reopened = markImplemented(first, issue, false)
+      expect(reopened.phase).toBe('IMPLEMENTED')
+      expect(reopened.live).toBeUndefined()
+      expect(() => markMerged(first, issue, 'https://example/pr/1', false)).toThrow(/is IMPLEMENTED/)
     } finally {
       if (previous === undefined) delete process.env.AGENT_SESSION
       else process.env.AGENT_SESSION = previous
