@@ -1,59 +1,107 @@
-# Autonomous engineering loop
+# Repository engineering loop
 
-How this project builds itself: an Opus-class agent takes a story from the roadmap and lands it as a merged PR, with quality enforced by gates so the human reviews a verdict, not a diff.
+Every story runs in one isolated sibling worktree and has one exclusive remote claim.
+Start it with:
 
-The same discipline that makes *slides* verifiable makes the *codebase* verifiable: every story has a machine-checkable done-signal (a cited [verification method](VERIFICATION.md)). The loop's job is to reach that signal.
-
-## The loop
-
-```
-1. SELECT   pick the top unblocked story from the board (deps satisfied)
-2. BRANCH   <type>/<epic>-<slug>   (feat|fix|refactor|test|docs)
-3. PLAN     restate the story's goal + its cited V-methods as the acceptance test
-4. RED      write the failing test first (V2 negative fixture / V6 / V12 / V10) — watch it fail
-5. GREEN    implement the minimum to pass; keep the change surgical (touch only what the story needs)
-6. VERIFY   run every cited V-method in cost order (V1 → V2/V3/V9 → V4/V7 → V6 → V8 → V5 if applicable)
-7. SELF-REVIEW  fork a fresh-eyes reviewer subagent (code + diff, no author context) → must return no blocking finding
-8. BUILD    npm run build; stage dist/index.cjs (V13)
-9. PR       Conventional-Commit title; body = the gate report + one-paragraph summary
-10. CI      wait for green; if red, back to step 5 (fix forward, never merge red)
-11. MERGE   squash-merge; delete branch; mark story done; back to 1
+```sh
+AGENT_SESSION=codex:<session-id> npm run loop -- claim --issue <url-or-number> --branch <slug>
 ```
 
-Steps 4–7 are the quality core. **Red-green is mandatory**: the negative case must demonstrably fail before the fix, or the test proves nothing. **Self-review by a fresh agent** is mandatory because an author goes blind to their own work — the same reason slide review is forked.
+The adapter stores append-only phase history under
+`refs/heads/loop-state/issue-<n>`. Creation is remote and exclusive; a losing session
+cannot overwrite the winner. The board and issue comments are human-facing
+projections, not the lock. A losing claim leaves a local audit record and, when
+publishing is enabled, an issue comment naming the winner. `AGENT_SESSION` must be
+set for every mutating command in this document, not only `claim` — `spec`, `plan`,
+`implemented`, `review`, `checks`, `live` and `merged` all write state.
 
-## Gates that make human review minimal
+The claim creates `../powerpoint-mcp--issue-<n>` as a sibling of the repository root
+from `origin/main` on `loop/issue-<n>-<slug>`. This is a loop-internal namespace,
+distinct from the `<type>/<short-description>` convention CLAUDE.md uses for PR
+branches. Work never starts in the shared checkout.
 
-The human is not asked to read the implementation. They're shown, in the PR body:
+## Fixed phases
 
-- the **story goal** and which V-methods gated it,
-- the **gate report** (V1 suite result, V4 golden-deck report if quality-relevant, V5 e2e status, V8/self-review verdict),
-- a **one-paragraph** change summary and a change manifest (files touched, tools added/changed).
+1. **TRIAGED** — claim the issue and create its sibling worktree.
+2. **SPEC** — write it with `loop spec --issue <n> --file <spec>`, then run the
+   standalone reviewer: `npm run loop:review -- --cwd <worktree> --brief-file <brief>
+   --output <verdict> [--model <name>]`. This is the fresh-eyes reviewer: a separate
+   `omp` process with no author context, run against the artifact alone. Record that
+   verdict with `loop review --issue <n> --gate spec --result <verdict>` before
+   revising the artifact.
+3. **SPEC_APPROVED** — the recorded reviewer verdict permits planning.
+4. **PLAN** → **PLAN_APPROVED** — write and independently review the ordered plan
+   the same way, with `loop review --issue <n> --gate plan ...`.
+5. **IMPLEMENTED** → **BRANCH_APPROVED** — run `loop implemented --issue <n>`, then
+   fresh-eyes review the complete branch: `loop review --issue <n> --gate branch ...`.
+   Any further commit — fixing a branch-review finding or a later checks failure —
+   requires `loop implemented --issue <n>` again before the next gate; if the worktree
+   HEAD actually moved past what was reviewed, this reopens the story to IMPLEMENTED
+   so it is fresh-eyes reviewed again before checks can run.
+6. **GATES_GREEN** — run `loop checks --issue <n> --command '<gates>'`; command,
+   output and exit code are recorded. `loop live --issue <n> --evidence <file>`
+   records live evidence for desktop/add-in stories; other stories run
+   `loop live --issue <n> --waive '<reason>'` instead — `merged` requires one of the
+   two.
+7. **MERGED** — after the exact story PR is green, run
+   `loop merged --issue <n> --pr <url>`; the merge commit is always the recorded
+   implementation head, never an operator-supplied SHA, and merge is refused if the
+   worktree HEAD has moved past it since checks passed.
 
-If every cited gate is green, the default is merge. The human intervenes only on: an escape-hatch (`execute_officejs`) surface change, a security-relevant change (V12), a schema/breaking-API change, or a gate the agent had to mark `warn`/override with justification.
+Each review and mechanical gate has three attempts. A `REVISE` or a genuine failing
+exit code counts against the limit; an `APPROVE` or a passing exit code does not,
+even across repeated reopen-and-re-review cycles — only rejections are budgeted.
+The third rejection parks the story. Reviewer output that is missing, malformed or
+times out (`REVIEW_FAILED`) and a gate command that fails to start or is killed by
+its timeout (`GATE_INFRA_FAILED`) both fail closed
+without consuming an attempt — they are infrastructure failures, not content
+rejections, and the command should be retried. No gate is weakened. Rejections and
+later approvals remain in the append-only history.
 
-## Guardrails for autonomous execution
+This tooling only writes issue comments; it does not update the GitHub Project
+`Status`/`Phase`/`Session` fields CLAUDE.md describes. Keep those in sync by hand
+until a follow-up wires them.
 
-- **One story per PR.** Small, reviewable, revertable. If a story needs >~400 changed lines, split it.
-- **Never merge red.** A failing cited gate blocks merge. Fix forward or revert; do not disable the gate to go green.
-- **Never weaken a gate to pass.** Adding coverage requires the mutation check (a bad input must turn it red). Lowering a threshold is a config change that itself needs justification + V10.
-- **Migration behind the suite.** IR/tool refactors land tool-by-tool; the full suite stays green after each step (per [ARCHITECTURE.md](ARCHITECTURE.md) migration discipline).
-- **Escape hatch is sacred.** Do not remove `execute_officejs`; promote patterns into typed tools alongside it.
-- **Blocked?** If a story can't reach its done-signal (e.g. needs live PowerPoint the runner lacks, or an upstream epic isn't done), stop and surface it — don't fake the gate or mark it done.
-- **Live-dependent stories.** Stories whose only proof is V5 (real Office.js behavior) run on the self-hosted macOS runner or locally; if unavailable, land the offline-verifiable part (V4) and leave the V5 acceptance explicitly pending, flagged for the human.
+## Project gates
 
-## Roles (who runs what model)
+Run these with Node 24 (`mise exec node@24.18.0 -- ...`). `loop checks` runs the
+command through this same prefix by default; on a host without `mise`, set
+`LOOP_GATE_RUNNER` to a space-separated replacement prefix, or to an empty string
+to run the command directly with no prefix — otherwise every checks attempt fails
+closed as `GATE_INFRA_FAILED`.
 
-- **Executor** (Opus-class): runs the loop for one story end to end.
-- **Reviewer** (fresh fork, step 7): independent code review; no author context.
-- **Visual judge** (vision subagent): only for stories that change slide output, as the V8 gate.
-- **Orchestrator** (optional): assigns unblocked stories to parallel executors when the dependency graph allows, respecting epic ordering.
+- `npm run check` — Biome, TypeScript and the complete Vitest suite.
+- `npm run build` followed by `git diff --exit-code dist/index.cjs` — bundle parity.
+- `npm run test:e2e` for PowerPoint Web or full-stack stories.
+- Desktop/add-in stories require a disposable deck, cold PowerPoint launch, taskpane
+  open, bridge `/health`, MCP `list_presentations`, taskpane close/reopen, and the
+  same capture after recovery. Both observations must show `connections = 1` and
+  exactly one connected presentation.
 
-## Definition of done (every story)
+Red-green is mandatory: keep a negative case that fails before a bug fix. One story
+stays in one PR. The `execute_officejs` escape hatch remains available. Migrations
+stay behind the suite, and each story cites applicable methods from
+`docs/VERIFICATION.md`. Never merge red, skip a cited gate, or lower a threshold to
+make a gate pass.
 
-1. All cited V-methods pass.
-2. Fresh-eyes self-review returns no blocking finding.
-3. `npm run check` + `npm run build`/dist parity green (V1, V13).
-4. PR merged; roadmap story marked done; any newly-unblocked stories noted.
+Fake Office tests and `/health` do not prove Office.js behavior. Missing PowerPoint,
+Microsoft 365 credentials, or a disposable deck is an explicit blocked live gate,
+not a reason to substitute browser or fake-host output.
 
-If any of these is not literally true, the story is not done — regardless of how complete the code looks.
+## Standalone review and landing
+
+`engineering-review.ts` invokes local `omp` directly. It does not import Flowbench,
+Python, Omnigent or a daemon. It accepts only strict JSON:
+`{"verdict":"APPROVE"|"REVISE","findings":[string]}`. Non-zero, timed-out,
+empty or malformed output fails closed. A verdict imported with `--result` is marked
+as file-sourced in state history and must come from a separately run review.
+
+The append-only phase, review and gate history under `refs/heads/loop-state/issue-<n>`
+(`loop history --issue <n>`) is the change manifest for the story — every artifact,
+verdict and gate command with its exit code — so the PR body can point at it instead
+of narrating the diff.
+
+The executing agent may squash-merge ordinary loop PRs only after independent branch
+review, all required checks, CI and live evidence. Security changes, `execute_officejs`
+changes, breaking APIs and gate exceptions still require owner approval. The issue
+comment is best-effort; the remote state history is authoritative.
