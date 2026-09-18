@@ -165,14 +165,15 @@ function parseArgs(args: string[]): { command: string; values: Record<string, st
     const token = rest[index]
     if (!token.startsWith('--')) throw new Error(`unexpected argument: ${token}`)
     const key = token.slice(2)
-    const next = rest[index + 1]
-    if (next && !next.startsWith('--')) {
-      if (!KNOWN_VALUE_KEYS.has(key)) throw new Error(`unknown option: --${key}`)
+    if (KNOWN_VALUE_KEYS.has(key)) {
+      const next = rest[index + 1]
+      if (next === undefined || next.startsWith('--')) throw new Error(`--${key} requires a value`)
       values[key] = next
       index += 1
-    } else {
-      if (!KNOWN_FLAG_KEYS.has(key)) throw new Error(`unknown flag: --${key}`)
+    } else if (KNOWN_FLAG_KEYS.has(key)) {
       flags.add(key)
+    } else {
+      throw new Error(`unknown option: --${key}`)
     }
   }
   return { command, values, flags }
@@ -263,25 +264,27 @@ export function setArtifact(
 export function markImplemented(cwd: string, issue: number, publish = true): LoopState {
   const current = load(cwd, issue)
   const value = output(current)
-  if (value.phase !== 'PLAN_APPROVED' && value.phase !== 'IMPLEMENTED')
-    throw new Error(`issue #${issue} is ${value.phase}; expected PLAN_APPROVED`)
-  value.implementation = { head: git(value.worktree, ['rev-parse', 'HEAD']) }
-  value.phase = 'IMPLEMENTED'
-  event(value, 'IMPLEMENTED', `branch head=${value.implementation.head}`)
+  if (value.phase !== 'PLAN_APPROVED' && value.phase !== 'IMPLEMENTED' && value.phase !== 'BRANCH_APPROVED')
+    throw new Error(`issue #${issue} is ${value.phase}; expected PLAN_APPROVED, IMPLEMENTED or BRANCH_APPROVED`)
+  const head = git(value.worktree, ['rev-parse', 'HEAD'])
+  const reopened = value.phase === 'BRANCH_APPROVED' && value.implementation?.head !== head
+  value.implementation = { head }
+  if (value.phase !== 'BRANCH_APPROVED' || reopened) value.phase = 'IMPLEMENTED'
+  event(value, 'IMPLEMENTED', `branch head=${head}${reopened ? '; reopened for re-review after BRANCH_APPROVED' : ''}`)
   return output(record(cwd, current, value, publish))
 }
 export function markMerged(cwd: string, issue: number, pr: string, publish = true): LoopState {
   const current = load(cwd, issue)
   const value = output(current)
   requirePhase(value, 'GATES_GREEN')
-  if (!value.implementation) throw new Error(`issue #${issue} has no recorded implementation head`)
+  const head = requireImplementationHead(value, value.worktree, 'merging')
   if (!value.live)
     throw new Error(
       `issue #${issue} has no recorded live evidence or waiver; run 'live --evidence <path>' or 'live --waive <reason>' first`,
     )
-  value.merge = { pr, commit: value.implementation.head }
+  value.merge = { pr, commit: head }
   value.phase = 'MERGED'
-  event(value, 'MERGED', `pr=${pr} commit=${value.implementation.head}`)
+  event(value, 'MERGED', `pr=${pr} commit=${head}`)
   return output(record(cwd, current, value, publish))
 }
 export function review(
@@ -350,12 +353,17 @@ export function review(
   }
   return output(record(cwd, latest, reviewed, publish))
 }
+function gateRunner(): string[] {
+  const override = process.env.LOOP_GATE_RUNNER
+  return override ? override.split(' ').filter(Boolean) : ['mise', 'exec', 'node@24.18.0', '--']
+}
 export function recordGate(cwd: string, issue: number, command: string, publish = true): LoopState {
   const current = load(cwd, issue)
   const value = output(current)
   requirePhase(value, 'BRANCH_APPROVED')
   requireImplementationHead(value, value.worktree, 'checks')
-  const result = spawnSync('mise', ['exec', 'node@24.18.0', '--', 'sh', '-lc', command], {
+  const [runner, ...runnerArgs] = gateRunner()
+  const result = spawnSync(runner, [...runnerArgs, 'sh', '-lc', command], {
     cwd: value.worktree,
     encoding: 'utf8',
     maxBuffer: 2 * 1024 * 1024,

@@ -25,19 +25,28 @@ branches. Work never starts in the shared checkout.
 1. **TRIAGED** — claim the issue and create its sibling worktree.
 2. **SPEC** — write it with `loop spec --issue <n> --file <spec>`, then run the
    standalone reviewer: `npm run loop:review -- --cwd <worktree> --brief-file <brief>
-   --output <verdict> [--model <name>]`. Record that verdict with `loop review --gate
-   spec --result <verdict>` before revising the artifact.
+   --output <verdict> [--model <name>]`. This is the fresh-eyes reviewer: a separate
+   `omp` process with no author context, run against the artifact alone. Record that
+   verdict with `loop review --issue <n> --gate spec --result <verdict>` before
+   revising the artifact.
 3. **SPEC_APPROVED** — the recorded reviewer verdict permits planning.
-4. **PLAN** → **PLAN_APPROVED** — write and independently review the ordered plan.
-5. **IMPLEMENTED** → **BRANCH_APPROVED** — run `loop implemented`, then review the
-   complete branch from fresh context.
-6. **GATES_GREEN** — run `loop checks --command '<gates>'`; command, output and exit
-   code are recorded. `loop live --evidence <file>` records live evidence for
-   desktop/add-in stories; other stories run `loop live --waive '<reason>'` instead —
-   `merged` requires one of the two.
-7. **MERGED** — after the exact story PR is green, run `loop merged --pr <url>`; the
-   merge commit is always the recorded implementation head, never an operator-supplied
-   SHA.
+4. **PLAN** → **PLAN_APPROVED** — write and independently review the ordered plan
+   the same way, with `loop review --issue <n> --gate plan ...`.
+5. **IMPLEMENTED** → **BRANCH_APPROVED** — run `loop implemented --issue <n>`, then
+   fresh-eyes review the complete branch: `loop review --issue <n> --gate branch ...`.
+   Any further commit — fixing a branch-review finding or a later checks failure —
+   requires `loop implemented --issue <n>` again before the next gate; if the worktree
+   HEAD actually moved past what was reviewed, this reopens the story to IMPLEMENTED
+   so it is fresh-eyes reviewed again before checks can run.
+6. **GATES_GREEN** — run `loop checks --issue <n> --command '<gates>'`; command,
+   output and exit code are recorded. `loop live --issue <n> --evidence <file>`
+   records live evidence for desktop/add-in stories; other stories run
+   `loop live --issue <n> --waive '<reason>'` instead — `merged` requires one of the
+   two.
+7. **MERGED** — after the exact story PR is green, run
+   `loop merged --issue <n> --pr <url>`; the merge commit is always the recorded
+   implementation head, never an operator-supplied SHA, and merge is refused if the
+   worktree HEAD has moved past it since checks passed.
 
 Each review and mechanical gate has three attempts. A `REVISE` or a genuine failing
 exit code counts against the limit; the third failure parks the story. Reviewer
@@ -53,7 +62,10 @@ until a follow-up wires them.
 
 ## Project gates
 
-Run these with Node 24 (`mise exec node@24.18.0 -- ...`):
+Run these with Node 24 (`mise exec node@24.18.0 -- ...`). `loop checks` runs the
+command through this same prefix by default; on a host without `mise`, set
+`LOOP_GATE_RUNNER` to a space-separated replacement (e.g. a plain `node` shim), or
+every checks attempt fails closed as `GATE_INFRA_FAILED`.
 
 - `npm run check` — Biome, TypeScript and the complete Vitest suite.
 - `npm run build` followed by `git diff --exit-code dist/index.cjs` — bundle parity.
@@ -80,6 +92,11 @@ Python, Omnigent or a daemon. It accepts only strict JSON:
 `{"verdict":"APPROVE"|"REVISE","findings":[string]}`. Non-zero, timed-out,
 empty or malformed output fails closed. A verdict imported with `--result` is marked
 as file-sourced in state history and must come from a separately run review.
+
+The append-only phase, review and gate history under `refs/heads/loop-state/issue-<n>`
+(`loop history --issue <n>`) is the change manifest for the story — every artifact,
+verdict and gate command with its exit code — so the PR body can point at it instead
+of narrating the diff.
 
 The executing agent may squash-merge ordinary loop PRs only after independent branch
 review, all required checks, CI and live evidence. Security changes, `execute_officejs`

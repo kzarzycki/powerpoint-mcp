@@ -3,7 +3,17 @@ import { existsSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { claim, type LoopState, review } from './engineering-loop.ts'
+import {
+  claim,
+  type LoopState,
+  markImplemented,
+  markMerged,
+  recordGate,
+  recordLive,
+  review,
+  setArtifact,
+  waiveLive,
+} from './engineering-loop.ts'
 import { parseOmpOutput, parseReviewOutput } from './engineering-review.ts'
 import { createState, readState, updateState } from './loop-store.ts'
 
@@ -34,6 +44,32 @@ function repository(): { first: string; second: string } {
   git(base, ['clone', remote, first])
   git(base, ['clone', remote, second])
   return { first, second }
+}
+
+function approveFile(dir: string, name = 'approve.json'): string {
+  const path = join(dir, name)
+  writeFileSync(path, JSON.stringify({ verdict: 'APPROVE', findings: [], reviewer: 'test' }))
+  return path
+}
+
+function claimToImplemented(cwd: string, issue: number): LoopState {
+  const approve = approveFile(cwd)
+  let state = claim(cwd, String(issue), `test-${issue}`, false)
+  writeFileSync(join(state.worktree, 'spec.md'), 'spec')
+  setArtifact(cwd, issue, 'spec', join(state.worktree, 'spec.md'), false)
+  review(cwd, issue, 'spec', undefined, false, approve)
+  writeFileSync(join(state.worktree, 'plan.md'), 'plan')
+  setArtifact(cwd, issue, 'plan', join(state.worktree, 'plan.md'), false)
+  review(cwd, issue, 'plan', undefined, false, approve)
+  git(state.worktree, ['commit', '--allow-empty', '-m', 'impl'])
+  state = markImplemented(cwd, issue, false)
+  return state
+}
+
+function claimToGatesGreen(cwd: string, issue: number): LoopState {
+  claimToImplemented(cwd, issue)
+  review(cwd, issue, 'branch', undefined, false, approveFile(cwd))
+  return recordGate(cwd, issue, 'true', false)
 }
 
 describe('engineering loop state', () => {
@@ -125,6 +161,119 @@ describe('engineering loop state', () => {
       expect(parked.attempts.spec).toBe(3)
       expect(parked.reviews.filter((item) => item.verdict === 'REVISE')).toHaveLength(3)
       expect(parked.events.filter((item) => item.kind === 'REVIEW_REJECTED')).toHaveLength(3)
+    } finally {
+      if (previous === undefined) delete process.env.AGENT_SESSION
+      else process.env.AGENT_SESSION = previous
+    }
+  })
+
+  it('rejects a branch review when the worktree HEAD has moved past the implementation head', () => {
+    const { first } = repository()
+    const previous = process.env.AGENT_SESSION
+    process.env.AGENT_SESSION = 'test:head-branch'
+    try {
+      const issue = 201
+      const state = claimToImplemented(first, issue)
+      git(state.worktree, ['commit', '--allow-empty', '-m', 'drift'])
+      expect(() => review(first, issue, 'branch', undefined, false, approveFile(first))).toThrow(
+        /has moved past the recorded implementation head/,
+      )
+    } finally {
+      if (previous === undefined) delete process.env.AGENT_SESSION
+      else process.env.AGENT_SESSION = previous
+    }
+  })
+
+  it('does not consume a checks attempt on a spawn-level infra failure, but does on a genuine failure', () => {
+    const { first } = repository()
+    const previous = process.env.AGENT_SESSION
+    const previousRunner = process.env.LOOP_GATE_RUNNER
+    process.env.AGENT_SESSION = 'test:head-checks'
+    try {
+      const issue = 202
+      claimToImplemented(first, issue)
+      review(first, issue, 'branch', undefined, false, approveFile(first))
+
+      process.env.LOOP_GATE_RUNNER = '/nonexistent/loop-gate-runner-xyz'
+      expect(() => recordGate(first, issue, 'true', false)).toThrow(/checks command failed to run/)
+      const afterInfra = readState<LoopState>(first, issue)?.value
+      expect(afterInfra?.attempts.checks).toBe(0)
+      expect(afterInfra?.phase).toBe('BRANCH_APPROVED')
+
+      delete process.env.LOOP_GATE_RUNNER
+      const afterFail = recordGate(first, issue, 'exit 1', false)
+      expect(afterFail.attempts.checks).toBe(1)
+      expect(afterFail.phase).toBe('BRANCH_APPROVED')
+
+      const afterPass = recordGate(first, issue, 'true', false)
+      expect(afterPass.attempts.checks).toBe(2)
+      expect(afterPass.phase).toBe('GATES_GREEN')
+    } finally {
+      if (previous === undefined) delete process.env.AGENT_SESSION
+      else process.env.AGENT_SESSION = previous
+      if (previousRunner === undefined) delete process.env.LOOP_GATE_RUNNER
+      else process.env.LOOP_GATE_RUNNER = previousRunner
+    }
+  })
+
+  it('reopens a branch-approved story to IMPLEMENTED only when HEAD actually moved', () => {
+    const { first } = repository()
+    const previous = process.env.AGENT_SESSION
+    process.env.AGENT_SESSION = 'test:reopen'
+    try {
+      const issue = 203
+      claimToImplemented(first, issue)
+      const worktree = readState<LoopState>(first, issue)?.value.worktree as string
+      const approved = review(first, issue, 'branch', undefined, false, approveFile(first))
+      expect(approved.phase).toBe('BRANCH_APPROVED')
+
+      const idempotent = markImplemented(first, issue, false)
+      expect(idempotent.phase).toBe('BRANCH_APPROVED')
+
+      git(worktree, ['commit', '--allow-empty', '-m', 'fix after branch review'])
+      const reopened = markImplemented(first, issue, false)
+      expect(reopened.phase).toBe('IMPLEMENTED')
+    } finally {
+      if (previous === undefined) delete process.env.AGENT_SESSION
+      else process.env.AGENT_SESSION = previous
+    }
+  })
+
+  it('requires live evidence or a waiver, and an unmoved head, before merging', () => {
+    const { first } = repository()
+    const previous = process.env.AGENT_SESSION
+    process.env.AGENT_SESSION = 'test:merge'
+    try {
+      const issue = 204
+      const gatesGreen = claimToGatesGreen(first, issue)
+      expect(() => markMerged(first, issue, 'https://example/pr/1', false)).toThrow(
+        /no recorded live evidence or waiver/,
+      )
+
+      git(gatesGreen.worktree, ['commit', '--allow-empty', '-m', 'drift after checks'])
+      waiveLive(first, issue, 'no Office UI in this story', false)
+      expect(() => markMerged(first, issue, 'https://example/pr/1', false)).toThrow(
+        /has moved past the recorded implementation head/,
+      )
+    } finally {
+      if (previous === undefined) delete process.env.AGENT_SESSION
+      else process.env.AGENT_SESSION = previous
+    }
+  })
+
+  it('merges once live evidence and an unmoved head are both satisfied', () => {
+    const { first } = repository()
+    const previous = process.env.AGENT_SESSION
+    process.env.AGENT_SESSION = 'test:merge-ok'
+    try {
+      const issue = 205
+      const gatesGreen = claimToGatesGreen(first, issue)
+      const evidence = join(gatesGreen.worktree, 'evidence.txt')
+      writeFileSync(evidence, 'live evidence')
+      recordLive(first, issue, evidence, false)
+      const merged = markMerged(first, issue, 'https://example/pr/1', false)
+      expect(merged.phase).toBe('MERGED')
+      expect(merged.merge).toEqual({ pr: 'https://example/pr/1', commit: gatesGreen.implementation?.head })
     } finally {
       if (previous === undefined) delete process.env.AGENT_SESSION
       else process.env.AGENT_SESSION = previous
