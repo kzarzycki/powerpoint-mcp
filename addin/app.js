@@ -1,6 +1,7 @@
 /* PowerPoint MCP — WebSocket client */
 
 var ws = null
+var reconnectTimer = null
 var reconnectAttempt = 0
 var BASE_DELAY = 500
 var MAX_DELAY = 30000
@@ -11,7 +12,6 @@ var AsyncFunction = (async () => {}).constructor
 Office.onReady((info) => {
   officeReady = true
   console.log('Office.js ready:', info.host, info.platform)
-  updateStatus('connecting')
   initWebSocket()
 })
 
@@ -19,7 +19,6 @@ Office.onReady((info) => {
 setTimeout(() => {
   if (!officeReady) {
     console.log('Office.js not detected — standalone mode')
-    updateStatus('connecting')
     initWebSocket()
   }
 }, 3000)
@@ -30,17 +29,27 @@ function initWebSocket() {
 }
 
 function connect() {
+  if (ws) return
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  updateStatus('connecting')
+
   var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   var host = window.location.host
+  var socket
   try {
-    ws = new WebSocket(`${protocol}//${host}`)
+    socket = new WebSocket(`${protocol}//${host}`)
+    ws = socket
   } catch (err) {
     console.error('WebSocket constructor error:', err)
     scheduleReconnect()
     return
   }
 
-  ws.onopen = () => {
+  socket.onopen = () => {
+    if (ws !== socket) return
     reconnectAttempt = 0
     updateStatus('connected')
     updateBridgeUrl()
@@ -51,7 +60,7 @@ function connect() {
     } catch (_e) {
       // Not available in standalone/browser mode
     }
-    ws.send(JSON.stringify({ type: 'ready', documentUrl: documentUrl }))
+    socket.send(JSON.stringify({ type: 'ready', documentUrl: documentUrl }))
 
     // Enable auto-start on document open (shared runtime)
     try {
@@ -71,17 +80,19 @@ function connect() {
     }
   }
 
-  ws.onclose = () => {
+  socket.onclose = () => {
+    if (ws !== socket) return
+    ws = null
     updateStatus('disconnected')
     console.log('WebSocket closed')
     scheduleReconnect()
   }
 
-  ws.onerror = (err) => {
+  socket.onerror = (err) => {
     console.error('WebSocket error:', err)
   }
 
-  ws.onmessage = (event) => {
+  socket.onmessage = (event) => {
     try {
       const message = JSON.parse(event.data)
       handleCommand(message)
@@ -92,11 +103,15 @@ function connect() {
 }
 
 function scheduleReconnect() {
+  if (ws || reconnectTimer !== null) return
   var delay = Math.min(BASE_DELAY * 2 ** reconnectAttempt, MAX_DELAY)
   var jitter = Math.floor(Math.random() * 1000)
   reconnectAttempt++
   console.log(`Reconnecting in ${delay + jitter}ms (attempt ${reconnectAttempt})`)
-  setTimeout(connect, delay + jitter)
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    connect()
+  }, delay + jitter)
 }
 
 /* Bridge URL display */
