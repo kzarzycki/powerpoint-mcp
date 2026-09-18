@@ -378,6 +378,145 @@ describe('MCP Tools', () => {
       expect(parsed.warnings).toHaveLength(1)
       expect(parsed.warnings[0]).toContain('wrong_name')
     })
+
+    it('resolves duplicate layout names across masters by Office.js identity, not name (#120)', async () => {
+      // Two masters both have a layout named "Title and Content", but with
+      // different placeholder names for the same idx values. If the tool
+      // fell back to a plain OOXML name search, it would always pick
+      // master 1's placeholder names, even when Office.js actually inserted
+      // from master 2.
+      const layout1Xml = `<?xml version="1.0" encoding="UTF-8"?>
+        <p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                     xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" type="obj">
+          <p:cSld name="Title and Content">
+            <p:spTree>
+              <p:sp>
+                <p:nvSpPr>
+                  <p:cNvPr id="2" name="m1_title"/>
+                  <p:cNvSpPr/><p:nvPr><p:ph type="title" idx="0"/></p:nvPr>
+                </p:nvSpPr>
+                <p:spPr/>
+              </p:sp>
+              <p:sp>
+                <p:nvSpPr>
+                  <p:cNvPr id="3" name="m1_body"/>
+                  <p:cNvSpPr/><p:nvPr><p:ph idx="1"/></p:nvPr>
+                </p:nvSpPr>
+                <p:spPr/>
+              </p:sp>
+            </p:spTree>
+          </p:cSld>
+        </p:sldLayout>`
+      const layout2Xml = `<?xml version="1.0" encoding="UTF-8"?>
+        <p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                     xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" type="obj">
+          <p:cSld name="Title and Content">
+            <p:spTree>
+              <p:sp>
+                <p:nvSpPr>
+                  <p:cNvPr id="2" name="m2_title"/>
+                  <p:cNvSpPr/><p:nvPr><p:ph type="title" idx="0"/></p:nvPr>
+                </p:nvSpPr>
+                <p:spPr/>
+              </p:sp>
+              <p:sp>
+                <p:nvSpPr>
+                  <p:cNvPr id="3" name="m2_body"/>
+                  <p:cNvSpPr/><p:nvPr><p:ph idx="1"/></p:nvPr>
+                </p:nvSpPr>
+                <p:spPr/>
+              </p:sp>
+            </p:spTree>
+          </p:cSld>
+        </p:sldLayout>`
+      const master1Rels = `<?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+        </Relationships>`
+      const master2Rels = `<?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout2.xml"/>
+        </Relationships>`
+      const pptxZip = new JSZip()
+      pptxZip.file('ppt/slideMasters/_rels/slideMaster1.xml.rels', master1Rels)
+      pptxZip.file('ppt/slideMasters/_rels/slideMaster2.xml.rels', master2Rels)
+      pptxZip.file('ppt/slideLayouts/slideLayout1.xml', layout1Xml)
+      pptxZip.file('ppt/slideLayouts/slideLayout2.xml', layout2Xml)
+      const pptxBuffer = await pptxZip.generateAsync({ type: 'nodebuffer' })
+      const { readFileSync } = await import('node:fs')
+      vi.mocked(readFileSync).mockReturnValueOnce(pptxBuffer as never)
+
+      const ws = mockWs()
+      pool.add('test.pptx', { ws, ready: true, presentationId: 'test.pptx', filePath: '/path/test.pptx' })
+      const { client } = await setupMcpClient(pool)
+
+      const toolPromise = client.callTool({
+        name: 'add_slide',
+        arguments: {
+          layoutName: 'Title and Content',
+          placeholders: { m2_title: 'Right Title', m2_body: 'Right Body' },
+        },
+      })
+
+      // WS call 1: add slide — simulate Office.js resolving the SECOND master's
+      // layout (masterIndex 1), not the first OOXML match.
+      const addJson = await waitForSend(ws, 0)
+      pool.handleResponse(addJson.id, 'response', {
+        slideIndex: 0,
+        slideId: 'slide-0',
+        slideCount: 1,
+        layoutName: 'Title and Content',
+        masterIndex: 1,
+        layoutIndexInMaster: 0,
+      })
+
+      // WS call 2: exportSlide — the actually-inserted slide's placeholders.
+      const exportJson = await waitForSend(ws, 1)
+      const slideXml = `<?xml version="1.0" encoding="UTF-8"?>
+        <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:cSld><p:spTree>
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="100" name="Title 1"/>
+                <p:cNvSpPr/><p:nvPr><p:ph type="title" idx="0"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr/>
+            </p:sp>
+            <p:sp>
+              <p:nvSpPr>
+                <p:cNvPr id="101" name="Content Placeholder 2"/>
+                <p:cNvSpPr/><p:nvPr><p:ph idx="1"/></p:nvPr>
+              </p:nvSpPr>
+              <p:spPr/>
+            </p:sp>
+          </p:spTree></p:cSld>
+        </p:sld>`
+      const slideZip = new JSZip()
+      slideZip.file('ppt/slides/slide1.xml', slideXml)
+      const slideBase64 = await slideZip.generateAsync({ type: 'base64' })
+      pool.handleResponse(exportJson.id, 'response', { base64: slideBase64, slideId: 'slide-0', prevSlideId: null })
+
+      // WS call 3: rename + set text — must use master 2's placeholder names,
+      // proving the server correlated by the Office.js-reported identity
+      // (masterIndex/layoutIndexInMaster), not by re-searching OOXML by name.
+      const renameJson = await waitForSend(ws, 2)
+      const code = renameJson.params.code as string
+      expect(code).toContain('m2_title')
+      expect(code).toContain('m2_body')
+      expect(code).not.toContain('m1_title')
+      expect(code).not.toContain('m1_body')
+      pool.handleResponse(renameJson.id, 'response', [
+        { id: '100', name: 'm2_title', text: 'Right Title' },
+        { id: '101', name: 'm2_body', text: 'Right Body' },
+      ])
+
+      const result = await toolPromise
+      const parsed = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+      expect(parsed.warnings).toBeUndefined()
+      expect(parsed.placeholders[0].name).toBe('m2_title')
+      expect(parsed.placeholders[1].name).toBe('m2_body')
+    })
   })
 
   describe('screenshot_slide', () => {

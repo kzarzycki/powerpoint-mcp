@@ -548,6 +548,38 @@ describe('xml-helpers', () => {
       expect(layouts[0]!.placeholders).toHaveLength(1)
       expect(layouts[0]!.placeholders[0]!.type).toBe('title')
     })
+
+    it('tags each layout with masterIndex 0 for a single-master deck', async () => {
+      const xml = makeLayoutXml({ name: 'Solo' })
+      const layouts = await extractLayoutsFromZip(await buildZip(xml))
+      expect(layouts[0]!.masterIndex).toBe(0)
+      expect(layouts[0]!.layoutIndexInMaster).toBe(0)
+    })
+
+    it('enumerates layouts from every slide master, not just the first (#120)', async () => {
+      const master1Rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+</Relationships>`
+      const master2Rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout2.xml"/>
+</Relationships>`
+      const layout1Xml = makeLayoutXml({ name: 'Title and Content' })
+      const layout2Xml = makeLayoutXml({ name: 'Title and Content' })
+
+      const zip = new JSZip()
+      zip.file('ppt/slideMasters/_rels/slideMaster1.xml.rels', master1Rels)
+      zip.file('ppt/slideMasters/_rels/slideMaster2.xml.rels', master2Rels)
+      zip.file('ppt/slideLayouts/slideLayout1.xml', layout1Xml)
+      zip.file('ppt/slideLayouts/slideLayout2.xml', layout2Xml)
+
+      const layouts = await extractLayoutsFromZip(zip)
+      const duplicates = layouts.filter((l) => l.name === 'Title and Content')
+      expect(duplicates).toHaveLength(2)
+      expect(duplicates.map((l) => l.masterIndex).sort()).toEqual([0, 1])
+      expect(duplicates.map((l) => l.layoutIndexInMaster)).toEqual([0, 0])
+    })
   })
 
   describe('extractDeckText slide ordering', () => {
