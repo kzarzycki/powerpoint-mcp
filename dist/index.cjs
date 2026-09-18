@@ -55551,6 +55551,7 @@ var import_meta2 = {};
 var BRIDGE_DEFAULT_HTTP_PORT = 8080;
 var BRIDGE_DEFAULT_HTTPS_PORT = 8443;
 var MCP_HTTP_PORT = Number(process.env.MCP_PORT) || 3001;
+var MAX_HTTP_BODY_BYTES = 16 * 1024 * 1024;
 var SCRIPT_DIR = typeof __dirname !== "undefined" ? __dirname : (0, import_node_path3.dirname)((0, import_node_url3.fileURLToPath)(import_meta2.url));
 var PROJECT_ROOT = (0, import_node_path3.resolve)(SCRIPT_DIR, "..");
 var BRIDGE_CERT_PATH = (0, import_node_path3.resolve)(PROJECT_ROOT, "certs", "localhost.pem");
@@ -55666,19 +55667,45 @@ function getMimeType(filePath) {
   const ext = (0, import_node_path3.extname)(filePath);
   return MIME_TYPES[ext] ?? "application/octet-stream";
 }
+var RequestBodyTooLargeError = class extends Error {
+  constructor() {
+    super("Request body too large");
+    this.name = "RequestBodyTooLargeError";
+  }
+};
+function respondJson(res, statusCode, payload) {
+  if (res.headersSent || res.writableEnded || res.socket?.destroyed) return;
+  res.writeHead(statusCode, { "Content-Type": "application/json" });
+  res.end(JSON.stringify(payload));
+}
 function parseJsonBody(req) {
-  return new Promise((resolve2, reject) => {
-    const chunks = [];
-    req.on("data", (chunk) => chunks.push(chunk));
-    req.on("end", () => {
-      try {
-        resolve2(JSON.parse(Buffer.concat(chunks).toString()));
-      } catch {
-        reject(new Error("Invalid JSON body"));
-      }
-    });
-    req.on("error", reject);
+  const { promise: promise2, resolve: resolve2, reject } = Promise.withResolvers();
+  const chunks = [];
+  let receivedBytes = 0;
+  let tooLarge = false;
+  req.on("data", (chunk) => {
+    receivedBytes += chunk.length;
+    if (receivedBytes > MAX_HTTP_BODY_BYTES) {
+      tooLarge = true;
+      chunks.length = 0;
+      return;
+    }
+    chunks.push(chunk);
   });
+  req.once("end", () => {
+    if (tooLarge) {
+      reject(new RequestBodyTooLargeError());
+      return;
+    }
+    try {
+      resolve2(JSON.parse(Buffer.concat(chunks).toString()));
+    } catch {
+      reject(new Error("Invalid JSON body"));
+    }
+  });
+  req.once("error", reject);
+  req.once("close", () => reject(new Error("Request closed before completion")));
+  return promise2;
 }
 function createMcpHttpSession(transport) {
   return createMcpServer(
@@ -55720,11 +55747,16 @@ async function handleMcpPost(req, res) {
       );
     }
   } catch (err) {
-    console.error("MCP HTTP POST error:", err);
-    if (!res.headersSent) {
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32603, message: "Internal error" }, id: null }));
+    if (err instanceof RequestBodyTooLargeError) {
+      respondJson(res, 413, {
+        jsonrpc: "2.0",
+        error: { code: -32600, message: `Request body too large (max ${MAX_HTTP_BODY_BYTES} bytes)` },
+        id: null
+      });
+      return;
     }
+    console.error("MCP HTTP POST error:", err);
+    respondJson(res, 500, { jsonrpc: "2.0", error: { code: -32603, message: "Internal error" }, id: null });
   }
 }
 async function handleMcpGet(req, res) {
@@ -55797,7 +55829,18 @@ function serveStatic(req, res) {
 if (bridgeActive) {
   autoSideloadManifest(bridgeTls, BRIDGE_PORT);
   const bridgeServer = bridgeTls ? (0, import_node_https.createServer)({ cert: (0, import_node_fs8.readFileSync)(BRIDGE_CERT_PATH), key: (0, import_node_fs8.readFileSync)(BRIDGE_KEY_PATH) }, serveStatic) : (0, import_node_http.createServer)(serveStatic);
-  const wss = new import_websocket_server.default({ server: bridgeServer });
+  const allowedBridgeOrigin = `${bridgeTls ? "https" : "http"}://localhost:${BRIDGE_PORT}`;
+  const wss = new import_websocket_server.default({
+    server: bridgeServer,
+    verifyClient: (info, callback) => {
+      if (info.origin === allowedBridgeOrigin) {
+        callback(true);
+        return;
+      }
+      console.error(`[bridge] Rejected WebSocket upgrade from origin: ${info.origin || "(missing)"}`);
+      callback(false, 403, "Forbidden");
+    }
+  });
   wss.on("connection", (ws) => {
     console.error(`[${(/* @__PURE__ */ new Date()).toISOString()}] Add-in WebSocket connected`);
     ws.on("message", (data) => {

@@ -25,6 +25,7 @@ import { runVersionCheck } from './version-check.ts'
 const BRIDGE_DEFAULT_HTTP_PORT = 8080
 const BRIDGE_DEFAULT_HTTPS_PORT = 8443
 const MCP_HTTP_PORT = Number(process.env.MCP_PORT) || 3001
+const MAX_HTTP_BODY_BYTES = 16 * 1024 * 1024 // 16 MiB — see README "HTTP body limit" for the sizing rationale
 const SCRIPT_DIR = typeof __dirname !== 'undefined' ? __dirname : dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = resolve(SCRIPT_DIR, '..')
 const BRIDGE_CERT_PATH = resolve(PROJECT_ROOT, 'certs', 'localhost.pem')
@@ -205,19 +206,60 @@ function getMimeType(filePath: string): string {
 // MCP HTTP transport helpers
 // ---------------------------------------------------------------------------
 
+class RequestBodyTooLargeError extends Error {
+  constructor() {
+    super('Request body too large')
+    this.name = 'RequestBodyTooLargeError'
+  }
+}
+
+// A response can no longer be written once the underlying socket has been torn
+// down (e.g. the client disconnected mid-upload) — writing to it would throw or
+// emit an unhandled 'error' event and crash the process.
+function respondJson(res: ServerResponse, statusCode: number, payload: unknown): void {
+  if (res.headersSent || res.writableEnded || res.socket?.destroyed) return
+  res.writeHead(statusCode, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify(payload))
+}
+
 function parseJsonBody(req: IncomingMessage): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
-    req.on('end', () => {
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString()))
-      } catch {
-        reject(new Error('Invalid JSON body'))
-      }
-    })
-    req.on('error', reject)
+  const { promise, resolve, reject } = Promise.withResolvers<unknown>()
+  const chunks: Buffer[] = []
+  let receivedBytes = 0
+  let tooLarge = false
+
+  // Bound memory while reading: once the running total crosses the limit,
+  // stop pushing further chunks (and drop what's buffered) instead of
+  // concatenating an unbounded body before rejecting.
+  req.on('data', (chunk: Buffer) => {
+    receivedBytes += chunk.length
+    if (receivedBytes > MAX_HTTP_BODY_BYTES) {
+      tooLarge = true
+      chunks.length = 0
+      return
+    }
+    chunks.push(chunk)
   })
+
+  req.once('end', () => {
+    if (tooLarge) {
+      reject(new RequestBodyTooLargeError())
+      return
+    }
+    try {
+      resolve(JSON.parse(Buffer.concat(chunks).toString()))
+    } catch {
+      reject(new Error('Invalid JSON body'))
+    }
+  })
+
+  req.once('error', reject)
+  // Fires when the client disconnects before 'end' — settle the promise
+  // instead of leaving the request (and this call) hanging. A promise only
+  // honors its first settle, so this is a no-op if 'end' already resolved.
+  req.once('close', () => reject(new Error('Request closed before completion')))
+
+  return promise
 }
 
 function createMcpHttpSession(transport: StreamableHTTPServerTransport): McpServer {
@@ -262,11 +304,16 @@ async function handleMcpPost(req: IncomingMessage, res: ServerResponse): Promise
       )
     }
   } catch (err) {
-    console.error('MCP HTTP POST error:', err)
-    if (!res.headersSent) {
-      res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal error' }, id: null }))
+    if (err instanceof RequestBodyTooLargeError) {
+      respondJson(res, 413, {
+        jsonrpc: '2.0',
+        error: { code: -32600, message: `Request body too large (max ${MAX_HTTP_BODY_BYTES} bytes)` },
+        id: null,
+      })
+      return
     }
+    console.error('MCP HTTP POST error:', err)
+    respondJson(res, 500, { jsonrpc: '2.0', error: { code: -32603, message: 'Internal error' }, id: null })
   }
 }
 
@@ -375,7 +422,33 @@ if (bridgeActive) {
     ? createHttpsServer({ cert: readFileSync(BRIDGE_CERT_PATH), key: readFileSync(BRIDGE_KEY_PATH) }, serveStatic)
     : createHttpServer(serveStatic)
 
-  const wss = new WebSocketServer({ server: bridgeServer })
+  // The add-in's own served page is the only script that ever opens this
+  // WebSocket: addin/app.js builds the URL from `window.location`
+  // (`${protocol}//${host}`), and both supported hosts navigate straight to
+  // this bridge origin — PowerPoint for Mac's webview loads the taskpane
+  // from it directly, and PowerPoint Web's taskpane iframe also navigates to
+  // it (the WAC host frame at officeapps.live.com never runs this script, it
+  // only fetches static assets cross-origin, which is a separate CORS path
+  // above). So the one legitimate Origin is this bridge's own origin at
+  // whatever scheme/port it is actually serving. A missing or malformed
+  // Origin means the client isn't a browser/webview add-in host at all — a
+  // real one always sends Origin per RFC 6455 §4.1 — so both are rejected
+  // the same way as a foreign origin, before the socket can ever send
+  // `ready` and register in the pool. This is an origin policy, not
+  // authentication (see README "Security" — MCP auth remains deferred).
+  const allowedBridgeOrigin = `${bridgeTls ? 'https' : 'http'}://localhost:${BRIDGE_PORT}`
+
+  const wss = new WebSocketServer({
+    server: bridgeServer,
+    verifyClient: (info, callback) => {
+      if (info.origin === allowedBridgeOrigin) {
+        callback(true)
+        return
+      }
+      console.error(`[bridge] Rejected WebSocket upgrade from origin: ${info.origin || '(missing)'}`)
+      callback(false, 403, 'Forbidden')
+    },
+  })
 
   wss.on('connection', (ws: WebSocket) => {
     console.error(`[${new Date().toISOString()}] Add-in WebSocket connected`)
