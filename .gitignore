@@ -23,3 +23,11 @@ e2e/playwright-report/
 playwright-report/
 test-results/
 .loop/
+
+# Root-level scratch screenshots from ad hoc screenshot_slide/manual testing.
+# Root-anchored so it never matches project-owned addin/assets/*.png.
+/*.png
+# Unrelated Playwright script for a different (localhost:5173) app; not part of this project.
+.check-runner.mjs
+# Personal, untracked planning notes; not part of the docs/ convention (see CLAUDE.md Work Tracking).
+docs/superpowers/
