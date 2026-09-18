@@ -82,6 +82,7 @@ Roadmap, epics and stories live on [GitHub project 2](https://github.com/users/k
 - After pushing, wait for CI to pass before calling the PR ready.
 - Squash merge; delete the branch after merge.
 - Note: `AGENTS.md` is a symlink to `CLAUDE.md` — edits land in `CLAUDE.md`.
+- **Authoritative review**: the engineering loop's independent branch review (`loop review --gate branch`, see `docs/AGENT-LOOP.md`) is the review of record for loop stories — a separate `omp` process with no author context, run against the actual diff. There is no automated per-PR CI review job; it was removed as redundant with the loop review and was going stale/ignored (issue #162). PRs outside the loop get the same fresh-eyes treatment by running `npm run loop:review` manually, or a human review.
 
 ### Code Quality
 - TDD (red-green): failing test first, then implement.
