@@ -21,6 +21,20 @@ function makeConn(ws: WebSocket, opts: Partial<AddinConnection> = {}): AddinConn
   }
 }
 
+interface SentCommand {
+  id: string
+  type: string
+  action: string
+  params: Record<string, unknown>
+}
+
+/** Reads the Nth JSON command a mock socket's `send` was called with, without an unchecked cast. */
+function sentCommand(ws: WebSocket, index = 0): SentCommand {
+  const [payload] = vi.mocked(ws.send).mock.calls[index]
+  if (typeof payload !== 'string') throw new Error('expected a string ws.send payload')
+  return JSON.parse(payload)
+}
+
 describe('ConnectionPool', () => {
   let pool: ConnectionPool
 
@@ -95,9 +109,21 @@ describe('ConnectionPool', () => {
       expect(pool.generateId('/path/to/file.pptx')).toBe('/path/to/file.pptx')
     })
 
-    it('generates incrementing untitled IDs when no URL', () => {
-      expect(pool.generateId(null)).toBe('untitled-1')
-      expect(pool.generateId(null)).toBe('untitled-2')
+    it('assigns distinct ids to concurrently open unsaved decks', () => {
+      const first = pool.generateId(null)
+      pool.add(first, makeConn(mockWs(), { presentationId: first, filePath: null }))
+      const second = pool.generateId(null)
+      expect(second).not.toBe(first)
+    })
+
+    it('reuses a freed untitled slot once its connection disconnects', () => {
+      const ws = mockWs()
+      const first = pool.generateId(null)
+      pool.add(first, makeConn(ws, { presentationId: first, filePath: null }))
+      pool.removeBySocket(ws)
+
+      const reused = pool.generateId(null)
+      expect(reused).toBe(first)
     })
   })
 
@@ -107,7 +133,7 @@ describe('ConnectionPool', () => {
       const promise = pool.sendCommand('executeCode', { code: 'test' }, ws)
 
       // Extract the command ID from what was sent
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = sentCommand(ws)
       expect(sentJson.type).toBe('command')
       expect(sentJson.action).toBe('executeCode')
 
@@ -120,7 +146,7 @@ describe('ConnectionPool', () => {
       const ws = mockWs()
       const promise = pool.sendCommand('executeCode', { code: 'bad' }, ws)
 
-      const sentJson = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentJson = sentCommand(ws)
       pool.handleResponse(sentJson.id, 'error', undefined, 'Something went wrong')
 
       await expect(promise).rejects.toThrow('Something went wrong')
@@ -128,12 +154,15 @@ describe('ConnectionPool', () => {
 
     it('rejects on timeout', async () => {
       vi.useFakeTimers()
-      const ws = mockWs()
-      const promise = pool.sendCommand('executeCode', { code: 'slow' }, ws)
+      try {
+        const ws = mockWs()
+        const promise = pool.sendCommand('executeCode', { code: 'slow' }, ws)
 
-      vi.advanceTimersByTime(200) // past the 100ms timeout
-      await expect(promise).rejects.toThrow('Command timed out')
-      vi.useRealTimers()
+        vi.advanceTimersByTime(200) // past the 100ms timeout
+        await expect(promise).rejects.toThrow('Command timed out')
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 
@@ -150,9 +179,208 @@ describe('ConnectionPool', () => {
       await expect(promiseA).rejects.toThrow('Add-in disconnected')
 
       // promiseB should still be pending — resolve it manually
-      const sentB = JSON.parse((wsB.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      const sentB = sentCommand(wsB)
       pool.handleResponse(sentB.id, 'response', 'ok')
       await expect(promiseB).resolves.toBe('ok')
+    })
+
+    it('marks the in-flight command unknown and every still-queued command never-started', async () => {
+      const ws = mockWs()
+      const running = pool.sendCommand('executeCode', { code: 'running' }, ws)
+      const queued = pool.sendCommand('executeCode', { code: 'queued' }, ws)
+      expect(ws.send).toHaveBeenCalledTimes(1)
+
+      pool.rejectPendingForSocket(ws)
+
+      await expect(running).rejects.toMatchObject({ outcome: 'unknown' })
+      await expect(queued).rejects.toMatchObject({ outcome: 'never-started' })
+      expect(ws.send).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('command lifecycle', () => {
+    it('starts the execution timeout only when a queued command is actually sent', async () => {
+      vi.useFakeTimers()
+      try {
+        const ws = mockWs()
+        const first = pool.sendCommand('executeCode', { code: 'first' }, ws)
+        const second = pool.sendCommand('executeCode', { code: 'second' }, ws)
+        expect(ws.send).toHaveBeenCalledTimes(1)
+
+        vi.advanceTimersByTime(99)
+        await Promise.resolve()
+        expect(ws.send).toHaveBeenCalledTimes(1)
+
+        const firstJson = sentCommand(ws, 0)
+        pool.handleResponse(firstJson.id, 'response', 'first-result')
+        await expect(first).resolves.toBe('first-result')
+        expect(ws.send).toHaveBeenCalledTimes(2)
+
+        vi.advanceTimersByTime(99)
+        await Promise.resolve()
+        expect(ws.send).toHaveBeenCalledTimes(2)
+
+        vi.advanceTimersByTime(1)
+        await expect(second).rejects.toMatchObject({ outcome: 'unknown' })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('records a late completion without retaining its data and never resolves twice', async () => {
+      vi.useFakeTimers()
+      try {
+        const ws = mockWs()
+        const promise = pool.sendCommand('executeCode', { code: 'mutate once' }, ws)
+        const sent = sentCommand(ws)
+
+        vi.advanceTimersByTime(100)
+        await expect(promise).rejects.toMatchObject({ outcome: 'unknown' })
+        expect(ws.send).toHaveBeenCalledTimes(1)
+
+        pool.handleResponse(sent.id, 'response', { secretPresentationContent: 'do not retain' })
+        const completions = pool.getLateCompletions()
+        expect(completions).toHaveLength(1)
+        expect(completions[0]).toMatchObject({ id: sent.id, type: 'response' })
+        expect(JSON.stringify(completions)).not.toContain('do not retain')
+
+        // A second, duplicate late response for the same id must not throw or double-record.
+        pool.handleResponse(sent.id, 'response', { more: 'data' })
+        expect(pool.getLateCompletions()).toHaveLength(2)
+        expect(ws.send).toHaveBeenCalledTimes(1) // never retried
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('releases a lost completion only after its grace period, then continues the queue', async () => {
+      vi.useFakeTimers()
+      try {
+        const ws = mockWs()
+        const first = pool.sendCommand('executeCode', { code: 'lost' }, ws)
+        const second = pool.sendCommand('executeCode', { code: 'next' }, ws)
+        vi.advanceTimersByTime(100)
+        await expect(first).rejects.toMatchObject({ outcome: 'unknown' })
+        expect(ws.send).toHaveBeenCalledTimes(1)
+
+        vi.advanceTimersByTime(99)
+        expect(ws.send).toHaveBeenCalledTimes(1)
+        vi.advanceTimersByTime(1)
+        expect(ws.send).toHaveBeenCalledTimes(2)
+
+        const secondJson = sentCommand(ws, 1)
+        pool.handleResponse(secondJson.id, 'response', 'next-result')
+        await expect(second).resolves.toBe('next-result')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('frees the execution slot immediately on a definitive response, not after a grace period', async () => {
+      vi.useFakeTimers()
+      try {
+        const ws = mockWs()
+        const first = pool.sendCommand('executeCode', { code: 'first' }, ws)
+        const second = pool.sendCommand('executeCode', { code: 'second' }, ws)
+
+        const firstJson = sentCommand(ws, 0)
+        pool.handleResponse(firstJson.id, 'response', 'ok')
+        await expect(first).resolves.toBe('ok')
+
+        // The next command dispatches right away — no grace-period wait for a definitive outcome.
+        expect(ws.send).toHaveBeenCalledTimes(2)
+        void second
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
+  describe('registration identity', () => {
+    it('keeps one entry and one identifier when the same document reconnects on a new socket', () => {
+      const url = '/path/first.pptx'
+      const firstWs = mockWs()
+      const firstId = pool.generateId(url)
+      pool.add(firstId, makeConn(firstWs, { presentationId: firstId, filePath: url }))
+
+      const newWs = mockWs()
+      const reconnectId = pool.generateId(url)
+      expect(reconnectId).toBe(firstId)
+      const replacement = makeConn(newWs, { presentationId: reconnectId, filePath: url })
+      pool.add(reconnectId, replacement)
+
+      expect(pool.size).toBe(1)
+      expect(pool.resolveTarget(firstId)).toBe(replacement)
+    })
+
+    it('registering the same socket under a new identity removes the stale entry', () => {
+      const ws = mockWs()
+      pool.add('a.pptx', makeConn(ws, { presentationId: 'a.pptx', filePath: '/path/a.pptx' }))
+      pool.add('b.pptx', makeConn(ws, { presentationId: 'b.pptx', filePath: '/path/b.pptx' }))
+
+      expect(pool.size).toBe(1)
+      expect([...pool.entries()].map(([id]) => id)).toEqual(['b.pptx'])
+      expect(pool.resolveTarget('b.pptx').filePath).toBe('/path/b.pptx')
+    })
+
+    it('is safe to repeat registration for the same socket and id', () => {
+      const ws = mockWs()
+      const conn = makeConn(ws, { presentationId: 'a.pptx', filePath: '/path/a.pptx' })
+      pool.add('a.pptx', conn)
+      pool.add('a.pptx', conn)
+      expect(pool.size).toBe(1)
+      expect(pool.resolveTarget('a.pptx')).toBe(conn)
+    })
+
+    it('keeps genuinely different presentations separately addressable', () => {
+      const firstId = pool.generateId('/path/first.pptx')
+      const secondId = pool.generateId('/path/second.pptx')
+      pool.add(firstId, makeConn(mockWs(), { presentationId: firstId, filePath: '/path/first.pptx' }))
+      pool.add(secondId, makeConn(mockWs(), { presentationId: secondId, filePath: '/path/second.pptx' }))
+
+      expect(pool.size).toBe(2)
+      expect(pool.resolveTarget(firstId).filePath).toBe('/path/first.pptx')
+      expect(pool.resolveTarget(secondId).filePath).toBe('/path/second.pptx')
+    })
+  })
+
+  describe('liveness evidence', () => {
+    it('tracks last-seen activity and reports a stale connection as not alive', () => {
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
+        const ws = mockWs()
+        pool.add('deck', makeConn(ws, { presentationId: 'deck' }))
+        const initial = pool.getLiveness('deck', 100)
+        expect(initial.lastSeenAt).toBe(Date.now())
+        expect(initial.alive).toBe(true)
+
+        vi.advanceTimersByTime(50)
+        pool.markSeen(ws)
+        expect(pool.getLiveness('deck', 100).lastSeenAt).toBe(Date.now())
+
+        vi.advanceTimersByTime(101)
+        expect(pool.isAlive('deck', 100)).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('marks a connection seen when its command response arrives', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
+        const ws = mockWs()
+        pool.add('deck', makeConn(ws, { presentationId: 'deck' }))
+        vi.advanceTimersByTime(10)
+        const promise = pool.sendCommand('executeCode', { code: 'read' }, ws)
+        const sent = sentCommand(ws)
+        pool.handleResponse(sent.id, 'response', 'ok')
+        await expect(promise).resolves.toBe('ok')
+        expect(pool.getLiveness('deck', 100).lastSeenAt).toBe(Date.now())
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 })
