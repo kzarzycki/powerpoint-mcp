@@ -1,8 +1,9 @@
-import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process'
+import { type ChildProcessWithoutNullStreams, execFileSync, spawn } from 'node:child_process'
+import { existsSync, mkdirSync } from 'node:fs'
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import { createServer, type Server } from 'node:net'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import WebSocket from 'ws'
 
@@ -99,6 +100,43 @@ async function health(port: number, scheme: 'http' | 'https' = 'http'): Promise<
   req.on('error', rejectHealth)
   req.end()
   return promise
+}
+
+const PROJECT_ROOT = resolve(import.meta.dirname, '..')
+const TLS_CERT_PATH = resolve(PROJECT_ROOT, 'certs', 'localhost.pem')
+const TLS_KEY_PATH = resolve(PROJECT_ROOT, 'certs', 'localhost-key.pem')
+
+// The bridge's HTTPS mode reads a fixed certs/ path (see server/index.ts).
+// CI has no mkcert-generated dev certs, so generate a throwaway self-signed
+// pair via the platform's own openssl (present on macOS and GitHub's Ubuntu
+// runners) the first time this suite needs one. Never touches a real cert
+// `npm run setup-certs` already created.
+function ensureTlsCertsExist(): boolean {
+  if (existsSync(TLS_CERT_PATH) && existsSync(TLS_KEY_PATH)) return true
+  try {
+    execFileSync('openssl', ['version'], { stdio: 'ignore' })
+  } catch {
+    return false
+  }
+  mkdirSync(dirname(TLS_CERT_PATH), { recursive: true })
+  execFileSync('openssl', [
+    'req',
+    '-x509',
+    '-newkey',
+    'rsa:2048',
+    '-nodes',
+    '-keyout',
+    TLS_KEY_PATH,
+    '-out',
+    TLS_CERT_PATH,
+    '-days',
+    '1',
+    '-subj',
+    '/CN=localhost',
+    '-addext',
+    'subjectAltName=DNS:localhost,IP:127.0.0.1',
+  ])
+  return true
 }
 
 async function postBody(body: string, chunkSize?: number): Promise<HttpResult> {
@@ -285,7 +323,11 @@ describe('bridge WebSocket origin policy', () => {
   })
 })
 
-describe('bridge WebSocket origin policy — TLS mode (PowerPoint Web path)', () => {
+const tlsCertsAvailable = ensureTlsCertsExist()
+
+// CI runners without openssl (or without permission to write certs/) skip
+// this suite rather than hang; local dev machines always have openssl.
+describe.skipIf(!tlsCertsAvailable)('bridge WebSocket origin policy — TLS mode (PowerPoint Web path)', () => {
   let tlsBridgePort: number
   let tlsProcess: ChildProcessWithoutNullStreams
   let tlsStderrGetter: () => string = () => ''
