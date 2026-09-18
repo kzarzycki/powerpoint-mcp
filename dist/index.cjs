@@ -52453,10 +52453,22 @@ var import_websocket_server = __toESM(require_websocket_server(), 1);
 
 // server/bridge.ts
 var import_node_crypto = require("node:crypto");
+var CommandOutcomeError = class extends Error {
+  outcome;
+  constructor(outcome, message) {
+    super(message);
+    this.name = "CommandOutcomeError";
+    this.outcome = outcome;
+  }
+};
+var LATE_COMPLETION_LOG_LIMIT = 50;
 var ConnectionPool = class {
   connections = /* @__PURE__ */ new Map();
+  queues = /* @__PURE__ */ new Map();
   pendingRequests = /* @__PURE__ */ new Map();
-  untitledCounter = 0;
+  graceTombstones = /* @__PURE__ */ new Map();
+  lateCompletions = [];
+  lastSeenAt = /* @__PURE__ */ new Map();
   commandTimeout;
   constructor(commandTimeout = 3e4) {
     this.commandTimeout = commandTimeout;
@@ -52464,47 +52476,99 @@ var ConnectionPool = class {
   get size() {
     return this.connections.size;
   }
+  /**
+   * Register a connection under `presentationId`. Safe to repeat: the same
+   * socket registering again under the same id is a no-op replace. A socket
+   * registering under a *new* id (e.g. after a document identity changes)
+   * has its stale entry removed first, so a reconnect or re-registration
+   * never leaves a phantom duplicate behind.
+   */
   add(presentationId, conn) {
+    for (const [id, existing] of this.connections) {
+      if (existing.ws === conn.ws && id !== presentationId) {
+        this.connections.delete(id);
+      }
+    }
     this.connections.set(presentationId, conn);
+    this.markSeen(conn.ws);
   }
   entries() {
     return this.connections.entries();
   }
-  /** Find which connection owns this WebSocket and remove it */
+  /** Find every connection this WebSocket owns and remove it; returns the first removed ID for logging. */
   removeBySocket(ws) {
+    let removedId = null;
     for (const [id, conn] of this.connections) {
       if (conn.ws === ws) {
         this.connections.delete(id);
-        return id;
+        removedId ??= id;
       }
     }
-    return null;
+    return removedId;
   }
-  /** Reject all pending requests that were sent via a specific WebSocket */
+  /**
+   * Tear down a socket's command queue: the in-flight command (if any) settles
+   * as "unknown" (it may still be running in the add-in) and every command
+   * still waiting behind it settles as "never-started" (it was never sent).
+   * A late completion for the in-flight command remains recordable during its
+   * grace window even though the socket is gone, since it may reconnect.
+   */
   rejectPendingForSocket(ws) {
-    for (const [id, pending] of this.pendingRequests) {
-      if (pending.ws === ws) {
-        clearTimeout(pending.timer);
-        pending.reject(new Error("Add-in disconnected"));
-        this.pendingRequests.delete(id);
-      }
+    this.lastSeenAt.delete(ws);
+    const queue = this.queues.get(ws);
+    if (!queue) return;
+    if (queue.current) {
+      this.settleAsUnknown(queue.current, "Add-in disconnected");
     }
+    for (const queued of queue.waiting) {
+      queued.reject(new CommandOutcomeError("never-started", `Add-in disconnected before ${queued.action} started`));
+    }
+    queue.waiting = [];
+    this.queues.delete(ws);
   }
-  /** Handle an incoming response/error from the add-in */
+  /** Handle an incoming response/error from the add-in. */
   handleResponse(id, type, data, errorMessage2) {
     const pending = this.pendingRequests.get(id);
-    if (!pending) return;
-    clearTimeout(pending.timer);
-    this.pendingRequests.delete(id);
-    if (type === "response") {
-      pending.resolve(data);
-    } else {
-      pending.reject(new Error(errorMessage2 || "Command failed"));
+    if (pending) {
+      clearTimeout(pending.timer);
+      this.pendingRequests.delete(id);
+      this.markSeen(pending.ws);
+      if (type === "response") {
+        pending.resolve(data);
+      } else {
+        pending.reject(new Error(errorMessage2 || "Command failed"));
+      }
+      this.advanceQueue(pending.ws);
+      return;
     }
+    const tomb = this.graceTombstones.get(id);
+    if (tomb) {
+      clearTimeout(tomb.timer);
+      this.graceTombstones.delete(id);
+      this.markSeen(tomb.ws);
+      this.recordLateCompletion(id, type);
+      this.advanceQueue(tomb.ws);
+      return;
+    }
+    this.recordLateCompletion(id, type);
   }
-  /** Generate a presentation ID for a new connection */
+  /** Evidence log of completions that arrived after their caller had already been given a definitive outcome. Never includes response/error content. */
+  getLateCompletions() {
+    return [...this.lateCompletions];
+  }
+  /**
+   * Generate a presentation ID for a `ready` message. A saved file's URL is
+   * itself a stable identity, so the same URL always yields the same ID
+   * across a reconnect. An unsaved deck has no stable identity signal beyond
+   * "no URL", so the smallest untitled slot not currently occupied is reused
+   * — freed by a disconnect before the same runtime's next `ready` arrives —
+   * while any still-open unsaved deck keeps its own slot.
+   */
   generateId(documentUrl) {
-    return documentUrl ?? `untitled-${++this.untitledCounter}`;
+    if (documentUrl !== null) return documentUrl;
+    let n = 1;
+    while (this.connections.has(`untitled-${n}`)) n++;
+    return `untitled-${n}`;
   }
   /** Resolve which connection to target for a command */
   resolveTarget(presentationId) {
@@ -52528,18 +52592,83 @@ var ConnectionPool = class {
     const ids = [...this.connections.keys()];
     throw new Error(`Multiple presentations connected. Specify presentationId parameter. Available: ${ids.join(", ")}`);
   }
-  /** Send a command to a specific WebSocket and wait for a response */
+  /** Record that a socket produced traffic (registration or a command outcome) just now. */
+  markSeen(ws) {
+    this.lastSeenAt.set(ws, Date.now());
+  }
+  /** Liveness evidence for a presentation: when it was last seen, and whether that is within `maxAgeMs`. */
+  getLiveness(presentationId, maxAgeMs) {
+    const conn = this.connections.get(presentationId);
+    if (!conn) throw new Error(`Presentation not found: ${presentationId}`);
+    const lastSeenAt = this.lastSeenAt.get(conn.ws) ?? null;
+    const alive = lastSeenAt !== null && Date.now() - lastSeenAt <= maxAgeMs;
+    return { lastSeenAt, alive };
+  }
+  isAlive(presentationId, maxAgeMs) {
+    return this.getLiveness(presentationId, maxAgeMs).alive;
+  }
+  /**
+   * Send a command to a specific WebSocket and wait for a response. Commands
+   * to the same socket execute one at a time: a command queued behind
+   * another is only sent — and only starts its own execution timeout — once
+   * the socket's current command has settled.
+   */
   sendCommand(action, params, targetWs, timeoutMs) {
     const id = (0, import_node_crypto.randomUUID)();
     const timeout = timeoutMs ?? this.commandTimeout;
-    return new Promise((resolve2, reject) => {
-      const timer = setTimeout(() => {
-        this.pendingRequests.delete(id);
-        reject(new Error(`Command timed out after ${timeout}ms`));
-      }, timeout);
-      this.pendingRequests.set(id, { resolve: resolve2, reject, timer, ws: targetWs });
-      targetWs.send(JSON.stringify({ type: "command", id, action, params }));
-    });
+    const { promise: promise2, resolve: resolve2, reject } = Promise.withResolvers();
+    const queued = { id, action, params, ws: targetWs, timeoutMs: timeout, resolve: resolve2, reject };
+    const queue = this.queues.get(targetWs) ?? { current: null, waiting: [] };
+    this.queues.set(targetWs, queue);
+    if (queue.current === null) {
+      this.dispatch(queue, queued);
+    } else {
+      queue.waiting.push(queued);
+    }
+    return promise2;
+  }
+  // -- internals -------------------------------------------------------------
+  dispatch(queue, queued) {
+    const dispatched = {
+      id: queued.id,
+      ws: queued.ws,
+      timeoutMs: queued.timeoutMs,
+      resolve: queued.resolve,
+      reject: queued.reject,
+      timer: setTimeout(() => this.onExecutionTimeout(queued.id), queued.timeoutMs)
+    };
+    queue.current = dispatched;
+    this.pendingRequests.set(queued.id, dispatched);
+    queued.ws.send(JSON.stringify({ type: "command", id: queued.id, action: queued.action, params: queued.params }));
+  }
+  onExecutionTimeout(id) {
+    const dispatched = this.pendingRequests.get(id);
+    if (!dispatched) return;
+    this.pendingRequests.delete(id);
+    this.settleAsUnknown(dispatched, `Command timed out after ${dispatched.timeoutMs}ms`);
+  }
+  /** Reject a dispatched command as outcome-unknown and open a grace window for a possible late completion. */
+  settleAsUnknown(dispatched, message) {
+    clearTimeout(dispatched.timer);
+    this.pendingRequests.delete(dispatched.id);
+    dispatched.reject(new CommandOutcomeError("unknown", message));
+    const timer = setTimeout(() => {
+      this.graceTombstones.delete(dispatched.id);
+      this.advanceQueue(dispatched.ws);
+    }, dispatched.timeoutMs);
+    this.graceTombstones.set(dispatched.id, { ws: dispatched.ws, timer });
+  }
+  /** Free a socket's execution slot and dispatch the next queued command, if any. */
+  advanceQueue(ws) {
+    const queue = this.queues.get(ws);
+    if (!queue) return;
+    queue.current = null;
+    const next = queue.waiting.shift();
+    if (next) this.dispatch(queue, next);
+  }
+  recordLateCompletion(id, type) {
+    this.lateCompletions.push({ id, type, at: Date.now() });
+    if (this.lateCompletions.length > LATE_COMPLETION_LOG_LIMIT) this.lateCompletions.shift();
   }
 };
 
