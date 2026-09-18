@@ -49,9 +49,11 @@ branches. Work never starts in the shared checkout.
    worktree HEAD has moved past it since checks passed.
 
 Each review and mechanical gate has three attempts. A `REVISE` or a genuine failing
-exit code counts against the limit; the third failure parks the story. Reviewer
-output that is missing, malformed or times out (`REVIEW_FAILED`) and a gate command
-that fails to start or is killed by its timeout (`GATE_INFRA_FAILED`) both fail closed
+exit code counts against the limit; an `APPROVE` or a passing exit code does not,
+even across repeated reopen-and-re-review cycles — only rejections are budgeted.
+The third rejection parks the story. Reviewer output that is missing, malformed or
+times out (`REVIEW_FAILED`) and a gate command that fails to start or is killed by
+its timeout (`GATE_INFRA_FAILED`) both fail closed
 without consuming an attempt — they are infrastructure failures, not content
 rejections, and the command should be retried. No gate is weakened. Rejections and
 later approvals remain in the append-only history.

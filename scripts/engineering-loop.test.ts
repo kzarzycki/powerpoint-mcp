@@ -225,7 +225,7 @@ describe('engineering loop state', () => {
       expect(afterFail.phase).toBe('BRANCH_APPROVED')
 
       const afterPass = recordGate(first, issue, 'true', false)
-      expect(afterPass.attempts.checks).toBe(2)
+      expect(afterPass.attempts.checks).toBe(1)
       expect(afterPass.phase).toBe('GATES_GREEN')
     } finally {
       if (previous === undefined) delete process.env.AGENT_SESSION
@@ -324,4 +324,37 @@ describe('engineering loop state', () => {
       else process.env.AGENT_SESSION = previous
     }
   })
+
+  it('does not burn the branch or checks attempt budget on approvals across repeated reopens', () => {
+    const { first } = repository()
+    const previous = process.env.AGENT_SESSION
+    const previousRunner = process.env.LOOP_GATE_RUNNER
+    process.env.AGENT_SESSION = 'test:budget'
+    process.env.LOOP_GATE_RUNNER = ''
+    try {
+      const issue = 207
+      const worktree = claimToImplemented(first, issue).worktree
+      const reviseFile = join(first, 'revise.json')
+      writeFileSync(reviseFile, JSON.stringify({ verdict: 'REVISE', findings: ['x'], reviewer: 'test' }))
+      let state = review(first, issue, 'branch', undefined, false, reviseFile)
+      expect(state.phase).toBe('IMPLEMENTED')
+      expect(state.attempts.branch).toBe(1)
+
+      for (let round = 0; round < 3; round += 1) {
+        git(worktree, ['commit', '--allow-empty', '-m', `fix ${round}`])
+        markImplemented(first, issue, false)
+        state = review(first, issue, 'branch', undefined, false, approveFile(first))
+        expect(state.phase).toBe('BRANCH_APPROVED')
+        expect(state.attempts.branch).toBe(1)
+        state = recordGate(first, issue, 'true', false)
+        expect(state.phase).toBe('GATES_GREEN')
+        expect(state.attempts.checks).toBe(0)
+      }
+    } finally {
+      if (previous === undefined) delete process.env.AGENT_SESSION
+      else process.env.AGENT_SESSION = previous
+      if (previousRunner === undefined) delete process.env.LOOP_GATE_RUNNER
+      else process.env.LOOP_GATE_RUNNER = previousRunner
+    }
+  }, 15000)
 })

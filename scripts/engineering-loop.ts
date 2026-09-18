@@ -333,7 +333,6 @@ export function review(
   }
   const latest = load(cwd, issue)
   const reviewed = output(latest)
-  reviewed.attempts[kind] = attempt
   reviewed.reviews.push({
     gate: kind,
     verdict: result.verdict,
@@ -351,6 +350,7 @@ export function review(
     reviewed.phase = next[kind]
     event(reviewed, 'REVIEW_APPROVED', `${kind} approved by ${result.reviewer}`, attempt)
   } else {
+    reviewed.attempts[kind] = attempt
     event(reviewed, 'REVIEW_REJECTED', `${kind} rejected by ${result.reviewer}: ${result.findings.join('; ')}`, attempt)
     if (attempt >= MAX_ATTEMPTS) {
       reviewed.phase = 'PARKED'
@@ -387,18 +387,17 @@ export function recordGate(cwd: string, issue: number, command: string, publish 
     throw new Error(`checks command failed to run: ${detail}`)
   }
   const attempt = nextAttempt(value, 'checks')
-  value.attempts.checks = attempt
   value.gates.push({ gate: 'checks', command, exitCode: result.status ?? 1, output: text, at: now() })
-  event(
-    value,
-    result.status === 0 ? 'GATE_PASSED' : 'GATE_FAILED',
-    `checks attempt ${attempt}: exit ${result.status ?? 1}; ${command}`,
-    attempt,
-  )
-  if (result.status === 0) value.phase = 'GATES_GREEN'
-  else if (attempt >= MAX_ATTEMPTS) {
-    value.phase = 'PARKED'
-    event(value, 'PARKED', 'checks rejected three times', attempt)
+  if (result.status === 0) {
+    value.phase = 'GATES_GREEN'
+    event(value, 'GATE_PASSED', `checks attempt ${attempt}: exit 0; ${command}`, attempt)
+  } else {
+    value.attempts.checks = attempt
+    event(value, 'GATE_FAILED', `checks attempt ${attempt}: exit ${result.status ?? 1}; ${command}`, attempt)
+    if (attempt >= MAX_ATTEMPTS) {
+      value.phase = 'PARKED'
+      event(value, 'PARKED', 'checks rejected three times', attempt)
+    }
   }
   return output(record(cwd, current, value, publish))
 }
