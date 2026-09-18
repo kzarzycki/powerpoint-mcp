@@ -1,0 +1,120 @@
+Command: mise exec node@24.18.0 -- npx vitest run addin/app.test.ts --reporter=verbose
+Baseline: git show origin/main:addin/app.js copied over addin/app.js; shipped addin/app.test.ts unchanged.
+
+
+ RUN  v4.1.10 /Users/zarz/dev/agents/mcp/powerpoint-mcp--issue-126--issue-127
+
+ ✓ addin/app.test.ts > add-in WebSocket ownership > Office ready before fallback opens one socket 2ms
+ × addin/app.test.ts > add-in WebSocket ownership > Office ready after fallback opens one socket 4ms
+   → expected [ Array(2) ] to have a length of 1 but got 2
+ ✓ addin/app.test.ts > add-in WebSocket ownership > plain browser without ready callback opens one socket 0ms
+ × addin/app.test.ts > add-in WebSocket ownership > does not add a socket while one is connecting or open 1ms
+   → expected [ WebSocket{ …(5) }, …(2) ] to have a length of 1 but got 3
+ × addin/app.test.ts > add-in WebSocket ownership > keeps Connected when Office ready fires after the fallback socket opened 1ms
+   → expected 'status connecting' to be 'status connected' // Object.is equality
+ ✓ addin/app.test.ts > add-in WebSocket ownership > uses exponential backoff plus jitter, caps before jitter, and resets after open 1ms
+ × addin/app.test.ts > add-in WebSocket ownership > cancels the pending reconnect timer when connect runs first 2ms
+   → expected 1 to be +0 // Object.is equality
+ × addin/app.test.ts > add-in WebSocket ownership > ignores a captured stale timer after a replacement socket exists 1ms
+   → expected [ WebSocket{ …(5) }, …(2) ] to have a length of 2 but got 3
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  addin/app.test.ts > add-in WebSocket ownership > Office ready after fallback opens one socket
+AssertionError: expected [ Array(2) ] to have a length of 1 but got 2
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ addin/app.test.ts:120:23
+    118|     const h = harness()
+    119|     setup(h)
+    120|     expect(h.sockets).toHaveLength(1)
+       |                       ^
+    121|   })
+    122|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  addin/app.test.ts > add-in WebSocket ownership > does not add a socket while one is connecting or open
+AssertionError: expected [ WebSocket{ …(5) }, …(2) ] to have a length of 1 but got 3
+
+- Expected
++ Received
+
+- 1
++ 3
+
+ ❯ addin/app.test.ts:130:23
+    128|     h.sockets[0].open()
+    129|     connect()
+    130|     expect(h.sockets).toHaveLength(1)
+       |                       ^
+    131|   })
+    132|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  addin/app.test.ts > add-in WebSocket ownership > keeps Connected when Office ready fires after the fallback socket opened
+AssertionError: expected 'status connecting' to be 'status connected' // Object.is equality
+
+Expected: "status connected"
+Received: "status connecting"
+
+ ❯ addin/app.test.ts:138:32
+    136|     h.sockets[0].open()
+    137|     h.ready()
+    138|     expect(h.status.className).toBe('status connected')
+       |                                ^
+    139|     expect(h.sockets).toHaveLength(1)
+    140|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  addin/app.test.ts > add-in WebSocket ownership > cancels the pending reconnect timer when connect runs first
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ addin/app.test.ts:166:27
+    164|     const connect = h.context.connect as () => void
+    165|     connect()
+    166|     expect(h.timers.size).toBe(0)
+       |                           ^
+    167|     expect(h.sockets).toHaveLength(2)
+    168|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  addin/app.test.ts > add-in WebSocket ownership > ignores a captured stale timer after a replacement socket exists
+AssertionError: expected [ WebSocket{ …(5) }, …(2) ] to have a length of 2 but got 3
+
+- Expected
++ Received
+
+- 2
++ 3
+
+ ❯ addin/app.test.ts:178:23
+    176|     connect()
+    177|     stale?.()
+    178|     expect(h.sockets).toHaveLength(2)
+       |                       ^
+    179|   })
+    180| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 3 passed (8)
+   Start at  12:50:40
+   Duration  126ms (transform 15ms, setup 0ms, import 22ms, tests 12ms, environment 0ms)
+

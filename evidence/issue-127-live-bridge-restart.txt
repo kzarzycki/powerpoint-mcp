@@ -1,0 +1,26 @@
+Issue #127 live gate — bridge restart with taskpane open
+
+Surface: /tmp/issue127-disposable.pptx
+Action: restarted bridge-127 while the PowerPoint MCP taskpane remained open.
+
+Before restart:
+[2026-09-15T12:58:44.929Z] Add-in WebSocket connected
+[2026-09-15T12:58:44.933Z] Add-in ready: /tmp/issue127-disposable.pptx
+
+After restart:
+[2026-09-15T13:10:30.563Z] Add-in WebSocket connected
+[2026-09-15T13:10:30.565Z] Add-in ready: /tmp/issue127-disposable.pptx
+
+GET http://127.0.0.1:8080/health
+{"status":"ok","connections":1}
+
+MCP tools/call list_presentations:
+[
+  {
+    "presentationId": "/tmp/issue127-disposable.pptx",
+    "filePath": "/tmp/issue127-disposable.pptx",
+    "ready": true
+  }
+]
+
+Result: after bridge restart, exactly one new WebSocket connected and one ready presentation is present. No duplicate connection was observed. The bridge log does not emit an explicit disconnected line for the socket lost during process restart.
