@@ -11,8 +11,8 @@ import {
   HEALTH_POLL_INTERVAL,
   SERVER_START_TIMEOUT,
 } from './config.ts'
-
 import { loadE2eEnv } from './helpers/load-env.ts'
+import { fetchLoopbackJson } from './helpers/loopback-fetch.ts'
 
 const PROJECT_ROOT = resolve(import.meta.dirname, '..')
 
@@ -20,11 +20,8 @@ async function pollHealth(url: string, label: string, timeoutMs: number): Promis
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(2000) })
-      if (res.ok) {
-        const body = (await res.json()) as { status: string }
-        if (body.status === 'ok') return
-      }
+      const body = await fetchLoopbackJson<{ status: string }>(url)
+      if (body.status === 'ok') return
     } catch {
       // Server not ready yet
     }
@@ -88,7 +85,6 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
         BRIDGE_PORT: String(E2E_BRIDGE_PORT),
         MCP_PORT: String(E2E_MCP_PORT),
         BRIDGE_TLS: '1',
-        NODE_TLS_REJECT_UNAUTHORIZED: '0', // Accept mkcert self-signed certs
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     },

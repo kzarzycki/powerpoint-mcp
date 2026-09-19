@@ -57,7 +57,7 @@ npm run test:e2e
 ```
 
 Runs headless against the primed profile. The suite starts its own bridge + MCP server
-(ports 9443 / 9001), navigates to the deck, waits for the add-in to connect, and drives
+(ports 9443 / 9002), navigates to the deck, waits for the add-in to connect, and drives
 MCP tools end to end.
 
 To watch a run in a visible browser:
@@ -74,7 +74,7 @@ npm run test:e2e -- -g "inspect_deck reports"
 
 ## How it works
 
-- **`global-setup.ts`** starts the bridge server (`BRIDGE_TLS=1`, ports 9443/9001) and
+- **`global-setup.ts`** starts the bridge server (`BRIDGE_TLS=1`, ports 9443/9002) and
   waits for both `/health` endpoints before any test runs.
 - **`fixtures/pptx-page.ts`** opens a page per test on the persistent profile, with a
   spoofed Chrome UA (WAC skips sideloading for `HeadlessChrome`) and a CDP route shim
@@ -92,7 +92,7 @@ npm run test:e2e -- -g "inspect_deck reports"
 
 - **"TLS certs not found"** — run `npm run setup-certs`.
 - **"E2E_DOC_URL not set"** — create `e2e/local-config.json` (above).
-- **"port 9443/9001 already in use"** — a dev bridge is running; stop it first.
+- **"port 9443/9002 already in use"** — a dev bridge is running; stop it first.
 - **Tests redirect to login / time out connecting** — the profile's M365 cookies expired.
   Re-run `npm run e2e:setup-profile`.
 - **Setup splash turned red ✗** — sign-in wasn't completed in time. Re-run and sign in

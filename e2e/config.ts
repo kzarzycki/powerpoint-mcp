@@ -1,7 +1,7 @@
 /** E2E test configuration constants */
 
 export const E2E_BRIDGE_PORT = 9443
-export const E2E_MCP_PORT = 9001
+export const E2E_MCP_PORT = 9002 // 9001 is commonly held by Docker Desktop's internal services
 export const E2E_BRIDGE_URL = `https://localhost:${E2E_BRIDGE_PORT}`
 export const E2E_MCP_URL = `http://localhost:${E2E_MCP_PORT}`
 export const E2E_BRIDGE_HEALTH = `${E2E_BRIDGE_URL}/health`

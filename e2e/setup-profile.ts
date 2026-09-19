@@ -27,6 +27,7 @@ import {
   SERVER_START_TIMEOUT,
 } from './config.ts'
 import { loadE2eEnv } from './helpers/load-env.ts'
+import { fetchLoopbackJson } from './helpers/loopback-fetch.ts'
 import { connectAddin, type PptxPage } from './helpers/sideload.ts'
 
 const PROJECT_ROOT = resolve(import.meta.dirname, '..')
@@ -78,8 +79,8 @@ async function pollHealth(url: string, label: string, timeoutMs: number): Promis
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(2000) })
-      if (res.ok && ((await res.json()) as { status: string }).status === 'ok') return
+      const body = await fetchLoopbackJson<{ status: string }>(url, 2000)
+      if (body.status === 'ok') return
     } catch {}
     await new Promise((r) => setTimeout(r, HEALTH_POLL_INTERVAL))
   }
@@ -155,7 +156,6 @@ async function main(): Promise<void> {
       BRIDGE_PORT: String(E2E_BRIDGE_PORT),
       MCP_PORT: String(E2E_MCP_PORT),
       BRIDGE_TLS: '1',
-      NODE_TLS_REJECT_UNAUTHORIZED: '0',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })

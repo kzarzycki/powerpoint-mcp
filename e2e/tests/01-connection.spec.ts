@@ -1,6 +1,7 @@
 import { E2E_BRIDGE_HEALTH } from '../config.ts'
 import { expect, test } from '../fixtures/pptx-page.ts'
 import { getJsonContent, getTextContent, isToolError } from '../helpers/content-parsers.ts'
+import { fetchLoopbackJson } from '../helpers/loopback-fetch.ts'
 
 interface DeckOverview {
   slideWidth: number
@@ -10,17 +11,14 @@ interface DeckOverview {
 
 test.describe('Connection & Sideloading', () => {
   test('bridge server is healthy', async ({}) => {
-    const res = await fetch(E2E_BRIDGE_HEALTH, { signal: AbortSignal.timeout(5000) })
-    expect(res.ok).toBe(true)
-    const body = (await res.json()) as { status: string }
+    const body = await fetchLoopbackJson<{ status: string }>(E2E_BRIDGE_HEALTH, 5000)
     expect(body.status).toBe('ok')
   })
 
   test('add-in connects via WebSocket', async ({ pptxPage }) => {
     // pptxPage fixture already waits for connection — if we get here, it worked.
     // Verify server-side: health endpoint shows at least 1 connection
-    const res = await fetch(E2E_BRIDGE_HEALTH, { signal: AbortSignal.timeout(5000) })
-    const body = (await res.json()) as { status: string; connections: number }
+    const body = await fetchLoopbackJson<{ status: string; connections: number }>(E2E_BRIDGE_HEALTH, 5000)
     expect(body.connections).toBeGreaterThanOrEqual(1)
   })
 
