@@ -27,8 +27,13 @@ function mkcertRootCa(): Buffer {
 export function fetchLoopbackJson<T>(url: string, timeoutMs = 5000): Promise<T> {
   const { promise, resolve, reject } = Promise.withResolvers<T>()
   const get = url.startsWith('https:') ? httpsGet : httpGet
-  const req = get(url, url.startsWith('https:') ? { ca: mkcertRootCa() } : {}, (res) => {
+  const options = {
+    signal: AbortSignal.timeout(timeoutMs),
+    ...(url.startsWith('https:') ? { ca: mkcertRootCa() } : {}),
+  }
+  const req = get(url, options, (res) => {
     const chunks: Buffer[] = []
+    res.on('error', reject)
     res.on('data', (chunk: Buffer) => chunks.push(chunk))
     res.on('end', () => {
       try {
@@ -40,6 +45,5 @@ export function fetchLoopbackJson<T>(url: string, timeoutMs = 5000): Promise<T> 
     })
   })
   req.on('error', reject)
-  req.setTimeout(timeoutMs, () => req.destroy(new Error('timed out')))
   return promise
 }
