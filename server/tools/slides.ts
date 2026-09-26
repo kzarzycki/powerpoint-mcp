@@ -278,7 +278,7 @@ export function registerSlideTools(
 
   server.tool(
     'duplicate_slide',
-    'Duplicate a slide within the same presentation. Exports the slide and reimports it at the specified position. Data stays server-side.',
+    'Duplicate a slide within the same presentation. Exports the slide and reimports it at the specified position. Data stays server-side. The reimport makes PowerPoint view jump to the first slide.',
     {
       slideIndex: z.number().int().min(0).describe('Zero-based index of the slide to duplicate'),
       insertAfter: z

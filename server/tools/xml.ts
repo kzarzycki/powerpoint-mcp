@@ -29,7 +29,7 @@ export function registerXmlTools(
 ): void {
   server.tool(
     'edit_slide_xml',
-    "Edit slide XML and reimport. Two modes: (1) xml mode — provide finished XML string (use read_slide_xml first to get current XML), (2) code mode — provide JS code that manipulates the pre-parsed DOM (receives: doc, findShapeById, NS_P, NS_A, escapeXml, serializeXml, DOMParser). Code mode preserves untouched attributes. The slide is exported, modified server-side, and reimported — data never enters Claude's context.",
+    "Edit slide XML and reimport. Two modes: (1) xml mode — provide finished XML string (use read_slide_xml first to get current XML), (2) code mode — provide JS code that manipulates the pre-parsed DOM (receives: doc, findShapeById, NS_P, NS_A, escapeXml, serializeXml, DOMParser). Code mode preserves untouched attributes. The slide is exported, modified server-side, and reimported — data never enters Claude's context. NOTE: the reimport deletes and reinserts the slide, which makes PowerPoint's view jump to the first slide — reserve this for structural changes (new shapes, layout rebuilds).",
     {
       slideIndex: z.number().int().min(0).describe('Zero-based slide index'),
       xml: z

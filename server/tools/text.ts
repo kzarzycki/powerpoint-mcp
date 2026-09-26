@@ -25,7 +25,7 @@ export function registerTextTools(
 ): void {
   server.tool(
     'edit_shape_paragraphs',
-    "Replace paragraph content of a shape with raw OOXML <a:p> XML. Preserves <a:bodyPr> and <a:lstStyle>. Use read_shape_paragraphs first to get the current XML, modify it (using /pptx skill knowledge), then write it back. The slide is exported, modified server-side, and reimported — data never enters Claude's context.",
+    "Replace paragraph content of a shape with raw OOXML <a:p> XML. Preserves <a:bodyPr> and <a:lstStyle>. Use read_shape_paragraphs first to get the current XML, modify it (using /pptx skill knowledge), then write it back. The slide is exported, modified server-side, and reimported — data never enters Claude's context. NOTE: the reimport deletes and reinserts the slide, which makes PowerPoint's view jump to the first slide. For text-only changes, prefer execute_officejs (in place via shape.textFrame.textRange — view position is preserved).",
     {
       slideIndex: z.number().int().min(0).describe('Zero-based slide index'),
       shapeId: z.string().describe('Shape ID from inspect_slide results'),
@@ -330,7 +330,7 @@ export function registerTextTools(
 
   server.tool(
     'format_shapes',
-    'Apply formatting to multiple shapes on a slide in one call. Generates Office.js code internally. Use for fill color, font bold/italic/size/color/name. Cannot set corner radius or borders (use edit_slide_xml code mode for those).',
+    'Apply formatting to multiple shapes on a slide in one call. Generates Office.js code internally. Use for fill color, font bold/italic/size/color/name. Cannot set corner radius or borders (use edit_slide_xml code mode for those). Runs in place (no slide reimport), so PowerPoint view position is preserved.',
     {
       slideIndex: z.number().int().min(0).describe('Zero-based slide index'),
       shapes: z

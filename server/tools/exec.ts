@@ -12,7 +12,7 @@ export function registerExecTools(
 ): void {
   server.tool(
     'execute_officejs',
-    "Execute arbitrary Office.js code inside the live PowerPoint presentation. The code runs inside PowerPoint.run(async (context) => { ... }) with 'context' available as a variable. Use 'await context.sync()' after loading properties. Return a value to get it back as the tool result. For positioning, all values are in points (1 point = 1/72 inch). Common operations: add shapes, set text, change colors, add/delete slides.",
+    "Execute arbitrary Office.js code inside the live PowerPoint presentation. The code runs inside PowerPoint.run(async (context) => { ... }) with 'context' available as a variable. Use 'await context.sync()' after loading properties. Return a value to get it back as the tool result. For positioning, all values are in points (1 point = 1/72 inch). Common operations: add shapes, set text, change colors, add/delete slides. Edits run in place without reimporting the slide, so PowerPoint's current view position is preserved — prefer this over edit_shape_paragraphs / edit_slide_xml for text-only or formatting-only changes (to read a shape's text in place, load shape.textFrame with hasText + textRange).",
     {
       code: z
         .string()

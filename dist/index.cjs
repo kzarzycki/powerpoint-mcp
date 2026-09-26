@@ -53680,7 +53680,7 @@ function registerChartTools(server, pool2, getSessionId, getActiveSessionCount) 
 function registerExecTools(server, pool2, getSessionId, getActiveSessionCount) {
   server.tool(
     "execute_officejs",
-    "Execute arbitrary Office.js code inside the live PowerPoint presentation. The code runs inside PowerPoint.run(async (context) => { ... }) with 'context' available as a variable. Use 'await context.sync()' after loading properties. Return a value to get it back as the tool result. For positioning, all values are in points (1 point = 1/72 inch). Common operations: add shapes, set text, change colors, add/delete slides.",
+    "Execute arbitrary Office.js code inside the live PowerPoint presentation. The code runs inside PowerPoint.run(async (context) => { ... }) with 'context' available as a variable. Use 'await context.sync()' after loading properties. Return a value to get it back as the tool result. For positioning, all values are in points (1 point = 1/72 inch). Common operations: add shapes, set text, change colors, add/delete slides. Edits run in place without reimporting the slide, so PowerPoint's current view position is preserved \u2014 prefer this over edit_shape_paragraphs / edit_slide_xml for text-only or formatting-only changes (to read a shape's text in place, load shape.textFrame with hasText + textRange).",
     {
       code: external_exports3.string().describe(
         "Office.js code to execute. Runs inside PowerPoint.run() with 'context' available. Use 'return' to send back a result."
@@ -55054,7 +55054,7 @@ function registerSlideTools(server, pool2, getSessionId, getActiveSessionCount) 
   );
   server.tool(
     "duplicate_slide",
-    "Duplicate a slide within the same presentation. Exports the slide and reimports it at the specified position. Data stays server-side.",
+    "Duplicate a slide within the same presentation. Exports the slide and reimports it at the specified position. Data stays server-side. The reimport makes PowerPoint view jump to the first slide.",
     {
       slideIndex: external_exports3.number().int().min(0).describe("Zero-based index of the slide to duplicate"),
       insertAfter: external_exports3.number().int().min(0).optional().describe(
@@ -55153,7 +55153,7 @@ var import_node_fs7 = require("node:fs");
 function registerTextTools(server, pool2, getSessionId, getActiveSessionCount) {
   server.tool(
     "edit_shape_paragraphs",
-    "Replace paragraph content of a shape with raw OOXML <a:p> XML. Preserves <a:bodyPr> and <a:lstStyle>. Use read_shape_paragraphs first to get the current XML, modify it (using /pptx skill knowledge), then write it back. The slide is exported, modified server-side, and reimported \u2014 data never enters Claude's context.",
+    "Replace paragraph content of a shape with raw OOXML <a:p> XML. Preserves <a:bodyPr> and <a:lstStyle>. Use read_shape_paragraphs first to get the current XML, modify it (using /pptx skill knowledge), then write it back. The slide is exported, modified server-side, and reimported \u2014 data never enters Claude's context. NOTE: the reimport deletes and reinserts the slide, which makes PowerPoint's view jump to the first slide. For text-only changes, prefer execute_officejs (in place via shape.textFrame.textRange \u2014 view position is preserved).",
     {
       slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
       shapeId: external_exports3.string().describe("Shape ID from inspect_slide results"),
@@ -55433,7 +55433,7 @@ function registerTextTools(server, pool2, getSessionId, getActiveSessionCount) {
   );
   server.tool(
     "format_shapes",
-    "Apply formatting to multiple shapes on a slide in one call. Generates Office.js code internally. Use for fill color, font bold/italic/size/color/name. Cannot set corner radius or borders (use edit_slide_xml code mode for those).",
+    "Apply formatting to multiple shapes on a slide in one call. Generates Office.js code internally. Use for fill color, font bold/italic/size/color/name. Cannot set corner radius or borders (use edit_slide_xml code mode for those). Runs in place (no slide reimport), so PowerPoint view position is preserved.",
     {
       slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
       shapes: external_exports3.array(
@@ -55481,7 +55481,7 @@ var import_xmldom3 = __toESM(require_lib(), 1);
 function registerXmlTools(server, pool2, getSessionId, getActiveSessionCount) {
   server.tool(
     "edit_slide_xml",
-    "Edit slide XML and reimport. Two modes: (1) xml mode \u2014 provide finished XML string (use read_slide_xml first to get current XML), (2) code mode \u2014 provide JS code that manipulates the pre-parsed DOM (receives: doc, findShapeById, NS_P, NS_A, escapeXml, serializeXml, DOMParser). Code mode preserves untouched attributes. The slide is exported, modified server-side, and reimported \u2014 data never enters Claude's context.",
+    "Edit slide XML and reimport. Two modes: (1) xml mode \u2014 provide finished XML string (use read_slide_xml first to get current XML), (2) code mode \u2014 provide JS code that manipulates the pre-parsed DOM (receives: doc, findShapeById, NS_P, NS_A, escapeXml, serializeXml, DOMParser). Code mode preserves untouched attributes. The slide is exported, modified server-side, and reimported \u2014 data never enters Claude's context. NOTE: the reimport deletes and reinserts the slide, which makes PowerPoint's view jump to the first slide \u2014 reserve this for structural changes (new shapes, layout rebuilds).",
     {
       slideIndex: external_exports3.number().int().min(0).describe("Zero-based slide index"),
       xml: external_exports3.string().optional().describe(
