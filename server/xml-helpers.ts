@@ -491,16 +491,45 @@ export async function extractLayoutsFromZip(zip: JSZip): Promise<LayoutInfo[]> {
     const masterRelsXml = await masterRelsFile.async('string')
     const relsDoc = parser.parseFromString(masterRelsXml, 'text/xml')
 
-    // Collect layout targets in document order (this determines layoutIndexInMaster)
-    const layoutTargets: string[] = []
+    // Map rId → layout target from the master's rels.
+    const layoutTargetsByRid = new Map<string, string>()
     const rels = relsDoc.getElementsByTagNameNS(NS_RELS, 'Relationship')
     for (let i = 0; i < rels.length; i++) {
       const rel = rels[i]!
       if (rel.getAttribute('Type') === LAYOUT_TYPE) {
         const target = rel.getAttribute('Target') ?? ''
+        const rid = rel.getAttribute('Id')
         // Target is relative like "../slideLayouts/slideLayout1.xml"
         const resolved = target.replace('..', 'ppt')
-        layoutTargets.push(resolved)
+        if (rid) layoutTargetsByRid.set(rid, resolved)
+      }
+    }
+
+    // Order layouts by <p:sldLayoutIdLst> in the master XML — this is the
+    // order Office.js's slideMasters[i].layouts enumerates, which add_slide's
+    // identity lookup must match. PowerPoint writes master rels in a shuffled
+    // (non-sequential) document order, so rels order is NOT a proxy for it.
+    // Fall back to rels document order when the master part is unavailable
+    // or carries no sldLayoutIdLst.
+    const layoutTargets: string[] = []
+    const masterPath = masterRelsPath.replace('/_rels/', '/').replace(/\.rels$/, '')
+    const masterFile = zip.file(masterPath)
+    if (masterFile) {
+      const masterDoc = parser.parseFromString(await masterFile.async('string'), 'text/xml')
+      const sldLayoutIds = masterDoc.getElementsByTagNameNS(NS_P, 'sldLayoutId')
+      for (let i = 0; i < sldLayoutIds.length; i++) {
+        const rid = sldLayoutIds[i]!.getAttributeNS(NS_R, 'id')
+        const target = rid ? layoutTargetsByRid.get(rid) : undefined
+        if (target) layoutTargets.push(target)
+      }
+    }
+    if (layoutTargets.length === 0) {
+      for (let i = 0; i < rels.length; i++) {
+        const rel = rels[i]!
+        if (rel.getAttribute('Type') === LAYOUT_TYPE) {
+          const target = rel.getAttribute('Target') ?? ''
+          layoutTargets.push(target.replace('..', 'ppt'))
+        }
       }
     }
 
@@ -538,8 +567,10 @@ export async function extractLayoutsFromZip(zip: JSZip): Promise<LayoutInfo[]> {
 
         const info: PlaceholderInfo = { type: phType }
 
+        // Per ECMA-376, a placeholder without idx defaults to 0 (type-specific
+        // placeholders like ctrTitle omit it).
         const idxStr = ph.getAttribute('idx')
-        if (idxStr) info.idx = Number.parseInt(idxStr, 10)
+        info.idx = idxStr ? Number.parseInt(idxStr, 10) : 0
         const szStr = ph.getAttribute('sz')
         if (szStr) info.sz = szStr
 

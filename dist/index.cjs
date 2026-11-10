@@ -53180,14 +53180,36 @@ async function extractLayoutsFromZip(zip) {
     if (!masterRelsFile) continue;
     const masterRelsXml = await masterRelsFile.async("string");
     const relsDoc = parser.parseFromString(masterRelsXml, "text/xml");
-    const layoutTargets = [];
+    const layoutTargetsByRid = /* @__PURE__ */ new Map();
     const rels = relsDoc.getElementsByTagNameNS(NS_RELS, "Relationship");
     for (let i = 0; i < rels.length; i++) {
       const rel = rels[i];
       if (rel.getAttribute("Type") === LAYOUT_TYPE) {
         const target = rel.getAttribute("Target") ?? "";
+        const rid = rel.getAttribute("Id");
         const resolved = target.replace("..", "ppt");
-        layoutTargets.push(resolved);
+        if (rid) layoutTargetsByRid.set(rid, resolved);
+      }
+    }
+    const layoutTargets = [];
+    const masterPath = masterRelsPath.replace("/_rels/", "/").replace(/\.rels$/, "");
+    const masterFile = zip.file(masterPath);
+    if (masterFile) {
+      const masterDoc = parser.parseFromString(await masterFile.async("string"), "text/xml");
+      const sldLayoutIds = masterDoc.getElementsByTagNameNS(NS_P, "sldLayoutId");
+      for (let i = 0; i < sldLayoutIds.length; i++) {
+        const rid = sldLayoutIds[i].getAttributeNS(NS_R, "id");
+        const target = rid ? layoutTargetsByRid.get(rid) : void 0;
+        if (target) layoutTargets.push(target);
+      }
+    }
+    if (layoutTargets.length === 0) {
+      for (let i = 0; i < rels.length; i++) {
+        const rel = rels[i];
+        if (rel.getAttribute("Type") === LAYOUT_TYPE) {
+          const target = rel.getAttribute("Target") ?? "";
+          layoutTargets.push(target.replace("..", "ppt"));
+        }
       }
     }
     for (let i = 0; i < layoutTargets.length; i++) {
@@ -53213,7 +53235,7 @@ async function extractLayoutsFromZip(zip) {
         if (phType === "sldNum" || phType === "ftr" || phType === "dt" || phType === "hdr") continue;
         const info = { type: phType };
         const idxStr = ph.getAttribute("idx");
-        if (idxStr) info.idx = Number.parseInt(idxStr, 10);
+        info.idx = idxStr ? Number.parseInt(idxStr, 10) : 0;
         const szStr = ph.getAttribute("sz");
         if (szStr) info.sz = szStr;
         const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P, "cNvPr")[0];
@@ -54978,7 +55000,7 @@ function registerSlideTools(server, pool2, getSessionId, getActiveSessionCount) 
         if (!cNvPr || !nvPr) continue;
         const phEl = nvPr.getElementsByTagNameNS(NS_P, "ph")[0];
         if (!phEl) continue;
-        const idx = phEl.getAttribute("idx");
+        const idx = phEl.getAttribute("idx") ?? "0";
         const id = cNvPr.getAttribute("id");
         if (idx && id) {
           shapeIdToIdx.set(id, idx);
