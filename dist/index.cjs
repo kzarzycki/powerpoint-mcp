@@ -53180,14 +53180,36 @@ async function extractLayoutsFromZip(zip) {
     if (!masterRelsFile) continue;
     const masterRelsXml = await masterRelsFile.async("string");
     const relsDoc = parser.parseFromString(masterRelsXml, "text/xml");
-    const layoutTargets = [];
+    const layoutTargetsByRid = /* @__PURE__ */ new Map();
     const rels = relsDoc.getElementsByTagNameNS(NS_RELS, "Relationship");
     for (let i = 0; i < rels.length; i++) {
       const rel = rels[i];
       if (rel.getAttribute("Type") === LAYOUT_TYPE) {
         const target = rel.getAttribute("Target") ?? "";
+        const rid = rel.getAttribute("Id");
         const resolved = target.replace("..", "ppt");
-        layoutTargets.push(resolved);
+        if (rid) layoutTargetsByRid.set(rid, resolved);
+      }
+    }
+    const layoutTargets = [];
+    const masterPath = masterRelsPath.replace("/_rels/", "/").replace(/\.rels$/, "");
+    const masterFile = zip.file(masterPath);
+    if (masterFile) {
+      const masterDoc = parser.parseFromString(await masterFile.async("string"), "text/xml");
+      const sldLayoutIds = masterDoc.getElementsByTagNameNS(NS_P, "sldLayoutId");
+      for (let i = 0; i < sldLayoutIds.length; i++) {
+        const rid = sldLayoutIds[i].getAttributeNS(NS_R, "id");
+        const target = rid ? layoutTargetsByRid.get(rid) : void 0;
+        if (target) layoutTargets.push(target);
+      }
+    }
+    if (layoutTargets.length === 0) {
+      for (let i = 0; i < rels.length; i++) {
+        const rel = rels[i];
+        if (rel.getAttribute("Type") === LAYOUT_TYPE) {
+          const target = rel.getAttribute("Target") ?? "";
+          layoutTargets.push(target.replace("..", "ppt"));
+        }
       }
     }
     for (let i = 0; i < layoutTargets.length; i++) {

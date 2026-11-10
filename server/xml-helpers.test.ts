@@ -580,6 +580,53 @@ describe('xml-helpers', () => {
       expect(duplicates.map((l) => l.masterIndex).sort()).toEqual([0, 1])
       expect(duplicates.map((l) => l.layoutIndexInMaster)).toEqual([0, 0])
     })
+
+    it('orders layouts by <p:sldLayoutIdLst>, not master rels document order (live PPT repro)', async () => {
+      // Ground truth from PowerPoint for Mac (macOS 26.7, Nov 2026): a fresh
+      // blank deck's slideMaster1.xml.rels lists layout relationships in a
+      // shuffled order, while Office.js slideMasters[0].layouts enumerates in
+      // <p:sldLayoutIdLst> order. add_slide's identity lookup (masterIndex +
+      // layoutIndexInMaster) must match the Office.js enumeration, or OOXML
+      // placeholder metadata lands on the wrong layout.
+      const presXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst>
+</p:presentation>`
+      const presRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>
+</Relationships>`
+      const masterXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+             xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
+  <p:sldLayoutIdLst>
+    <p:sldLayoutId id="2147483649" r:id="rId1"/>
+    <p:sldLayoutId id="2147483650" r:id="rId2"/>
+    <p:sldLayoutId id="2147483651" r:id="rId3"/>
+  </p:sldLayoutIdLst>
+</p:sldMaster>`
+      // rels deliberately shuffled: rId2 first, then rId3, then rId1
+      const masterRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout2.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout3.xml"/>
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+</Relationships>`
+      const zip = new JSZip()
+      zip.file('ppt/presentation.xml', presXml)
+      zip.file('ppt/_rels/presentation.xml.rels', presRels)
+      zip.file('ppt/slideMasters/slideMaster1.xml', masterXml)
+      zip.file('ppt/slideMasters/_rels/slideMaster1.xml.rels', masterRels)
+      zip.file('ppt/slideLayouts/slideLayout1.xml', makeLayoutXml({ name: 'Title Slide' }))
+      zip.file('ppt/slideLayouts/slideLayout2.xml', makeLayoutXml({ name: 'Title and Content' }))
+      zip.file('ppt/slideLayouts/slideLayout3.xml', makeLayoutXml({ name: 'Section Header' }))
+
+      const layouts = await extractLayoutsFromZip(zip)
+      expect(layouts.map((l) => l.name)).toEqual(['Title Slide', 'Title and Content', 'Section Header'])
+      expect(layouts.map((l) => l.layoutIndexInMaster)).toEqual([0, 1, 2])
+    })
   })
 
   describe('extractDeckText slide ordering', () => {
