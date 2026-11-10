@@ -359,7 +359,7 @@ describe('xml-helpers', () => {
 
       const title = layouts[0]!.placeholders[0]!
       expect(title.type).toBe('title')
-      expect(title.idx).toBeUndefined()
+      expect(title.idx).toBe(0) // ECMA-376: missing idx attribute defaults to 0
       expect(title.name).toBe('Title 1')
 
       const content = layouts[0]!.placeholders[1]!
@@ -579,6 +579,33 @@ describe('xml-helpers', () => {
       expect(duplicates).toHaveLength(2)
       expect(duplicates.map((l) => l.masterIndex).sort()).toEqual([0, 1])
       expect(duplicates.map((l) => l.layoutIndexInMaster)).toEqual([0, 0])
+    })
+
+    it('defaults placeholder idx to 0 when the idx attribute is absent', async () => {
+      // Per ECMA-376, a type-specific placeholder (e.g. ctrTitle on the Title
+      // Slide layout) omits idx and defaults to 0. Without the default, the
+      // title shape never enters the idx-to-name map and add_slide silently
+      // skips its text (live repro: PowerPoint for Mac, Nov 2026).
+      const xml = makeLayoutXml({
+        name: 'Title Slide',
+        shapes: `
+          <p:sp>
+            <p:nvSpPr>
+              <p:cNvPr id="2" name="Title 1"/>
+              <p:cNvSpPr/><p:nvPr><p:ph type="ctrTitle"/></p:nvPr>
+            </p:nvSpPr>
+            <p:spPr/>
+          </p:sp>
+          <p:sp>
+            <p:nvSpPr>
+              <p:cNvPr id="3" name="Subtitle 2"/>
+              <p:cNvSpPr/><p:nvPr><p:ph type="subTitle" idx="1"/></p:nvPr>
+            </p:nvSpPr>
+            <p:spPr/>
+          </p:sp>`,
+      })
+      const layouts = await extractLayoutsFromZip(await buildZip(xml))
+      expect(layouts[0]!.placeholders.map((p) => p.idx)).toEqual([0, 1])
     })
 
     it('orders layouts by <p:sldLayoutIdLst>, not master rels document order (live PPT repro)', async () => {

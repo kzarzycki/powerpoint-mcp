@@ -53235,7 +53235,7 @@ async function extractLayoutsFromZip(zip) {
         if (phType === "sldNum" || phType === "ftr" || phType === "dt" || phType === "hdr") continue;
         const info = { type: phType };
         const idxStr = ph.getAttribute("idx");
-        if (idxStr) info.idx = Number.parseInt(idxStr, 10);
+        info.idx = idxStr ? Number.parseInt(idxStr, 10) : 0;
         const szStr = ph.getAttribute("sz");
         if (szStr) info.sz = szStr;
         const cNvPr = nvSpPr.getElementsByTagNameNS(NS_P, "cNvPr")[0];
@@ -55000,7 +55000,7 @@ function registerSlideTools(server, pool2, getSessionId, getActiveSessionCount) 
         if (!cNvPr || !nvPr) continue;
         const phEl = nvPr.getElementsByTagNameNS(NS_P, "ph")[0];
         if (!phEl) continue;
-        const idx = phEl.getAttribute("idx");
+        const idx = phEl.getAttribute("idx") ?? "0";
         const id = cNvPr.getAttribute("id");
         if (idx && id) {
           shapeIdToIdx.set(id, idx);

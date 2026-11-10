@@ -190,7 +190,8 @@ export function registerSlideTools(
         if (!cNvPr || !nvPr) continue
         const phEl = nvPr.getElementsByTagNameNS(NS_P, 'ph')[0]
         if (!phEl) continue
-        const idx = phEl.getAttribute('idx')
+        // ECMA-376: no idx attribute means idx 0 (type-specific placeholders).
+        const idx = phEl.getAttribute('idx') ?? '0'
         const id = cNvPr.getAttribute('id')
         if (idx && id) {
           shapeIdToIdx.set(id, idx)

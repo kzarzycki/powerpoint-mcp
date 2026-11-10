@@ -567,8 +567,10 @@ export async function extractLayoutsFromZip(zip: JSZip): Promise<LayoutInfo[]> {
 
         const info: PlaceholderInfo = { type: phType }
 
+        // Per ECMA-376, a placeholder without idx defaults to 0 (type-specific
+        // placeholders like ctrTitle omit it).
         const idxStr = ph.getAttribute('idx')
-        if (idxStr) info.idx = Number.parseInt(idxStr, 10)
+        info.idx = idxStr ? Number.parseInt(idxStr, 10) : 0
         const szStr = ph.getAttribute('sz')
         if (szStr) info.sz = szStr
 
